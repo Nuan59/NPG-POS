@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+package-lock.json
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+*.env
+
+# Build outputs
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+/backend/staticfiles/
+/backend/media/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.sqlite3
+db.sqlite3
+
+# OS
+Thumbs.db
+.DS_Store
