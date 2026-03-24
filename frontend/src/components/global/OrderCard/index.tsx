@@ -35,7 +35,7 @@ import {
   calculateTotalAdditionalFees,
   calculateCashTotal,
   calculateTotalPayment,
-} from "./components/financeCalculations";
+} from "./components/Financecalculations";
 
 import {
   PaymentType,

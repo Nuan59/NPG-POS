@@ -7,7 +7,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { FinanceProvider, NpgPeriod, numberToInput } from "./financeCalculations";
+import { FinanceProvider, NpgPeriod, numberToInput } from "./Financecalculations";
 
 /**
  * ไฟล์รวม UI การชำระเงินทั้งหมด

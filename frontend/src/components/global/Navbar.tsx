@@ -3,8 +3,8 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import BirthdayNotification from "@/components/BirthdayNotification";
-import NPGNotification from "@/components/NPGNotification";
-import RegistrationExpiryNotification from "@/components/RegistrationExpiryNotification";
+import NPGNotification from "@/components/Npgnotification";
+import RegistrationExpiryNotification from '@/components/Registrationexpirynotification'
 
 export const Navbar = () => {
   const { data: session } = useSession();
