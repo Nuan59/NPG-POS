@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
 import { IOrder } from "@/types/Order";
-import { styles } from "./saleReceiptStyles";
+import { styles } from "./Salereceiptstyles";
 import {
   registerFonts,
   ZWJ,
@@ -11,7 +11,7 @@ import {
   getCustomerField,
   buildFullAddress,
   isPaymentMethod,
-} from "./saleReceiptUtils";
+} from "./Salereceiptutils";
 
 registerFonts();
 

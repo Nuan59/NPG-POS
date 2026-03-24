@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 // ✅ Import components และ helpers จากไฟล์เดียวกัน
-import { ImageUploadSection } from "./ImageUploadSection";
+import { ImageUploadSection } from "./imageuploadsection";
 import {
 	handleImageUpload,
 	handleRemoveNewImage,
