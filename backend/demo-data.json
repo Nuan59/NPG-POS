@@ -1,0 +1,350 @@
+[
+	{
+		"model": "api.user",
+		"pk": 2,
+		"fields": {
+			"last_login": null,
+			"is_superuser": false,
+			"first_name": "",
+			"last_name": "",
+			"email": "",
+			"is_staff": false,
+			"is_active": true,
+			"date_joined": "2024-07-18T13:34:17.399Z",
+			"name": "Demo",
+			"username": "demouser",
+			"password": "pbkdf2_sha256$720000$HBqENQuM2AteGreaK1vBlB$qclycNhudwJWponU5qPoJkcLZR4FkFyVqgx6XUyFjSk=",
+			"role": "adm",
+			"groups": [],
+			"user_permissions": []
+		}
+	},
+	{
+		"model": "api.customer",
+		"pk": 1,
+		"fields": {
+			"name": "สิริพร ทองชัย",
+			"id_card_number": "1102534687901",
+			"age": 28,
+			"dob": "1994-07-15",
+			"address": "123 ถนนสุขุมวิท",
+			"district": "วัฒนา",
+			"subdistrict": "คลองเตย",
+			"province": "กรุงเทพมหานคร",
+			"gender": "FL",
+			"phone": "081234567890"
+		}
+	},
+	{
+		"model": "api.customer",
+		"pk": 2,
+		"fields": {
+			"name": "อนุชิต เฉลิมวงศ์",
+			"id_card_number": "1705478312456",
+			"age": 35,
+			"dob": "1989-02-22",
+			"address": "456 ถนนรัชดาภิเษก",
+			"district": "ดินแดง",
+			"subdistrict": "ดินแดง",
+			"province": "กรุงเทพมหานคร",
+			"gender": "ML",
+			"phone": "082345678901"
+		}
+	},
+	{
+		"model": "api.customer",
+		"pk": 3,
+		"fields": {
+			"name": "นงลักษณ์ แสนคำ",
+			"id_card_number": "3412098745632",
+			"age": 22,
+			"dob": "2002-09-03",
+			"address": "789 ถนนสีลม",
+			"district": "บางรัก",
+			"subdistrict": "สุริยวงศ์",
+			"province": "กรุงเทพมหานคร",
+			"gender": "FL",
+			"phone": "083456789012"
+		}
+	},
+	{
+		"model": "api.customer",
+		"pk": 4,
+		"fields": {
+			"name": "สมชาย บุญช่วย",
+			"id_card_number": "5603257890123",
+			"age": 45,
+			"dob": "1977-11-18",
+			"address": "101 ถนนเจริญกรุง",
+			"district": "บางคอแหลม",
+			"subdistrict": "บางคอแหลม",
+			"province": "กรุงเทพมหานคร",
+			"gender": "ML",
+			"phone": "084567890123"
+		}
+	},
+	{
+		"model": "api.customer",
+		"pk": 5,
+		"fields": {
+			"name": "พิมพ์ชนก วงศา",
+			"id_card_number": "7621345987021",
+			"age": 30,
+			"dob": "1992-04-25",
+			"address": "222 ถนนพหลโยธิน",
+			"district": "จตุจักร",
+			"subdistrict": "จอมพล",
+			"province": "กรุงเทพมหานคร",
+			"gender": "FL",
+			"phone": "085678901234"
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 1,
+		"fields": {
+			"model_name": "Raptor",
+			"model_code": "RPTR001",
+			"engine": "V6",
+			"chassi": "78a6e749-2a54-4ea1-bac1-7f0e7b972f94",
+			"registration_plate": "ABC123",
+			"color": "Blue",
+			"notes": "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+			"category": "new",
+			"sale_price": "4500.00",
+			"wholesale_price": "3800.00",
+			"wholesale_price_net": "3500.00",
+			"received_date": "2023-01-15",
+			"sold": false,
+			"brand": "Honda",
+			"storage_place": 1,
+			"invoice_number": "b59c67bf-1967-4ed1-969e-1e8c4fbdfe26",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 2,
+		"fields": {
+			"model_name": "Thunderbolt",
+			"model_code": "THND001",
+			"engine": "Inline-4",
+			"chassi": "6a3e8447-1d1a-4f9d-bf6a-32836c1dab05",
+			"registration_plate": "XYZ789",
+			"color": "Red",
+			"notes": "",
+			"category": "pre_owned",
+			"sale_price": "3200.00",
+			"wholesale_price": "2800.00",
+			"wholesale_price_net": "2500.00",
+			"received_date": "2023-02-20",
+			"sold": false,
+			"brand": "Yamaha",
+			"storage_place": 1,
+			"invoice_number": "c1d234fb-9a6e-4a05-b08e-d06de8a2b3f3",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 3,
+		"fields": {
+			"model_name": "Velocity",
+			"model_code": "VLC001",
+			"engine": "Parallel-twin",
+			"chassi": "fd6bf57b-cf87-4a91-a4eb-3720f35e9e2b",
+			"registration_plate": null,
+			"color": "Silver",
+			"notes": "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+			"category": "new",
+			"sale_price": "5000.00",
+			"wholesale_price": "4200.00",
+			"wholesale_price_net": "3900.00",
+			"received_date": "2023-03-10",
+			"sold": false,
+			"brand": "GPX",
+			"storage_place": 1,
+			"invoice_number": "",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 4,
+		"fields": {
+			"model_name": "Striker",
+			"model_code": "STRK001",
+			"engine": "V-twin",
+			"chassi": "89d6a3b2-df0e-4a68-8f7c-b746e8c2d6ac",
+			"registration_plate": "DEF456",
+			"color": "Black",
+			"notes": "",
+			"category": "pre_owned",
+			"sale_price": "3800.00",
+			"wholesale_price": "3200.00",
+			"wholesale_price_net": "2900.00",
+			"received_date": "2023-04-05",
+			"sold": false,
+			"brand": "Honda",
+			"storage_place": 1,
+			"invoice_number": "f3ec65e2-6c0c-4d6a-9d41-14c3e4b6f03b",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 5,
+		"fields": {
+			"model_name": "Phoenix",
+			"model_code": "PHNX001",
+			"engine": "Single-cylinder",
+			"chassi": "2c4fa78d-9354-4c93-91ef-144a8a13ed0a",
+			"registration_plate": "GHI789",
+			"color": "Green",
+			"notes": "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+			"category": "new",
+			"sale_price": "4200.00",
+			"wholesale_price": "3600.00",
+			"wholesale_price_net": "3300.00",
+			"received_date": "2023-05-15",
+			"sold": false,
+			"brand": "Yamaha",
+			"storage_place": 1,
+			"invoice_number": "fb7ecb20-b1eb-41f1-b509-93ce87f64068",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 6,
+		"fields": {
+			"model_name": "Firestorm",
+			"model_code": "FRST001",
+			"engine": "V4",
+			"chassi": "c8d14a9c-95c4-44f8-b849-e0b1cb68340f",
+			"registration_plate": "JKL123",
+			"color": "Orange",
+			"notes": "",
+			"category": "pre_owned",
+			"sale_price": "3400.00",
+			"wholesale_price": "2900.00",
+			"wholesale_price_net": "2600.00",
+			"received_date": "2023-06-20",
+			"sold": false,
+			"brand": "GPX",
+			"storage_place": 1,
+			"invoice_number": "a1b7e5c3-fc06-4b5a-820c-8d88c97ec7b1",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 7,
+		"fields": {
+			"model_name": "Blitz",
+			"model_code": "BLTZ001",
+			"engine": "Inline-3",
+			"chassi": "5f6ae35e-cb14-4e27-90ef-080a8eb0da31",
+			"registration_plate": "MNO456",
+			"color": "Yellow",
+			"notes": "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+			"category": "new",
+			"sale_price": "4700.00",
+			"wholesale_price": "4000.00",
+			"wholesale_price_net": "3700.00",
+			"received_date": "2023-07-10",
+			"sold": false,
+			"brand": "Yamaha",
+			"storage_place": 1,
+			"invoice_number": "3f8473a4-891a-40ab-9278-f6d0f5c5d1a2",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 8,
+		"fields": {
+			"model_name": "Vortex",
+			"model_code": "VRTX001",
+			"engine": "Parallel-twin",
+			"chassi": "2cd2b5bf-8ba1-4c39-8b17-01b2422f09d0",
+			"registration_plate": "PQR789",
+			"color": "White",
+			"notes": "",
+			"category": "pre_owned",
+			"sale_price": "3600.00",
+			"wholesale_price": "3100.00",
+			"wholesale_price_net": "2800.00",
+			"received_date": "2023-08-25",
+			"sold": false,
+			"brand": "GPX",
+			"storage_place": 1,
+			"invoice_number": "6d6b8d78-724b-4d18-9cbf-8e7f3c110c5b",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 9,
+		"fields": {
+			"model_name": "Nighthawk",
+			"model_code": "NTHWK001",
+			"engine": "Inline-4",
+			"chassi": "a3a5e7e1-2e7b-48d8-8c18-88d4df8acdbf",
+			"registration_plate": "STU123",
+			"color": "Black",
+			"notes": "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+			"category": "new",
+			"sale_price": "4900.00",
+			"wholesale_price": "4200.00",
+			"wholesale_price_net": "3900.00",
+			"received_date": "2023-09-10",
+			"sold": false,
+			"brand": "Honda",
+			"storage_place": 1,
+			"invoice_number": "8a9c38f5-081d-4182-b75d-5f89f067f8f2",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.bike",
+		"pk": 10,
+		"fields": {
+			"model_name": "Maverick",
+			"model_code": "MVRK001",
+			"engine": "V-twin",
+			"chassi": "1d0c3ebc-8d13-46d8-b45a-9b380c1b5345",
+			"registration_plate": "VWX789",
+			"color": "Purple",
+			"notes": "",
+			"category": "pre_owned",
+			"sale_price": "3700.00",
+			"wholesale_price": "3100.00",
+			"wholesale_price_net": "2800.00",
+			"received_date": "2023-10-15",
+			"sold": false,
+			"brand": "Yamaha",
+			"storage_place": 1,
+			"invoice_number": "4dc7a4f8-0922-4f1c-a920-d9e6016675d4",
+			"invoice_picture": null
+		}
+	},
+	{
+		"model": "api.storage",
+		"pk": 1,
+		"fields": {
+			"storage_name": "NPG",
+			"address": "หจก.นพดลมอเตอร์กรุ้ป 359 หมู่6 ต.ร้องเข็ม อ.ร้องกวาง จ.แพร่",
+			"phone": "0993768889"
+		}
+	},
+	{
+		"model": "api.storage",
+		"pk": 2,
+		"fields": {
+			"storage_name": "TC",
+			"address": "หจก. ทีซีมอเตอร์เซลส์ 27/326 หมู่4 ต.ท่าจีน อ.เมืองสมุทรสาคร จ.สมุทรสาคร",
+			"phone": "0854279898"
+		}
+	}
+]

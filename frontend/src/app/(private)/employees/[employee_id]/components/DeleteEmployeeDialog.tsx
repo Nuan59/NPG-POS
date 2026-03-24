@@ -1,0 +1,68 @@
+"use client";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import { deleteEmployee } from "@/services/EmployeeService";
+import { IEmployee } from "@/types/IEmployee";
+import { getDate } from "@/util/GetDateString";
+import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import React from "react";
+import { toast } from "sonner";
+
+interface DeleteEmployeeDialogProps {
+	employee: IEmployee;
+	children: React.ReactNode;
+}
+
+const DeleteEmployeeDialog = ({
+	employee,
+	children,
+}: DeleteEmployeeDialogProps) => {
+	const router = useRouter();
+
+	const handleDeleteEmployee = async () => {
+		const del = await deleteEmployee(employee.id!);
+
+		if (del) {
+			router.push("/employees");
+			toast.success(`Employee ${employee.name} has been deleted`, {
+				description: getDate(new Date()),
+			});
+		}
+	};
+
+	return (
+		<Dialog>
+			<DialogTrigger asChild>{children}</DialogTrigger>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Confirm delete employee {employee.name}?</DialogTitle>
+				</DialogHeader>
+				<DialogFooter className="sm:justify-between">
+					<DialogClose asChild>
+						<Button variant="secondary">Cancel</Button>
+					</DialogClose>
+					<Button
+						onClick={handleDeleteEmployee}
+						className="flex items-center gap-2"
+						variant={"destructive"}
+					>
+						<Trash2 size={"1rem"} opacity={"60%"} />
+						Yes, delete
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+};
+
+export default DeleteEmployeeDialog;
