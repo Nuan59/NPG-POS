@@ -52,7 +52,16 @@ cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "")
 if cors_origins:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 else:
-    CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://192.168.1.185:3000",  # เพิ่ม local IP ของคุณ
+        "https://npg-pos.vercel.app",
+        "https://npg-pos-git-main-nuan59s-projects.vercel.app",
+    ]
+
+# เพิ่มสำหรับ development
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 
