@@ -8,4 +8,5 @@ const Gifts = async () => {
   return <GiftsView gifts={gifts} />;
 };
 
+export const dynamic = 'force-dynamic'
 export default Gifts;
