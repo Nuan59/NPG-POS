@@ -33,7 +33,15 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-change-this-in-produc
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
 # ALLOWED_HOSTS
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",") if os.environ.get("ALLOWED_HOSTS") else []
+allowed_hosts_str = os.environ.get("ALLOWED_HOSTS", "")
+if allowed_hosts_str:
+    # รองรับทั้ง comma และ space
+    if "," in allowed_hosts_str:
+        ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split(",") if h.strip()]
+    else:
+        ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split() if h.strip()]
+else:
+    ALLOWED_HOSTS = []
 
 # ✅ เพิ่ม IP สำหรับ development
 if DEBUG:
