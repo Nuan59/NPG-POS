@@ -176,10 +176,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
 STATIC_URL = "static/"
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # WhiteNoise configuration for serving static files
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Disable WhiteNoise manifest warnings in production
+WHITENOISE_MANIFEST_STRICT = False
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'
