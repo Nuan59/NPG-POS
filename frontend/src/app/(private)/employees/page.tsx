@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { getEmployees } from "@/services/EmployeeService";
 import React from "react";
 import EmployeesView from "./views/EmployeesView";
