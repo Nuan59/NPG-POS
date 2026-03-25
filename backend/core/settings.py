@@ -41,7 +41,11 @@ if allowed_hosts_str:
     else:
         ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_str.split() if h.strip()]
 else:
-    ALLOWED_HOSTS = []
+    # Default allowed hosts for production
+    ALLOWED_HOSTS = [
+        'backend-service-production-1fc3.up.railway.app',
+        '.railway.app',  # รองรับทุก subdomain ของ railway
+    ]
 
 # ✅ เพิ่ม IP สำหรับ development
 if DEBUG:
