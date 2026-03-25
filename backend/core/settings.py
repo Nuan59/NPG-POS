@@ -65,6 +65,13 @@ if DEBUG:
 
 CORS_ALLOW_CREDENTIALS = True
 
+# CSRF Settings
+CSRF_TRUSTED_ORIGINS = [
+    "https://backend-service-production-1fc3.up.railway.app",
+    "https://npg-pos.vercel.app",
+    "https://npg-pos-git-main-nuan59s-projects.vercel.app",
+]
+
 
 # Application definition
 
