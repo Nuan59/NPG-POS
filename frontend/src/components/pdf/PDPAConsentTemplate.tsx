@@ -214,7 +214,7 @@ export default function PDPAConsentTemplate({
             เรี{ZWJ}ยน ท่{ZWJ}านลู{ZWJ}กค้า
           </Text>
           <Text style={styles.text}>
-            ห้างหุ้{ZWJ}นส่{ZWJ}วนจำ{ZWJ}กั{ZWJ}ด นพดลมอเตอร์{ZWJ}กรุ้{ZWJ}ป ("ห้างฯ") ให้{ZWJ}ความสำ{ZWJ}คั{ZWJ}ญกั{ZWJ}บการคุ้{ZWJ}มครองข้อมู{ZWJ}ล
+            ห้างหุ้{ZWJ}นส่{ZWJ}วนจำ{ZWJ}กั{ZWJ}ด นพดลมอเตอร์{ZWJ}กรุ้{ZWJ}ป (&quot;ห้างฯ&quot;) ให้{ZWJ}ความสำ{ZWJ}คั{ZWJ}ญกั{ZWJ}บการคุ้{ZWJ}มครองข้อมู{ZWJ}ล
             ส่{ZWJ}วนบุ{ZWJ}คคลของท่{ZWJ}าน จึ{ZWJ}งขอแจ้{ZWJ}งรายละเอี{ZWJ}ยดและขอความยิ{ZWJ}นยอมดั{ZWJ}งต่{ZWJ}อไปนี้{ZWJ}:
           </Text>
         </View>
