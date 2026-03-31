@@ -60,9 +60,12 @@ else:
         "http://localhost:3000",
         "http://192.168.1.185:3000",
         "https://npg-pos.vercel.app",
-        "https://npg-pos-git-main-nuan59s-projects.vercel.app",
-        "https://npg-j27p0l0zo-nuan59s-projects.vercel.app",  # ✅ เพิ่มใหม่
     ]
+
+# ✅ ใช้ regex รองรับทุก Vercel preview domain โดยไม่ต้องเพิ่มทีละอัน
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://npg-.*\.vercel\.app$",
+]
 
 # เพิ่มสำหรับ development
 if DEBUG:
@@ -74,8 +77,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "https://backend-service-production-1fc3.up.railway.app",
     "https://npg-pos.vercel.app",
-    "https://npg-pos-git-main-nuan59s-projects.vercel.app",
-    "https://npg-j27p0l0zo-nuan59s-projects.vercel.app",  # ✅ เพิ่มใหม่
+    "https://*.vercel.app",  # ✅ รองรับทุก preview domain
 ]
 
 
