@@ -1,4 +1,5 @@
 import { authorizedFetch } from "@/util/AuthorizedFetch";
+import { authorizedFetchClient } from "@/util/AuthorizedFetchClient";
 import { ICustomer } from "@/types/Customer";
 
 export async function getCustomer(id: number) {
@@ -7,11 +8,7 @@ export async function getCustomer(id: number) {
 
     if (!apiBase) {
       console.error("❌ API_URL is not defined");
-      return {
-        ok: false,
-        data: null,
-        error: "API_URL is not defined"
-      };
+      return { ok: false, data: null, error: "API_URL is not defined" };
     }
 
     const response = await authorizedFetch(`${apiBase}/customers/${id}`, {
@@ -20,37 +17,20 @@ export async function getCustomer(id: number) {
 
     if (!response) {
       console.error("❌ No response from API");
-      return {
-        ok: false,
-        data: null,
-        error: "No response from API"
-      };
+      return { ok: false, data: null, error: "No response from API" };
     }
 
     if (!response.ok) {
       console.error(`❌ API error: ${response.status}`);
-      return {
-        ok: false,
-        data: null,
-        error: `API error: ${response.status}`
-      };
+      return { ok: false, data: null, error: `API error: ${response.status}` };
     }
 
     const data = await response.json();
     console.log(`✅ Loaded customer ID: ${id}`);
-    
-    return {
-      ok: true,
-      data: data,
-      error: null
-    };
+    return { ok: true, data, error: null };
   } catch (error) {
     console.error("❌ Error in getCustomer:", error);
-    return {
-      ok: false,
-      data: null,
-      error: String(error)
-    };
+    return { ok: false, data: null, error: String(error) };
   }
 }
 
@@ -60,44 +40,28 @@ export async function deleteCustomer(id: number) {
 
     if (!apiBase) {
       console.error("❌ API_URL is not defined");
-      return {
-        ok: false,
-        error: "API_URL is not defined"
-      };
+      return { ok: false, error: "API_URL is not defined" };
     }
 
     const response = await authorizedFetch(`${apiBase}/customers/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
 
     if (!response) {
       console.error("❌ No response from API");
-      return {
-        ok: false,
-        error: "No response from API"
-      };
+      return { ok: false, error: "No response from API" };
     }
 
     if (!response.ok) {
       console.error(`❌ API error: ${response.status}`);
-      return {
-        ok: false,
-        error: `API error: ${response.status}`
-      };
+      return { ok: false, error: `API error: ${response.status}` };
     }
 
     console.log(`✅ Deleted customer ID: ${id}`);
-    
-    return {
-      ok: true,
-      error: null
-    };
+    return { ok: true, error: null };
   } catch (error) {
     console.error("❌ Error in deleteCustomer:", error);
-    return {
-      ok: false,
-      error: String(error)
-    };
+    return { ok: false, error: String(error) };
   }
 }
 
@@ -126,7 +90,6 @@ export async function getCustomers(): Promise<ICustomer[]> {
 
     const data = await response.json();
 
-    // ✅ เช็คว่าเป็น array
     if (!Array.isArray(data)) {
       console.error("❌ API did not return an array:", data);
       return [];
@@ -140,7 +103,6 @@ export async function getCustomers(): Promise<ICustomer[]> {
   }
 }
 
-// ✨ NEW: ฟังก์ชันดึงลูกค้าที่ใกล้วันเกิด
 export interface IBirthdayCustomer extends ICustomer {
   days_until_birthday: number;
   is_today: boolean;
@@ -160,22 +122,15 @@ export async function getUpcomingBirthdays(): Promise<IBirthdayCustomer[]> {
       return [];
     }
 
-    const response = await authorizedFetch(`${apiBase}/customers/birthdays/upcoming/`, {
-      next: { revalidate: 0 },
-    });
+    const response = await authorizedFetch(
+      `${apiBase}/customers/birthdays/upcoming/`,
+      { next: { revalidate: 0 } }
+    );
 
-    if (!response) {
-      console.error("❌ No response from API");
-      return [];
-    }
-
-    if (!response.ok) {
-      console.error(`❌ API error: ${response.status}`);
-      return [];
-    }
+    if (!response) return [];
+    if (!response.ok) return [];
 
     const data = await response.json();
-    
     console.log(`✅ Loaded ${data.count} upcoming birthdays`);
     return data.results || [];
   } catch (error) {
@@ -187,28 +142,20 @@ export async function getUpcomingBirthdays(): Promise<IBirthdayCustomer[]> {
 export async function getBirthdaysToday(): Promise<IBirthdayCustomer[]> {
   try {
     const apiBase = process.env.NEXT_PUBLIC_API_URL;
-
     if (!apiBase) {
       console.error("❌ API_URL is not defined");
       return [];
     }
 
-    const response = await authorizedFetch(`${apiBase}/customers/birthdays/today/`, {
-      next: { revalidate: 0 },
-    });
+    const response = await authorizedFetch(
+      `${apiBase}/customers/birthdays/today/`,
+      { next: { revalidate: 0 } }
+    );
 
-    if (!response) {
-      console.error("❌ No response from API");
-      return [];
-    }
-
-    if (!response.ok) {
-      console.error(`❌ API error: ${response.status}`);
-      return [];
-    }
+    if (!response) return [];
+    if (!response.ok) return [];
 
     const data = await response.json();
-    
     console.log(`✅ Loaded ${data.count} birthdays today`);
     return data.results || [];
   } catch (error) {
@@ -217,7 +164,7 @@ export async function getBirthdaysToday(): Promise<IBirthdayCustomer[]> {
   }
 }
 
-// ✅ เพิ่ม function importCustomers
+// ✅ ใช้ authorizedFetchClient (client-side) แทน authorizedFetch
 export async function importCustomers(customers: any[]) {
   try {
     const apiBase = process.env.NEXT_PUBLIC_API_URL;
@@ -227,10 +174,10 @@ export async function importCustomers(customers: any[]) {
       throw new Error("API_URL is not defined");
     }
 
-    const response = await authorizedFetch(`${apiBase}/customers/import/`, {
-      method: 'POST',
+    const response = await authorizedFetchClient(`${apiBase}/customers/import/`, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ customers }),
     });
@@ -248,12 +195,7 @@ export async function importCustomers(customers: any[]) {
 
     const data = await response.json();
     console.log(`✅ Imported ${customers.length} customers`);
-    
-    return {
-      ok: true,
-      data,
-      error: null
-    };
+    return { ok: true, data, error: null };
   } catch (error) {
     console.error("❌ Error in importCustomers:", error);
     throw error;
