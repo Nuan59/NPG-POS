@@ -1,13 +1,12 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "./AuthOptions";
+import { getSession } from "next-auth/react";
 
-export const authorizedFetch = async (
+// ✅ Client-side version ใช้ getSession แทน getServerSession
+export const authorizedFetchClient = async (
   url: string,
   options: RequestInit = {}
 ): Promise<Response | null> => {
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
 
-  // ❗ ห้าม redirect / throw ใน utility
   if (!session) {
     return null;
   }
