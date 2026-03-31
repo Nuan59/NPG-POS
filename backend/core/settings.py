@@ -58,9 +58,10 @@ if cors_origins:
 else:
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
-        "http://192.168.1.185:3000",  # เพิ่ม local IP ของคุณ
+        "http://192.168.1.185:3000",
         "https://npg-pos.vercel.app",
         "https://npg-pos-git-main-nuan59s-projects.vercel.app",
+        "https://npg-j27p0l0zo-nuan59s-projects.vercel.app",  # ✅ เพิ่มใหม่
     ]
 
 # เพิ่มสำหรับ development
@@ -74,6 +75,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://backend-service-production-1fc3.up.railway.app",
     "https://npg-pos.vercel.app",
     "https://npg-pos-git-main-nuan59s-projects.vercel.app",
+    "https://npg-j27p0l0zo-nuan59s-projects.vercel.app",  # ✅ เพิ่มใหม่
 ]
 
 
