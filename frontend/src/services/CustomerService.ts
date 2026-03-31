@@ -1,5 +1,4 @@
 import { authorizedFetch } from "@/util/AuthorizedFetch";
-import { authorizedFetchClient } from "@/util/AuthorizedFetchClient";
 import { ICustomer } from "@/types/Customer";
 
 export async function getCustomer(id: number) {
@@ -174,7 +173,7 @@ export async function importCustomers(customers: any[]) {
       throw new Error("API_URL is not defined");
     }
 
-    const response = await authorizedFetchClient(`${apiBase}/customers/import/`, {
+    const response = await authorizedFetch(`${apiBase}/customers/import/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
