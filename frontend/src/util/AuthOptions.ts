@@ -15,11 +15,13 @@ export const authOptions: NextAuthOptions = {
 					type: "password",
 				},
 			},
-
 			async authorize(credentials, req) {
 				"use server";
-				const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://backend-service-production-1fc3.up.railway.app';
-				const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://backend-service-production-1fc3.up.railway.app';
+				const apiUrl =
+					process.env.API_URL ||
+					process.env.NEXT_PUBLIC_API_URL ||
+					"https://backend-service-production-1fc3.up.railway.app";
+
 				const response = await fetch(`${apiUrl}/api/auth/token/`, {
 					method: "POST",
 					headers: {
@@ -41,7 +43,6 @@ export const authOptions: NextAuthOptions = {
 						role: info.role,
 						accessToken: access,
 					};
-
 					return user;
 				}
 				return null;
@@ -57,26 +58,26 @@ export const authOptions: NextAuthOptions = {
 	},
 	callbacks: {
 		async jwt({ token, user }) {
-			// ✅ แก้ไข: เก็บ accessToken แยกชัดเจน
 			if (user) {
 				token.id = user.id;
 				token.username = user.username;
 				token.name = user.name;
 				token.role = user.role;
-				token.accessToken = user.accessToken; // ✅ เก็บไว้ใน token
+				token.accessToken = user.accessToken;
 			}
 			return token;
 		},
 		async session({ session, token }) {
-			// ✅ แก้ไข: ส่ง token ไปใน session
 			session.user = {
 				id: token.id as string,
 				username: token.username as string,
 				name: token.name as string,
 				role: token.role as string,
-				accessToken: token.accessToken as string, // ✅ ส่ง accessToken
+				accessToken: token.accessToken as string,
 			} as any;
 			return session;
 		},
 	},
 };
+
+export default NextAuth(authOptions);
