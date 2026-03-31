@@ -64,16 +64,16 @@ const ImportCustomerForm = () => {
 			skipEmptyLines: true,
 			complete: (results: ParseResult<Record<string, string>>) => {
 				const mapped: ImportCustomer[] = results.data.map((row) => ({
-					first_name: row["First name"] || "",
-					phone: row["Phone"] || "",
-					gender: row["Gender"] || "",
-					birth_date: row["Birth date"] || "",
-					age: Number(row["Age"] || 0),
-					citizen_id: row["Citizen ID"] || "",
-					address: row["Address"] || "",
-					subdistrict: row["Subdistrict"] || "",
-					district: row["District"] || "",
-					province: row["Province"] || "",
+					first_name: row["ชื่อ"] || "",
+					phone: row["เบอร์โทรศัพท์"] || "",
+					gender: row["เพศ"] || "",
+					birth_date: row["วันเกิด"] || "",
+					age: Number(row["อายุ"] || 0),
+					citizen_id: row["เลขบัตรประชาชน"] || "",
+					address: row["ที่อยู่"] || "",
+					subdistrict: row["ตำบล"] || "",
+					district: row["อำเภอ"] || "",
+					province: row["จังหวัด"] || "",
 				}));
 
 				setCustomers(mapped);
