@@ -1,17 +1,27 @@
 import { getSession } from "next-auth/react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "./AuthOptions";
 
-// ✅ Client-side version ใช้ getSession แทน getServerSession
-export const authorizedFetchClient = async (
+export const authorizedFetch = async (
   url: string,
   options: RequestInit = {}
 ): Promise<Response | null> => {
-  const session = await getSession();
+  let backendToken: string | null = null;
 
-  if (!session) {
-    return null;
+  // ตรวจสอบว่าอยู่ใน Server หรือ Client
+  const isServer = typeof window === "undefined";
+
+  if (isServer) {
+    // Server-side: ใช้ getServerSession
+    const session = await getServerSession(authOptions);
+    if (!session) return null;
+    backendToken = (session as any)?.user?.accessToken ?? null;
+  } else {
+    // Client-side: ใช้ getSession
+    const session = await getSession();
+    if (!session) return null;
+    backendToken = (session as any)?.user?.accessToken ?? null;
   }
-
-  const backendToken = (session as any)?.user?.accessToken;
 
   const headers: HeadersInit = {
     ...(options.headers || {}),
