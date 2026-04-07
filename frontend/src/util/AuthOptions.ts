@@ -19,7 +19,7 @@ export const authOptions: NextAuthOptions = {
 			async authorize(credentials, req) {
 				"use server";
 				const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://backend-service-production-1fc3.up.railway.app';
-				const response = await fetch(`${apiUrl}/api/auth/token/`, {
+				const response = await fetch(`${apiUrl}/auth/token/`, {
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
