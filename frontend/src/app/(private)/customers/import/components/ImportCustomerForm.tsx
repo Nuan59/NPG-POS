@@ -13,8 +13,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Progress } from "@/components/ui/progress";
-import { Download, MapPin } from "lucide-react";
+import { Download } from "lucide-react";
 import { CSVLink } from "react-csv";
 import { parse, ParseResult } from "papaparse";
 import React, { ChangeEvent, useState } from "react";
@@ -33,14 +32,11 @@ interface ImportCustomer {
 	subdistrict: string;
 	district: string;
 	province: string;
-	latitude?: number | null;
-	longitude?: number | null;
 }
 
 const ImportCustomerForm = () => {
 	const [customers, setCustomers] = useState<ImportCustomer[]>([]);
-	const [isGeocoding, setIsGeocoding] = useState(false);
-	const [geocodingProgress, setGeocodingProgress] = useState(0);
+	const [isLoading, setIsLoading] = useState(false);
 	const router = useRouter();
 
 	// CSV Template
@@ -59,71 +55,6 @@ const ImportCustomerForm = () => {
 		],
 	];
 
-	// ฟังก์ชันแปลงที่อยู่เป็นพิกัด
-	const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
-		const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-		
-		if (!apiKey) {
-			console.error("Google Maps API Key not found");
-			return null;
-		}
-
-		try {
-			const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-			const response = await fetch(url);
-			const data = await response.json();
-
-			if (data.status === "OK" && data.results.length > 0) {
-				const location = data.results[0].geometry.location;
-				return {
-					lat: location.lat,
-					lng: location.lng,
-				};
-			}
-			
-			console.warn(`Geocoding failed for: ${address}`, data.status);
-			return null;
-		} catch (error) {
-			console.error("Geocoding error:", error);
-			return null;
-		}
-	};
-
-	// แปลงที่อยู่ทั้งหมดเป็นพิกัด
-	const geocodeAllAddresses = async (customersList: ImportCustomer[]): Promise<ImportCustomer[]> => {
-		setIsGeocoding(true);
-		setGeocodingProgress(0);
-
-		const results: ImportCustomer[] = [];
-		const total = customersList.length;
-
-		for (let i = 0; i < customersList.length; i++) {
-			const customer = customersList[i];
-			
-			// สร้างที่อยู่เต็ม
-			const fullAddress = `${customer.address} ${customer.subdistrict} ${customer.district} ${customer.province} ประเทศไทย`;
-			
-			// แปลงเป็นพิกัด
-			const coordinates = await geocodeAddress(fullAddress);
-			
-			// เก็บข้อมูลพร้อมพิกัด
-			results.push({
-				...customer,
-				latitude: coordinates?.lat || null,
-				longitude: coordinates?.lng || null,
-			});
-
-			// อัพเดทความคืบหน้า
-			setGeocodingProgress(Math.round(((i + 1) / total) * 100));
-
-			// หน่วงเวลา 200ms เพื่อไม่ให้เกิน rate limit
-			await new Promise(resolve => setTimeout(resolve, 200));
-		}
-
-		setIsGeocoding(false);
-		return results;
-	};
-
 	const handleFileChoose = (e: ChangeEvent<HTMLInputElement>) => {
 		if (!e.target.files) return;
 		const file = e.target.files[0];
@@ -133,16 +64,16 @@ const ImportCustomerForm = () => {
 			skipEmptyLines: true,
 			complete: (results: ParseResult<Record<string, string>>) => {
 				const mapped: ImportCustomer[] = results.data.map((row) => ({
-					first_name: row["First name"] || "",
-					phone: row["Phone"] || "",
-					gender: row["Gender"] || "",
-					birth_date: row["Birth date"] || "",
-					age: Number(row["Age"] || 0),
-					citizen_id: row["Citizen ID"] || "",
-					address: row["Address"] || "",
-					subdistrict: row["Subdistrict"] || "",
-					district: row["District"] || "",
-					province: row["Province"] || "",
+					first_name: row["ชื่อ"] || "",
+					phone: row["เบอร์โทรศัพท์"] || "",
+					gender: row["เพศ"] || "",
+					birth_date: row["วันเกิด"] || "",
+					age: Number(row["อายุ"] || 0),
+					citizen_id: row["เลขบัตรประชาชน"] || "",
+					address: row["ที่อยู่"] || "",
+					subdistrict: row["ตำบล"] || "",
+					district: row["อำเภอ"] || "",
+					province: row["จังหวัด"] || "",
 				}));
 
 				setCustomers(mapped);
@@ -154,51 +85,22 @@ const ImportCustomerForm = () => {
 		});
 	};
 
-	const handleGeocodeAndImport = async () => {
+	const handleImport = async () => {
 		if (customers.length === 0) {
 			toast.warning("ไม่มีข้อมูลสำหรับนำเข้า");
 			return;
 		}
 
+		setIsLoading(true);
 		try {
-			// แปลงที่อยู่เป็นพิกัด
-			toast.info("กำลังแปลงที่อยู่เป็นพิกัด...");
-			const customersWithCoordinates = await geocodeAllAddresses(customers);
-
-			// นับจำนวนที่แปลงสำเร็จ
-			const successCount = customersWithCoordinates.filter(c => c.latitude && c.longitude).length;
-			const failCount = customersWithCoordinates.length - successCount;
-
-			if (failCount > 0) {
-				toast.warning(`แปลงพิกัดสำเร็จ ${successCount} รายการ, ไม่สำเร็จ ${failCount} รายการ`);
-			} else {
-				toast.success(`แปลงพิกัดสำเร็จทั้งหมด ${successCount} รายการ`);
-			}
-
-			// นำเข้าลูกค้า
-			await importCustomers(customersWithCoordinates);
+			await importCustomers(customers);
 			toast.success("นำเข้าลูกค้าเรียบร้อยแล้ว");
 			router.push("/customers");
 		} catch (e) {
 			console.error(e);
 			toast.error("เกิดข้อผิดพลาดในการนำเข้า");
-			setIsGeocoding(false);
-		}
-	};
-
-	const handleSubmitWithoutGeocoding = async () => {
-		if (customers.length === 0) {
-			toast.warning("ไม่มีข้อมูลสำหรับนำเข้า");
-			return;
-		}
-
-		try {
-			await importCustomers(customers);
-			toast.success("นำเข้าลูกค้าเรียบร้อยแล้ว (ไม่มีพิกัด)");
-			router.push("/customers");
-		} catch (e) {
-			console.error(e);
-			toast.error("เกิดข้อผิดพลาดในการนำเข้า");
+		} finally {
+			setIsLoading(false);
 		}
 	};
 
@@ -219,20 +121,9 @@ const ImportCustomerForm = () => {
 					type="file"
 					accept=".csv"
 					onChange={handleFileChoose}
-					disabled={isGeocoding}
+					disabled={isLoading}
 				/>
 			</div>
-
-			{/* Progress Bar สำหรับ Geocoding */}
-			{isGeocoding && (
-				<div className="mb-4">
-					<Label className="mb-2 flex items-center gap-2">
-						<MapPin size={16} />
-						กำลังแปลงที่อยู่เป็นพิกัด... {geocodingProgress}%
-					</Label>
-					<Progress value={geocodingProgress} className="w-full" />
-				</div>
-			)}
 
 			<Separator className="my-3" />
 
@@ -262,34 +153,20 @@ const ImportCustomerForm = () => {
 			</ScrollArea>
 
 			<div className="mt-5 flex justify-between">
-				<Button 
-					variant="outline" 
+				<Button
+					variant="outline"
 					onClick={() => router.push("/customers")}
-					disabled={isGeocoding}
+					disabled={isLoading}
 				>
 					ยกเลิก
 				</Button>
-				
-				<div className="flex gap-2">
-					{/* ปุ่มนำเข้าไม่มีพิกัด */}
-					<Button 
-						variant="outline"
-						onClick={handleSubmitWithoutGeocoding}
-						disabled={isGeocoding || customers.length === 0}
-					>
-						นำเข้า (ไม่มีพิกัด)
-					</Button>
-					
-					{/* ปุ่มนำเข้าพร้อมแปลงพิกัด */}
-					<Button 
-						onClick={handleGeocodeAndImport}
-						disabled={isGeocoding || customers.length === 0}
-						className="flex gap-2"
-					>
-						<MapPin size={16} />
-						นำเข้า + แปลงพิกัด
-					</Button>
-				</div>
+
+				<Button
+					onClick={handleImport}
+					disabled={isLoading || customers.length === 0}
+				>
+					{isLoading ? "กำลังนำเข้า..." : "นำเข้า"}
+				</Button>
 			</div>
 		</div>
 	);

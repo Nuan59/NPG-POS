@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from api.serializers import CustomerSerializer
@@ -15,49 +15,68 @@ class CustomerViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_permissions(self):
-        """
-        อนุญาตให้เข้าถึง GET /customers/ โดยไม่ต้อง login
-        สำหรับ Birthday Notification
-        """
         if self.action == 'list':
             return [AllowAny()]
         return super().get_permissions()
 
+    # ✅ เพิ่ม action นำเข้าลูกค้าจาก CSV
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_customers(self, request):
+        customers_data = request.data.get('customers', [])
+        
+        if not customers_data:
+            return Response(
+                {'error': 'ไม่มีข้อมูลลูกค้า'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        created = []
+        errors = []
+
+        for i, customer in enumerate(customers_data):
+            serializer = CustomerSerializer(data={
+                'first_name': customer.get('first_name', ''),
+                'phone': customer.get('phone', ''),
+                'gender': customer.get('gender', ''),
+                'dob': customer.get('birth_date') or None,
+                'citizen_id': customer.get('citizen_id', ''),
+                'address': customer.get('address', ''),
+                'subdistrict': customer.get('subdistrict', ''),
+                'district': customer.get('district', ''),
+                'province': customer.get('province', ''),
+            })
+
+            if serializer.is_valid():
+                serializer.save()
+                created.append(serializer.data)
+            else:
+                errors.append({'row': i + 1, 'errors': serializer.errors})
+
+        return Response({
+            'created': len(created),
+            'errors': errors,
+        }, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['get'], url_path='birthdays/upcoming')
     def upcoming_birthdays(self, request):
-        """
-        ดึงลูกค้าที่จะมีวันเกิดใน 7 วันข้างหน้า (รวมวันนี้)
-        พร้อมข้อมูลการซื้อ
-        """
         today = timezone.now().date()
-        
-        # คำนวณวันที่ 7 วันข้างหน้า
         end_date = today + timedelta(days=7)
-        
         upcoming = []
         
-        # วนหาลูกค้าทั้งหมดที่มีวันเกิด
         for customer in Customer.objects.filter(dob__isnull=False):
-            # สร้างวันเกิดในปีนี้
             try:
                 birthday_this_year = customer.dob.replace(year=today.year)
             except ValueError:
-                # กรณี 29 กุมภาพันธ์ในปีที่ไม่ใช่ leap year
                 continue
             
-            # ถ้าวันเกิดปีนี้ผ่านไปแล้ว ให้ดูปีหน้า
             if birthday_this_year < today:
                 try:
                     birthday_this_year = customer.dob.replace(year=today.year + 1)
                 except ValueError:
                     continue
             
-            # เช็คว่าอยู่ในช่วง 7 วันหรือไม่
             if today <= birthday_this_year <= end_date:
-                # คำนวณจำนวนวันจนถึงวันเกิด
                 days_until = (birthday_this_year - today).days
-                
-                # ดึงข้อมูลการซื้อ
                 orders = Order.objects.filter(customer=customer)
                 total_orders = orders.count()
                 latest_order = orders.order_by('-sale_date').first()
@@ -74,7 +93,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 
                 upcoming.append(customer_data)
         
-        # เรียงตามจำนวนวันจนถึงวันเกิด (วันเกิดวันนี้ขึ้นก่อน)
         upcoming.sort(key=lambda x: x['days_until_birthday'])
         
         return Response({
@@ -84,16 +102,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='birthdays/today')
     def birthdays_today(self, request):
-        """
-        ดึงลูกค้าที่วันเกิดวันนี้
-        """
         today = timezone.now().date()
-        
         today_birthdays = []
         
         for customer in Customer.objects.filter(dob__isnull=False):
             if customer.dob.day == today.day and customer.dob.month == today.month:
-                # ดึงข้อมูลการซื้อ
                 orders = Order.objects.filter(customer=customer)
                 total_orders = orders.count()
                 latest_order = orders.order_by('-sale_date').first()
