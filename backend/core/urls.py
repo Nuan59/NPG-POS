@@ -1,8 +1,6 @@
-# api/urls.py หรือ core/urls.py
-# ✅ เพิ่ม login endpoint
-
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from rest_framework import routers
 from api.views import (
     CustomerViewSet,
@@ -19,14 +17,18 @@ from api.views import (
     IssueViewSet,
     IssueUpdateViewSet,
 )
-
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
-
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+
+# ✅ ฟังก์ชันลบสินค้าทั้งหมด (ชั่วคราว)
+def delete_all_bikes(request):
+    from api.models import Bike
+    count, _ = Bike.objects.all().delete()
+    return JsonResponse({'deleted': count, 'message': f'Deleted {count} bikes successfully'})
 
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
@@ -43,28 +45,26 @@ router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 urlpatterns = [
     path("admin/", admin.site.urls),
     
+    # ✅ Temp endpoint - ลบหลังใช้งาน
+    path('dev/delete-bikes/', delete_all_bikes),
+
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
     path("customers/<int:pk>/orders/", CustomerOrdersList.as_view()),
     
-    # Birthday notification endpoints
     path('customers/birthdays/upcoming/', CustomerViewSet.as_view({'get': 'upcoming_birthdays'}), name='customers-birthdays-upcoming'),
     path('customers/birthdays/today/', CustomerViewSet.as_view({'get': 'birthdays_today'}), name='customers-birthdays-today'),
     
-    # ✅ Registration expiry endpoint
     path('order/registration_expiring/', OrderViewSet.as_view({'get': 'registration_expiring'}), name='order-registration-expiring'),
     
     path("", include(router.urls)),
-
     path("storage/transfer/history/", StorageTransferList.as_view()),
 
-    # Registration routes
     path('registration/', registration_list, name='registration-list'),
     path('registration/activity/', activity_feed, name='registration-activity'),
     path('registration/<int:pk>/update_status/', update_status, name='registration-update-status'),
     path('registration/<int:pk>/history/', status_history, name='registration-history'),
 
-    # Reports
     path('reports/financial/summary/', ReportsView.financial_summary),
     path('reports/financial/by_model/', ReportsView.financial_by_model),
     path('reports/financial/overview/', ReportsView.financial_overview),
@@ -78,10 +78,7 @@ urlpatterns = [
     path("reports/inventory/models/", ReportsView.inventory_models),
     path("reports/inventory/storages/", ReportsView.inventory_storages),
 
-    # ✅ Login endpoint - เพิ่มใหม่
     path("login/", TokenObtainPairView.as_view(), name="login"),
-    
-    # Auth
     path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 ]
