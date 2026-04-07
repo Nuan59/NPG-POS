@@ -18,14 +18,35 @@ import { handleFilter } from "@/app/hooks/useFilter";
 import TableLoading from "@/components/global/TableLoading";
 
 interface CustomersViewProps {
-	customers: ICustomer[];
-	isAdmin: boolean; // ✅ ใช้ตัวเดียวพอ
+	isAdmin: boolean;
 }
 
-const CustomersView = ({ customers, isAdmin }: CustomersViewProps) => {
+const CustomersView = ({ isAdmin }: CustomersViewProps) => {
 	const [searchTerm, setSearchTerm] = useState("");
-	const [customersDisplay, setCustomersDisplay] =
-		useState<ICustomer[]>(customers);
+	const [customers, setCustomers] = useState<ICustomer[]>([]);
+	const [customersDisplay, setCustomersDisplay] = useState<ICustomer[]>([]);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const fetchCustomers = async () => {
+			try {
+				const apiBase = process.env.NEXT_PUBLIC_API_URL;
+				const res = await fetch(`${apiBase}/customers`, {
+					credentials: "include",
+				});
+				if (res.ok) {
+					const data = await res.json();
+					setCustomers(data);
+					setCustomersDisplay(data);
+				}
+			} catch (e) {
+				console.error("Error loading customers:", e);
+			} finally {
+				setLoading(false);
+			}
+		};
+		fetchCustomers();
+	}, []);
 
 	useEffect(() => {
 		setCustomersDisplay(
@@ -46,7 +67,6 @@ const CustomersView = ({ customers, isAdmin }: CustomersViewProps) => {
 
 					<div className="flex justify-end gap-1">
 						<TooltipProvider>
-							{/* เพิ่มลูกค้า */}
 							<Tooltip>
 								<Link href="/customers/new">
 									<TooltipTrigger className="border rounded-sm shadow-sm p-1 hover:bg-slate-100">
@@ -56,7 +76,6 @@ const CustomersView = ({ customers, isAdmin }: CustomersViewProps) => {
 								<TooltipContent>เพิ่มลูกค้า</TooltipContent>
 							</Tooltip>
 
-							{/* IMPORT ลูกค้า */}
 							<Tooltip>
 								<Link href="/customers/import">
 									<TooltipTrigger className="border rounded-sm shadow-sm p-1 hover:bg-slate-100">
@@ -66,20 +85,14 @@ const CustomersView = ({ customers, isAdmin }: CustomersViewProps) => {
 								<TooltipContent>นำเข้าลูกค้า</TooltipContent>
 							</Tooltip>
 
-							{/* EXPORT ลูกค้า (เฉพาะ adm) */}
 							{isAdmin && (
 								<Tooltip>
 									<TooltipTrigger className="border rounded-sm shadow-sm p-1 hover:bg-slate-100">
-										<CSVLink
-											filename="customers.csv"
-											data={customers}
-										>
+										<CSVLink filename="customers.csv" data={customers}>
 											<Upload />
 										</CSVLink>
 									</TooltipTrigger>
-									<TooltipContent>
-										ส่งออกข้อมูลลูกค้า
-									</TooltipContent>
+									<TooltipContent>ส่งออกข้อมูลลูกค้า</TooltipContent>
 								</Tooltip>
 							)}
 						</TooltipProvider>
@@ -89,7 +102,11 @@ const CustomersView = ({ customers, isAdmin }: CustomersViewProps) => {
 
 			<Suspense fallback={<TableLoading />}>
 				<div className="h-[85%] mt-3 overflow-auto">
-					<DataTable data={customersDisplay} columns={CustomerColumns} />
+					{loading ? (
+						<TableLoading />
+					) : (
+						<DataTable data={customersDisplay} columns={CustomerColumns} />
+					)}
 				</div>
 			</Suspense>
 		</>
