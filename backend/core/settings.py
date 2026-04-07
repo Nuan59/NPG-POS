@@ -39,19 +39,11 @@ else:
         "https://npg-pos.vercel.app",
     ]
 
-<<<<<<< HEAD
 # ✅ รองรับทุก Vercel preview domain อัตโนมัติ
-=======
-# ✅ ใช้ regex รองรับทุก Vercel preview domain โดยไม่ต้องเพิ่มทีละอัน
->>>>>>> 9f3ec795941f0e8dde4830502cf3fa9f1471a304
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://npg-.*\.vercel\.app$",
 ]
 
-<<<<<<< HEAD
-=======
-# เพิ่มสำหรับ development
->>>>>>> 9f3ec795941f0e8dde4830502cf3fa9f1471a304
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 
@@ -61,7 +53,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "https://backend-service-production-1fc3.up.railway.app",
     "https://npg-pos.vercel.app",
-    "https://*.vercel.app",  # ✅ รองรับทุก preview domain
+    "https://*.vercel.app",
 ]
 
 INSTALLED_APPS = [
@@ -167,9 +159,4 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-<<<<<<< HEAD
 AUTH_USER_MODEL = 'api.User'
-=======
-
-AUTH_USER_MODEL = 'api.User'
->>>>>>> 9f3ec795941f0e8dde4830502cf3fa9f1471a304

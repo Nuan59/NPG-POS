@@ -6,32 +6,19 @@ export const authOptions: NextAuthOptions = {
 		CredentialsProvider({
 			name: "credentials",
 			credentials: {
-				username: {
-					label: "username",
-					type: "text",
-				},
-				password: {
-					label: "password",
-					type: "password",
-				},
+				username: { label: "username", type: "text" },
+				password: { label: "password", type: "password" },
 			},
 			async authorize(credentials, req) {
 				"use server";
-<<<<<<< HEAD
-				const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'https://backend-service-production-1fc3.up.railway.app';
-=======
 				const apiUrl =
 					process.env.API_URL ||
 					process.env.NEXT_PUBLIC_API_URL ||
 					"https://backend-service-production-1fc3.up.railway.app";
 
-				// ✅ แก้ไข: เปลี่ยนจาก /api/auth/token/ → /auth/token/
->>>>>>> 9f3ec795941f0e8dde4830502cf3fa9f1471a304
 				const response = await fetch(`${apiUrl}/auth/token/`, {
 					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						username: credentials?.username,
 						password: credentials?.password,
@@ -41,26 +28,20 @@ export const authOptions: NextAuthOptions = {
 				if (response.ok) {
 					const { access } = await response.json();
 					const info = JSON.parse(atob(access.split(".")[1]));
-					const user = {
+					return {
 						id: info.user_id,
 						username: info.username,
 						name: info.name,
 						role: info.role,
 						accessToken: access,
 					};
-					return user;
 				}
 				return null;
 			},
 		}),
 	],
-	pages: {
-		signIn: "/login",
-	},
-	session: {
-		strategy: "jwt",
-		maxAge: 60 * 60 * 12, // 12 hours
-	},
+	pages: { signIn: "/login" },
+	session: { strategy: "jwt", maxAge: 60 * 60 * 12 },
 	callbacks: {
 		async jwt({ token, user }) {
 			if (user) {
