@@ -29,13 +29,16 @@ const CustomersView = ({ isAdmin }: CustomersViewProps) => {
 
 	useEffect(() => {
 		const fetchCustomers = async () => {
+			const apiBase = process.env.NEXT_PUBLIC_API_URL;
+			console.log("API Base:", apiBase);
 			try {
-				const apiBase = process.env.NEXT_PUBLIC_API_URL;
 				const res = await fetch(`${apiBase}/customers`, {
 					credentials: "include",
 				});
+				console.log("Response status:", res.status);
 				if (res.ok) {
 					const data = await res.json();
+					console.log("Customers loaded:", data.length);
 					setCustomers(data);
 					setCustomersDisplay(data);
 				}
