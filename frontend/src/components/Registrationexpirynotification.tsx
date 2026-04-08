@@ -6,7 +6,7 @@ import { Car, AlertTriangle, X } from "lucide-react";
 import Link from "next/link";
 
 interface IRegistrationExpiry {
-  id: number; // Order ID
+  id: number;
   customer?: {
     id: number;
     name: string;
@@ -29,9 +29,11 @@ const RegistrationExpiryNotification = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // ✅ ใช้ accessToken string แทน session object เพื่อป้องกัน infinite loop
+  const accessToken = (session?.user as any)?.accessToken ?? null;
+
   const loadExpiringRegistrations = useCallback(async () => {
-    // ถ้ายังไม่ login ก็ไม่ต้องเรียก API
-    if (!session) {
+    if (!accessToken) {
       setLoading(false);
       return;
     }
@@ -40,7 +42,6 @@ const RegistrationExpiryNotification = () => {
     setLoading(true);
     
     try {
-      // เรียก Next.js API Route แทนการเรียก Backend โดยตรง
       const response = await fetch('/api/registration', {
         method: 'GET',
         credentials: 'include',
@@ -61,11 +62,10 @@ const RegistrationExpiryNotification = () => {
     }
     
     setLoading(false);
-  }, [session]);
+  }, [accessToken]); // ✅ depend แค่ accessToken string ไม่ใช่ session object
 
   useEffect(() => {
     loadExpiringRegistrations();
-    // Auto-refresh ทุก 1 ชั่วโมง
     const interval = setInterval(loadExpiringRegistrations, 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [loadExpiringRegistrations]);
@@ -83,7 +83,6 @@ const RegistrationExpiryNotification = () => {
 
   return (
     <div className="relative">
-      {/* Car Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-full hover:bg-slate-700 transition-colors"
@@ -99,10 +98,8 @@ const RegistrationExpiryNotification = () => {
         )}
       </button>
 
-      {/* Dropdown Panel */}
       {isOpen && (
         <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-[600px] overflow-hidden">
-          {/* Header */}
           <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-orange-100 rounded-lg">
@@ -130,7 +127,6 @@ const RegistrationExpiryNotification = () => {
             </button>
           </div>
 
-          {/* Content */}
           <div className="overflow-y-auto max-h-[500px]">
             {loading ? (
               <div className="p-8 text-center text-gray-500">
