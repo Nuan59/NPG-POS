@@ -127,7 +127,7 @@ export default function RegistrationView() {
       const q = searchTerm.toLowerCase();
       const match = item.customer_name?.toLowerCase().includes(q)
         || item.customer_phone?.toLowerCase().includes(q)
-        || item.bikes.some((b) => b.model_name?.toLowerCase().includes(q) || b.registration_plate?.toLowerCase().includes(q) || b.chassi?.toLowerCase().includes(q));
+        || item.bikes.some((b) => b.model_name?.toLowerCase().includes(q) || b.registration_plate?.toLowerCase().includes(q) || b.chassis?.toLowerCase().includes(q));
       if (!match) return false;
     }
     return true;
@@ -283,7 +283,7 @@ export default function RegistrationView() {
                   </td>
                   <td className="px-4 py-3">
                     {item.bikes.map((bike) => (
-                      <p key={bike.id} className="font-mono text-xs font-semibold text-gray-700">{bike.chassi || "-"}</p>
+                      <p key={bike.id} className="font-mono text-xs font-semibold text-gray-700">{bike.chassis || "-"}</p>
                     ))}
                   </td>
                   <td className="px-4 py-3">

@@ -160,7 +160,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
     Object.keys(error).forEach((key) => {
       const raw = error[key];
       const msg = Array.isArray(raw) ? raw[0] : String(raw);
-      if (key === "chassis" || key === "chassi") {
+      if (key === "chassis" || key === "chassis") {
         const thaiMsg = "เลขตัวถังนี้ถูกใช้แล้ว (กรุณาเปลี่ยนเป็นเลขใหม่)";
         toast.error(thaiMsg);
         // @ts-expect-error
@@ -178,8 +178,8 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
     let payload = {
       ...values,
       received_date: selectedDate.toISOString().split("T")[0],
-      // ✅ Django model ใช้ชื่อ 'chassi' (ไม่มี s)
-      chassi: values.chassis,
+      // ✅ Django model ใช้ชื่อ 'chassis'
+      chassis: values.chassis,
     };
     
     // ✅ ลบ 'chassis' (frontend field name) ออก
