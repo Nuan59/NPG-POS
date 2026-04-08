@@ -160,7 +160,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
     Object.keys(error).forEach((key) => {
       const raw = error[key];
       const msg = Array.isArray(raw) ? raw[0] : String(raw);
-      if (key === "chassis") {
+      if (key === "chassis" || key === "chassi") {
         const thaiMsg = "เลขตัวถังนี้ถูกใช้แล้ว (กรุณาเปลี่ยนเป็นเลขใหม่)";
         toast.error(thaiMsg);
         // @ts-expect-error
@@ -174,24 +174,29 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
   };
 
   const onSubmit = async (values: any) => {
-    // ✅ map chassi → chassis ให้ตรงกับ Django model
+    // ✅ สร้าง payload ที่ถูกต้อง
     let payload = {
       ...values,
-      chassis: values.chassis,
       received_date: selectedDate.toISOString().split("T")[0],
+      // ✅ Django model ใช้ชื่อ 'chassi' (ไม่มี s)
+      chassi: values.chassis,
     };
+    
+    // ✅ ลบ 'chassis' (frontend field name) ออก
     delete payload.chassis;
 
+    // ลบฟิลด์ที่ไม่ต้องการสำหรับรถใหม่
     if (payload.category === "new") {
       delete payload.registration_plate;
       delete payload.registration_expiry_date;
     }
 
+    // แปลง registration_expiry_date ให้เป็น string
     if (payload.registration_expiry_date && payload.registration_expiry_date instanceof Date) {
       payload.registration_expiry_date = payload.registration_expiry_date.toISOString().split("T")[0];
     }
 
-    console.log("Payload:", payload);
+    console.log("📤 Payload:", payload);
 
     try {
       if (!bike) {
