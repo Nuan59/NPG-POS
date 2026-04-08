@@ -30,7 +30,7 @@ def run_migrate(request):
     from io import StringIO
     out = StringIO()
     try:
-        call_command('makemigrations', stdout=out)
+        call_command('makemigrations', '--no-input', stdout=out)
         call_command('migrate', stdout=out)
         return JsonResponse({'status': 'ok', 'output': out.getvalue()})
     except Exception as e:
