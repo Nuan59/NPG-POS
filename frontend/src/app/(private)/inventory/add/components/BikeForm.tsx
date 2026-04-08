@@ -174,16 +174,11 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
   };
 
   const onSubmit = async (values: any) => {
-    // ✅ สร้าง payload ที่ถูกต้อง
+    // ✅ สร้าง payload โดยใช้ชื่อฟิลด์ตรงกับ Django model
     let payload = {
       ...values,
       received_date: selectedDate.toISOString().split("T")[0],
-      // ✅ Django model ใช้ชื่อ 'chassis'
-      chassis: values.chassis,
     };
-    
-    // ✅ ลบ 'chassis' (frontend field name) ออก
-    delete payload.chassis;
 
     // ลบฟิลด์ที่ไม่ต้องการสำหรับรถใหม่
     if (payload.category === "new") {
