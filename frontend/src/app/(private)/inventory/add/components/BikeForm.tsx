@@ -46,7 +46,7 @@ const editBikeFormSchema = z.object({
   model_name: z.string(),
   model_code: z.string(),
   engine: z.string(),
-  chassi: z.string(),
+  chassis: z.string(),
   registration_plate: z.coerce.string(),
   registration_expiry_date: asOptionalField(z.coerce.string()),
   color: z.coerce.string(),
@@ -62,7 +62,7 @@ const createBikeFormSchema = z.object({
   model_name: z.string().nonempty("กรุณากรอกชื่อรุ่น"),
   model_code: z.string().nonempty("กรุณากรอกรหัสรุ่น"),
   engine: z.string().nonempty("กรุณากรอกเลขเครื่องยนต์"),
-  chassi: z.string().nonempty("กรุณากรอกเลขตัวถัง"),
+  chassis: z.string().nonempty("กรุณากรอกเลขตัวถัง"),
   registration_plate: asOptionalField(z.coerce.string()),
   registration_expiry_date: asOptionalField(z.coerce.string()),
   color: asOptionalField(z.coerce.string()),
@@ -114,7 +114,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
           model_name: "",
           model_code: "",
           engine: "",
-          chassi: "",
+          chassis: "",
           registration_plate: "",
           registration_expiry_date: "",
           color: "",
@@ -164,7 +164,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
         const thaiMsg = "เลขตัวถังนี้ถูกใช้แล้ว (กรุณาเปลี่ยนเป็นเลขใหม่)";
         toast.error(thaiMsg);
         // @ts-expect-error
-        form.setError("chassi", { type: "server", message: thaiMsg });
+        form.setError("chassis", { type: "server", message: thaiMsg });
         return;
       }
       toast.error(`${key}: ${msg}`);
@@ -177,10 +177,10 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
     // ✅ map chassi → chassis ให้ตรงกับ Django model
     let payload = {
       ...values,
-      chassis: values.chassi,
+      chassis: values.chassis,
       received_date: selectedDate.toISOString().split("T")[0],
     };
-    delete payload.chassi;
+    delete payload.chassis;
 
     if (payload.category === "new") {
       delete payload.registration_plate;

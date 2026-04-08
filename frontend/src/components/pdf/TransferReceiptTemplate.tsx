@@ -158,7 +158,7 @@ const TransferReceiptTemplate = ({ item }: TransferReceiptTemplateProps) => {
 										<TD style={tdStyle}>{startNo + index + 1}</TD>
 										<TD style={tdStyle}>{safeThai(bike.model_code)}</TD>
 										<TD style={tdStyle}>{safeThai(bike.engine)}</TD>
-										<TD style={tdStyle}>{safeThai(bike.chassi)}</TD>
+										<TD style={tdStyle}>{safeThai(bike.chassis)}</TD>
 										{/* ✅ จุดสำคัญ: ใส่ safeThai ให้คอลัมน์สี */}
 										<TD style={tdStyle}>{safeThai(bike.color)}</TD>
 									</TR>

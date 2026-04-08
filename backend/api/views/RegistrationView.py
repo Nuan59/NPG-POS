@@ -42,7 +42,7 @@ def registration_list(request):
                 'id': bike.id,
                 'model_name': bike.model_name,
                 'model_code': bike.model_code or '',
-                'chassi': bike.chassi,
+                'chassis': bike.chassis,
                 'engine': bike.engine,
                 'registration_plate': bike.registration_plate,
                 'color': bike.color,

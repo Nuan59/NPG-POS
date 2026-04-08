@@ -206,7 +206,7 @@ const ReceiptPage: React.FC<{
             <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
           </View>
           <View style={styles.tableRow}>
-            <Text style={styles.col1}>  หมายเลขตัวถัง {sanitizeText(bike?.chassi || '-')}{ZWJ}</Text>
+            <Text style={styles.col1}>  หมายเลขตัวถัง {sanitizeText(bike?.chassis || '-')}{ZWJ}</Text>
             <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
             <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
           </View>

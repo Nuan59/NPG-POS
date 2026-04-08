@@ -72,7 +72,7 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
         model: v.model_name || "",
         modelCode: v.model_code || "",
         engineNo: v.engine || "",
-        frameNo: v.chassi || "",
+        frameNo: v.s || "",
         color: v.color || "",
       }));
       
@@ -110,7 +110,7 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
       const blob = await pdf(
         <PdiTemplate
           customerName={customerName}
-          chassisNumber={bike?.chassi || ""}
+          chassisNumber={bike?.chassis || ""}
           engineNumber={bike?.engine || ""}
           model={bike?.model_name || ""}
           color={bike?.color || ""}
