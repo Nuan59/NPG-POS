@@ -18,7 +18,6 @@ class BikeViewSet(viewsets.ModelViewSet):
         storage_id = self.request.query_params.get('storage')
         category = self.request.query_params.get('category')
 
-        # ✅ Filter ตาม storage
         if storage_id is not None:
             try:
                 filterStorage = Storage.objects.get(pk=storage_id)
@@ -26,7 +25,6 @@ class BikeViewSet(viewsets.ModelViewSet):
             except Storage.DoesNotExist:
                 return queryset.none()
 
-        # ✅ Filter ตาม category
         if category:
             queryset = queryset.filter(category=category)
 
@@ -45,13 +43,13 @@ class BikeViewSet(viewsets.ModelViewSet):
                     model_name=bike['model_name'],
                     model_code=bike['model_code'],
                     engine=bike['engine'],
-                    chassis=bike['chassis'],  # ✅ แก้เป็น chassis
-                    registration_plate=bike['registration_plate'],
-                    color=bike['color'],
-                    notes=bike['notes'],
-                    category=bike['category'],
+                    chassi=bike.get('chassi') or bike.get('chassis', ''),  # ✅ รองรับทั้งสอง
+                    registration_plate=bike.get('registration_plate', ''),
+                    color=bike.get('color', ''),
+                    notes=bike.get('notes', ''),
+                    category=bike.get('category', 'new'),
                     sale_price=bike.get('sale_price'),
-                    brand=bike['brand'],
+                    brand=bike.get('brand', 'Honda'),
                     storage_place=storage,
                     received_date=date.today()
                 )

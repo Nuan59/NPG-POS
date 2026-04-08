@@ -72,7 +72,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 							model_name: obj["Model name"] || obj["ชื่อรุ่น"],
 							model_code: obj["Model code"] || obj["รหัสรุ่น"],
 							engine: obj["Engine"],
-							chassis: obj["Chassis"],
+							chassi: obj["Chassis"],
 							registration_plate: obj["Registration plate"] || obj["ทะเบียน"],
 							color: obj["Color"] || obj["สี"],
 							notes: obj["Notes"] || obj["หมายเหตุ"] || "",
@@ -81,7 +81,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 						} as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
-						if (bike.engine && bike.chassis) {
+						if (bike.engine && bike.chassi) {
 							newBikes.push(bike);
 						}
 					});
@@ -138,7 +138,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 		{ label: "ชื่อรุ่น", value: "model_name" },
 		{ label: "รหัสรุ่น", value: "model_code" },
 		{ label: "เลขเครื่องยนต์", value: "engine" },
-		{ label: "เลขตัวถัง", value: "chassis" },
+		{ label: "เลขตัวถัง", value: "chassi" },
 		{ label: "ทะเบียน", value: "registration_plate" },
 		{ label: "สี", value: "color" },
 		{ label: "หมายเหตุ", value: "notes" },

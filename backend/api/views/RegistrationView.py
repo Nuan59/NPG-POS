@@ -3,13 +3,12 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from api.models import Order
-from api.models.Registration import RegistrationLog  # ✅ import RegistrationLog
+from api.models.Registration import RegistrationLog
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def registration_list(request):
-    """รายการทะเบียนทั้งหมด พร้อม filter ตามสถานะ"""
     status_filter = request.query_params.get('status', None)
 
     orders = Order.objects.select_related('customer', 'seller').prefetch_related('bikes').filter(
@@ -42,7 +41,7 @@ def registration_list(request):
                 'id': bike.id,
                 'model_name': bike.model_name,
                 'model_code': bike.model_code or '',
-                'chassis': bike.chassis,
+                'chassi': bike.chassi,  # ✅ ใช้ chassi
                 'engine': bike.engine,
                 'registration_plate': bike.registration_plate,
                 'color': bike.color,
@@ -69,7 +68,6 @@ def registration_list(request):
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def update_status(request, pk):
-    """✅ อัพเดทสถานะทะเบียน + บันทึกประวัติใน DB"""
     try:
         order = Order.objects.get(pk=pk)
     except Order.DoesNotExist:
@@ -83,7 +81,6 @@ def update_status(request, pk):
 
     old_status = order.doc_status or 'pending'
 
-    # ✅ บันทึกประวัติเฉพาะเมื่อสถานะเปลี่ยน
     if old_status != new_status:
         RegistrationLog.objects.create(
             order=order,
@@ -110,7 +107,6 @@ def update_status(request, pk):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def status_history(request, pk):
-    """✅ ดึงประวัติการเปลี่ยนสถานะจาก DB"""
     try:
         order = Order.objects.get(pk=pk)
     except Order.DoesNotExist:
@@ -137,13 +133,8 @@ def status_history(request, pk):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def activity_feed(request):
-    """
-    ✅ ดึง Activity Feed - ประวัติการเปลี่ยนสถานะล่าสุด 20 รายการ
-    พร้อมข้อมูลที่ตรงกับ Frontend
-    """
     limit = int(request.query_params.get('limit', 20))
     
-    # ดึง logs ล่าสุด พร้อม prefetch bikes
     logs = RegistrationLog.objects.select_related(
         'order', 
         'order__customer', 
@@ -155,7 +146,6 @@ def activity_feed(request):
         order = log.order
         bikes = order.bikes.all()
         
-        # ✅ เอาข้อมูลรถคันแรก (ถ้ามี) - ส่งในรูปแบบที่ Frontend ต้องการ
         bike_model = ''
         bike_color = ''
         if bikes.exists():
@@ -164,11 +154,11 @@ def activity_feed(request):
             bike_color = bike.color or ''
 
         data.append({
-            'log_id': log.id,  # ✅ เปลี่ยนจาก 'id' เป็น 'log_id'
+            'log_id': log.id,
             'order_id': order.id,
             'customer_name': order.customer.name if order.customer else '-',
-            'bike_model': bike_model,  # ✅ ตรงกับ Frontend
-            'bike_color': bike_color,  # ✅ ตรงกับ Frontend
+            'bike_model': bike_model,
+            'bike_color': bike_color,
             'from_status': log.from_status,
             'to_status': log.to_status,
             'changed_by': log.changed_by.name if log.changed_by else '-',

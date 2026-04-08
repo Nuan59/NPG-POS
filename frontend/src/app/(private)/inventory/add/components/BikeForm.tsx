@@ -46,7 +46,7 @@ const editBikeFormSchema = z.object({
   model_name: z.string(),
   model_code: z.string(),
   engine: z.string(),
-  chassis: z.string(),
+  chassi: z.string(),
   registration_plate: z.coerce.string(),
   registration_expiry_date: asOptionalField(z.coerce.string()),
   color: z.coerce.string(),
@@ -62,7 +62,7 @@ const createBikeFormSchema = z.object({
   model_name: z.string().nonempty("กรุณากรอกชื่อรุ่น"),
   model_code: z.string().nonempty("กรุณากรอกรหัสรุ่น"),
   engine: z.string().nonempty("กรุณากรอกเลขเครื่องยนต์"),
-  chassis: z.string().nonempty("กรุณากรอกเลขตัวถัง"),
+  chassi: z.string().nonempty("กรุณากรอกเลขตัวถัง"),
   registration_plate: asOptionalField(z.coerce.string()),
   registration_expiry_date: asOptionalField(z.coerce.string()),
   color: asOptionalField(z.coerce.string()),
@@ -114,7 +114,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
           model_name: "",
           model_code: "",
           engine: "",
-          chassis: "",
+          chassi: "",
           registration_plate: "",
           registration_expiry_date: "",
           color: "",
@@ -160,11 +160,11 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
     Object.keys(error).forEach((key) => {
       const raw = error[key];
       const msg = Array.isArray(raw) ? raw[0] : String(raw);
-      if (key === "chassis" || key === "chassis") {
+      if (key === "chassi") {
         const thaiMsg = "เลขตัวถังนี้ถูกใช้แล้ว (กรุณาเปลี่ยนเป็นเลขใหม่)";
         toast.error(thaiMsg);
         // @ts-expect-error
-        form.setError("chassis", { type: "server", message: thaiMsg });
+        form.setError("chassi", { type: "server", message: thaiMsg });
         return;
       }
       toast.error(`${key}: ${msg}`);
@@ -174,7 +174,6 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
   };
 
   const onSubmit = async (values: any) => {
-    // ✅ สร้าง payload โดยใช้ชื่อฟิลด์ตรงกับ Django model
     let payload = {
       ...values,
       received_date: selectedDate.toISOString().split("T")[0],

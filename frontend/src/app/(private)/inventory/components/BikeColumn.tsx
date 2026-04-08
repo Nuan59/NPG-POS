@@ -31,11 +31,11 @@ export const BikeColumns: ColumnDef<IBike>[] = [
 		},
 	},
 	{
-		accessorKey: "chassis",  // ✅ แก้เป็น chassis
+		accessorKey: "chassi",  // ✅ แก้เป็น chassis
 		header: "เลขตัวถัง",
 		cell: ({ row }) => {
-			const chassis = row.original.chassis;
-			return chassis ? String(chassis) : "-";
+			const chassi = row.original.chassi;
+			return chassi ? String(chassi) : "-";
 		},
 	},
 	{

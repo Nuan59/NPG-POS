@@ -52,7 +52,7 @@ export const product_info: ProductInfoItem[] = [
   },
   // 6. เลขตัวถัง - ✅ แก้เป็น chassis
   {
-    name: "chassis",
+    name: "chassi",
     label: "เลขตัวถัง",
     placeholder: "กรอกเลขตัวถัง",
   },

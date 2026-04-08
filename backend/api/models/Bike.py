@@ -5,7 +5,7 @@ class Bike(models.Model):
     model_name = models.CharField(max_length=200)
     model_code = models.CharField(max_length=100)
     engine     = models.CharField(max_length=100, null=True)
-    chassis    = models.CharField(max_length=100, unique=True)  # ✅ แก้เป็น chassis
+    chassi     = models.CharField(max_length=100, unique=True)  # ✅ ใช้ chassi ตรงกับ DB
     registration_plate = models.CharField(max_length=20, null=True, blank=True)
     registration_expiry_date = models.DateField(null=True, blank=True)
     color = models.CharField(max_length=50, null=True)
