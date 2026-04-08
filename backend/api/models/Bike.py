@@ -32,7 +32,7 @@ class Bike(models.Model):
         ('Lambretta','Lambretta'),
         ('Vespa','Vespa'),
     ]
-    brand = models.CharField(max_length=10, choices=BRAND_CHOICES, default='Honda', null=True)
+    brand = models.CharField(max_length=20, choices=BRAND_CHOICES, default='Honda', null=True)
 
     storage_place = models.ForeignKey(Storage, on_delete=models.SET_NULL, null=True)
 
