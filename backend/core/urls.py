@@ -30,7 +30,8 @@ def run_migrate(request):
     from io import StringIO
     out = StringIO()
     try:
-        call_command('migrate', '--run-syncdb', stdout=out)
+        call_command('makemigrations', stdout=out)
+        call_command('migrate', stdout=out)
         return JsonResponse({'status': 'ok', 'output': out.getvalue()})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
