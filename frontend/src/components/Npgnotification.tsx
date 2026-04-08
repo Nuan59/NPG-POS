@@ -9,7 +9,10 @@ interface NPGAccount {
   id: number;
   customer_name: string;
   customer_phone: string;
-  bike_info: { brand: string; model_name: string } | null;
+  bike_info: {
+    brand: string;
+    model_name: string;
+  } | null;
   next_payment_date: string;
   installment_amount: number;
   status: string;
@@ -19,62 +22,72 @@ interface UpcomingPayment extends NPGAccount {
   daysUntil: number;
 }
 
-const findUpcomingPayments = (accounts: NPGAccount[]): UpcomingPayment[] => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return accounts
-    .filter((a) => a.next_payment_date && a.status === "active")
-    .map((account) => {
-      const nextPayment = new Date(account.next_payment_date);
-      nextPayment.setHours(0, 0, 0, 0);
-      const daysUntil = Math.ceil((nextPayment.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return { ...account, daysUntil };
-    })
-    .filter((p) => p.daysUntil >= 0 && p.daysUntil <= 5)
-    .sort((a, b) => a.daysUntil - b.daysUntil);
-};
-
 export default function NPGNotification() {
   const [payments, setPayments] = useState<UpcomingPayment[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ✅ ย้าย loadPayments เข้ามาใน useEffect เพื่อไม่ต้องใส่ใน dependency
-    const loadPayments = async () => {
-      setLoading(true);
-      try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL;
-        if (!apiBase) {
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${apiBase}/npg/accounts/?status=active`, {
-          headers: { "Content-Type": "application/json" },
-        });
-
-        if (!response.ok) {
-          setLoading(false);
-          return;
-        }
-
-        const accounts = await response.json();
-        setPayments(findUpcomingPayments(accounts));
-      } catch (error) {
-        console.error("❌ Error loading NPG payments:", error);
-      }
-      setLoading(false);
-    };
-
     loadPayments();
     const interval = setInterval(loadPayments, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []); // ✅ [] — รันครั้งเดียวตอน mount
+  }, []);
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  const loadPayments = async () => {
+    setLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL;
+      if (!apiBase) {
+        console.error("❌ API_URL not defined");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ ดึงข้อมูลจาก backend โดยตรง
+      const response = await fetch(`${apiBase}/npg/accounts/?status=active`, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        console.error(`❌ NPG API error: ${response.status}`);
+        setLoading(false);
+        return;
+      }
+
+      const accounts = await response.json();
+      const upcoming = findUpcomingPayments(accounts);
+      setPayments(upcoming);
+    } catch (error) {
+      console.error("❌ Error loading NPG payments:", error);
+    }
+    setLoading(false);
+  };
+
+  const findUpcomingPayments = (accounts: NPGAccount[]): UpcomingPayment[] => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return accounts
+      .filter((a) => a.next_payment_date && a.status === "active")
+      .map((account) => {
+        const nextPayment = new Date(account.next_payment_date);
+        nextPayment.setHours(0, 0, 0, 0);
+        const diffTime = nextPayment.getTime() - today.getTime();
+        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return { ...account, daysUntil };
+      })
+      .filter((p) => p.daysUntil >= 0 && p.daysUntil <= 5) // เปลี่ยนเป็น 5 วัน และไม่แสดงที่เกินกำหนด
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   const getStatusColor = (days: number) => {
     if (days < 0) return "bg-red-50 text-red-700 border-red-200";
@@ -88,6 +101,8 @@ export default function NPGNotification() {
     if (days === 1) return "พรุ่งนี้";
     return `อีก ${days} วัน`;
   };
+
+  const urgentCount = payments.filter((p) => p.daysUntil >= 0 && p.daysUntil <= 5).length;
 
   return (
     <div className="relative">
@@ -140,12 +155,8 @@ export default function NPGNotification() {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {payments.map((payment) => (
-                    <Link
-                      key={payment.id}
-                      href={`/npg/${payment.id}`}
-                      onClick={() => setIsOpen(false)}
-                      className="block hover:bg-gray-50 transition-colors p-4"
-                    >
+                    <Link key={payment.id} href={`/npg/${payment.id}`} onClick={() => setIsOpen(false)}
+                      className="block hover:bg-gray-50 transition-colors p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
                           <h4 className="font-semibold text-gray-800 truncate">{payment.customer_name}</h4>
@@ -173,7 +184,9 @@ export default function NPGNotification() {
 
             {payments.length > 0 && (
               <div className="p-3 border-t bg-gray-50">
-                <div className="text-center text-sm text-gray-600">ใกล้ครบกำหนด {payments.length} รายการ</div>
+                <div className="text-center text-sm text-gray-600">
+                  ใกล้ครบกำหนด {payments.length} รายการ
+                </div>
                 <Link href="/npg" onClick={() => setIsOpen(false)}>
                   <button className="w-full mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center justify-center gap-1">
                     ดูทั้งหมด <ChevronRight size={16} />
