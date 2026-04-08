@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
 from rest_framework import routers
 from api.views import (
     CustomerViewSet,
@@ -23,6 +24,17 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
+# ✅ Temp: รัน migration ผ่าน browser
+def run_migrate(request):
+    from django.core.management import call_command
+    from io import StringIO
+    out = StringIO()
+    try:
+        call_command('migrate', '--run-syncdb', stdout=out)
+        return JsonResponse({'status': 'ok', 'output': out.getvalue()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -37,6 +49,9 @@ router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+
+    # ✅ Temp endpoint - ลบหลังใช้งาน
+    path('dev/migrate/', run_migrate),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
