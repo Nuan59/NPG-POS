@@ -12,4 +12,5 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi:application"]
+# ✅ รัน makemigrations และ migrate อัตโนมัติก่อน start server
+CMD python manage.py makemigrations --no-input && python manage.py migrate --no-input && gunicorn --bind 0.0.0.0:8000 core.wsgi:application
