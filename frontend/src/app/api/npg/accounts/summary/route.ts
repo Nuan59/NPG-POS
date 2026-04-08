@@ -1,8 +1,8 @@
+export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-// ✅ ฟังก์ชันดึง token จาก session
 function getTokenFromSession(session: any): string | null {
   return (
     session?.accessToken || 
@@ -20,20 +20,13 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions);
 
     if (!session) {
-      return NextResponse.json(
-        { error: "No session" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "No session" }, { status: 401 });
     }
 
     const token = getTokenFromSession(session);
 
     if (!token) {
-      console.error("❌ [NPG Summary] No token");
-      return NextResponse.json(
-        { error: "No access token" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "No access token" }, { status: 401 });
     }
 
     const response = await fetch(
@@ -49,19 +42,13 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      return NextResponse.json(
-        errorData,
-        { status: response.status }
-      );
+      return NextResponse.json(errorData, { status: response.status });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error in NPG summary API route:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

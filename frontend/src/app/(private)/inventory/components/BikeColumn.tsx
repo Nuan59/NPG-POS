@@ -55,4 +55,4 @@ export const BikeColumns: ColumnDef<IBike>[] = [
 			return <BikeRowButtons bike={bike} />;
 		},
 	},
-];
+];	
