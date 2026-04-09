@@ -201,7 +201,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
           router.push("/inventory");
           return;
         }
-        const error = await req.data;
+        const error = req.data ? await req.data : null;
         handleBackendErrors(error);
       } else {
         const req = await editBike(bike.id, payload);
@@ -210,7 +210,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
           router.push(`/inventory/${bike.id}`);
           return;
         }
-        const error = await req.data;
+        const error = req.data ? await req.data : null;
         handleBackendErrors(error);
       }
     } catch (e) {

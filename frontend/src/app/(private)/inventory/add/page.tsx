@@ -13,7 +13,8 @@ import { getStorages } from "@/services/StorageService";
 import Link from "next/link";
 
 const CreateBike = async () => {
-	const storages = await getStorages().then((res) => res?.json());
+	const res = await getStorages();
+	const storages = res?.ok ? await res.json() : [];
 
 	return (
 		<>

@@ -117,17 +117,24 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 
 		importInventory({ storage: selectedStorage, bikes: bikesImport }).then(
 			async (res) => {
-				if (res.status === "success") {
+				const data = res.data ? await res.data : null;
+				const created = data?.created_ids?.length || 0;
+				const errors = data?.errors || [];
+
+				if (created > 0) {
 					setBikesImport([]);
 					setSelectedStorage(0);
-					toast.success("นำเข้าสินค้าเรียบร้อยแล้ว", {
+					toast.success(`นำเข้าสินค้าสำเร็จ ${created} รายการ`, {
 						description: getDate(new Date()),
 					});
-
+					if (errors.length > 0) {
+						toast.warning(`ข้ามไป ${errors.length} รายการ (ซ้ำหรือผิดพลาด)`);
+					}
 					router.push("/inventory");
+				} else if (errors.length > 0) {
+					toast.error(`นำเข้าไม่สำเร็จ: ข้อมูลซ้ำทั้งหมด ${errors.length} รายการ`);
 				} else {
-					const error = await res.data;
-					toast.error(error);
+					toast.error("นำเข้าสินค้าไม่สำเร็จ");
 				}
 			}
 		);
