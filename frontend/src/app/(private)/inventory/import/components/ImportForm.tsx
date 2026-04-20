@@ -39,6 +39,21 @@ interface ImportFormsProps {
 	storages: IStorage[];
 }
 
+// แปลงวันที่รูปแบบ DD/MM/YY หรือ DD/MM/YYYY (พ.ศ.) เป็น YYYY-MM-DD (ค.ศ.)
+const parseThaiDate = (dateStr: string): string => {
+	if (!dateStr) return "";
+	const parts = String(dateStr).split("/");
+	if (parts.length !== 3) return "";
+	const day = parts[0].padStart(2, "0");
+	const month = parts[1].padStart(2, "0");
+	let year = parseInt(parts[2]);
+	// ถ้าปีน้อยกว่า 100 คือย่อ เช่น 65 -> 2565
+	if (year < 100) year += 2500;
+	// แปลง พ.ศ. -> ค.ศ.
+	if (year > 2400) year -= 543;
+	return `${year}-${month}-${day}`;
+};
+
 const ImportForm = ({ storages }: ImportFormsProps) => {
 	const [bikesImport, setBikesImport] = useState<IBike[]>([]);
 	const [selectedStorage, setSelectedStorage] = useState<number>(0);
@@ -54,6 +69,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 			"Notes",
 			"Category",
 			"Brand",
+			"Received date",
 		],
 	];
 
@@ -78,6 +94,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 							notes: obj["Notes"] || obj["หมายเหตุ"] || "",
 							category: obj["Category"] || obj["ประเภทสินค้า"] || "new",
 							brand: obj["Brand"] || obj["ยี่ห้อ"],
+							received_date: parseThaiDate(String(obj["Received date"] || obj["วันที่รับ"] || "")),
 						} as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
@@ -150,6 +167,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 		{ label: "สี", value: "color" },
 		{ label: "หมายเหตุ", value: "notes" },
 		{ label: "ประเภทสินค้า", value: "category" },
+		{ label: "วันที่รับ", value: "received_date" },
 	];
 
 	return (
