@@ -36,12 +36,6 @@ def run_migrate(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
-# ✅ Temp: ลบ Bike ทั้งหมดออกจาก inventory
-def delete_all_bikes(request):
-    from api.models import Bike
-    count, _ = Bike.objects.all().delete()
-    return JsonResponse({'status': 'ok', 'deleted': count})
-
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -59,9 +53,6 @@ urlpatterns = [
 
     # ✅ Temp endpoint - ลบหลังใช้งาน
     path('dev/migrate/', run_migrate),
-
-    # ✅ Temp endpoint - ลบหลังใช้งาน
-    path('dev/delete-all-bikes/', delete_all_bikes),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
