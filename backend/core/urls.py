@@ -36,6 +36,12 @@ def run_migrate(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: ดึง chassis ทั้งหมดใน DB
+def get_all_chassis(request):
+    from api.models import Bike
+    chassis_list = list(Bike.objects.values_list('chassi', flat=True))
+    return JsonResponse({'count': len(chassis_list), 'chassis': chassis_list})
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -53,6 +59,7 @@ urlpatterns = [
 
     # ✅ Temp endpoint - ลบหลังใช้งาน
     path('dev/migrate/', run_migrate),
+    path('dev/chassis/', get_all_chassis),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
