@@ -36,6 +36,18 @@ def run_migrate(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: fake migration 0019 แล้ว migrate ต่อ
+def fake_migrate_0019(request):
+    from django.core.management import call_command
+    from io import StringIO
+    out = StringIO()
+    try:
+        call_command('migrate', 'api', '0019', '--fake', stdout=out)
+        call_command('migrate', stdout=out)
+        return JsonResponse({'status': 'ok', 'output': out.getvalue()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: ดึง chassis ทั้งหมดใน DB
 def get_all_chassis(request):
     from api.models import Bike
@@ -59,6 +71,7 @@ urlpatterns = [
 
     # ✅ Temp endpoint - ลบหลังใช้งาน
     path('dev/migrate/', run_migrate),
+    path('dev/fake-0019/', fake_migrate_0019),
     path('dev/chassis/', get_all_chassis),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
