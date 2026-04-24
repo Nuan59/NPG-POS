@@ -7,7 +7,6 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { getGift } from "@/services/GiftService";
 import { Gift } from "@/types/Gift";
@@ -16,6 +15,8 @@ import Link from "next/link";
 import React from "react";
 import AddProducts from "./AddProducts";
 import ChangePrice from "./ChangePrice";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/authOptions";
 
 interface ViewGiftProps {
   params: {
@@ -24,6 +25,10 @@ interface ViewGiftProps {
 }
 
 const ViewGift = async ({ params }: ViewGiftProps) => {
+  const session = await getServerSession(authOptions);
+  const roleCode = String((session as any)?.user?.role ?? "").toLowerCase();
+  const isManager = roleCode === "adm";
+
   const gift = (await getGift(parseInt(params.gift_id)).then((res) => {
     if (!res?.ok) {
       return null;
@@ -70,6 +75,12 @@ const ViewGift = async ({ params }: ViewGiftProps) => {
           </h2>
           <span className="block">จำนวนคงเหลือ: {gift.stock}</span>
           <span className="block">ราคา: {gift.price}</span>
+          {/* แสดงขายส่งเฉพาะผู้จัดการ */}
+          {isManager && (
+            <span className="block text-muted-foreground text-sm">
+              ขายส่ง: {gift.wholesale_price ?? "-"}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

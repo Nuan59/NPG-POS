@@ -23,6 +23,7 @@ const createGiftFormSchema = z.object({
 	name: z.string().nonempty("กรุณากรอกชื่อของแถม"),
 	price: z.coerce.number().min(0, "ราคาต้องมากกว่าหรือเท่ากับ 0"),
 	stock: z.coerce.number().min(0, "จำนวนต้องมากกว่าหรือเท่ากับ 0"),
+	wholesale_price: z.coerce.number().min(0, "ราคาต้องมากกว่าหรือเท่ากับ 0").optional().or(z.literal("")),
 });
 
 type FormDataType = z.infer<typeof createGiftFormSchema>;
@@ -33,6 +34,7 @@ const GiftForm = () => {
 			name: "",
 			price: 0,
 			stock: 0,
+			wholesale_price: undefined,
 		},
 		resolver: zodResolver(createGiftFormSchema),
 	});
@@ -46,9 +48,14 @@ const GiftForm = () => {
 			placeholder: "กรอกชื่อของแถม",
 		},
 		{
-			label: "ราคาของแถม",
+			label: "ราคา",
 			name: "price",
 			placeholder: "กรอกราคา",
+		},
+		{
+			label: "ขายส่ง",
+			name: "wholesale_price",
+			placeholder: "กรอกราคาขายส่ง",
 		},
 		{
 			label: "จำนวนในคลัง",
