@@ -47,7 +47,8 @@ const CustomersReports = () => {
 				setLoading(true);
 				setError(null);
 
-				const response = await fetch(`http://127.0.0.1:8000/customers/map/`, {
+				// ✅ แก้: ใช้ API_BASE_URL แทน hardcode localhost
+				const response = await fetch(`${API_BASE_URL}/customers/map/`, {
 					headers: {
 						'Content-Type': 'application/json',
 					},
@@ -90,11 +91,9 @@ const CustomersReports = () => {
 		const byModel: { [key: string]: number } = {};
 
 		customers.forEach((c) => {
-			// นับตามอำเภอ
 			if (c.district) {
 				byDistrict[c.district] = (byDistrict[c.district] || 0) + 1;
 			}
-			// นับตามตำบล (เก็บ district ด้วย)
 			if (c.subdistrict && c.district) {
 				const key = `${c.subdistrict} (${c.district})`;
 				if (!bySubdistrict[key]) {
@@ -102,7 +101,6 @@ const CustomersReports = () => {
 				}
 				bySubdistrict[key].count += 1;
 			}
-			// นับตามรุ่นรถ
 			if (c.bike_models && c.bike_models.length > 0) {
 				c.bike_models.forEach((model) => {
 					byModel[model] = (byModel[model] || 0) + 1;
@@ -150,8 +148,8 @@ const CustomersReports = () => {
 				<div className="bg-red-50 border border-red-300 rounded-lg p-6">
 					<h2 className="text-xl font-bold text-red-800 mb-2">❌ เกิดข้อผิดพลาด</h2>
 					<p className="text-red-700 mb-4">{error}</p>
-					<button 
-						onClick={() => window.location.reload()} 
+					<button
+						onClick={() => window.location.reload()}
 						className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
 					>
 						โหลดใหม่
@@ -177,7 +175,6 @@ const CustomersReports = () => {
 
 	return (
 		<div className="w-full h-full p-6">
-			{/* Header + Toggle Buttons */}
 			<div className="mb-6 flex items-center justify-between">
 				<div>
 					<h2 className="text-2xl font-bold mb-2">การวิเคราะห์ลูกค้า</h2>
@@ -186,7 +183,6 @@ const CustomersReports = () => {
 					</p>
 				</div>
 
-				{/* ✅ ปุ่มสลับโหมด */}
 				<div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
 					<button
 						onClick={() => setViewMode("map")}
@@ -213,7 +209,6 @@ const CustomersReports = () => {
 				</div>
 			</div>
 
-			{/* Summary Cards */}
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
 				<div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
 					<div className="flex items-center justify-between">
@@ -259,10 +254,8 @@ const CustomersReports = () => {
 				</div>
 			</div>
 
-			{/* ✅ Content แบ่งตาม viewMode */}
 			{viewMode === "map" ? (
 				<>
-					{/* แผนที่ */}
 					<div className="bg-white rounded-lg shadow overflow-hidden mb-4">
 						<LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
 							<GoogleMap mapContainerStyle={mapContainerStyle} center={CENTER} zoom={13}>
@@ -295,7 +288,6 @@ const CustomersReports = () => {
 						</LoadScript>
 					</div>
 
-					{/* คำอธิบายสี */}
 					<div className="bg-white rounded-lg shadow p-4">
 						<div className="flex items-center gap-2 mb-3">
 							<Package className="h-5 w-5 text-gray-600" />
@@ -324,9 +316,7 @@ const CustomersReports = () => {
 				</>
 			) : (
 				<>
-					{/* ✅ โหมดรายงานตามพื้นที่ */}
 					<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-						{/* รายงานตามอำเภอ */}
 						<div className="bg-white rounded-lg shadow p-6">
 							<h3 className="text-xl font-bold mb-4 flex items-center gap-2">
 								<MapPin className="h-6 w-6 text-green-600" />
@@ -358,7 +348,6 @@ const CustomersReports = () => {
 							)}
 						</div>
 
-						{/* รายงานตามตำบล */}
 						<div className="bg-white rounded-lg shadow p-6">
 							<h3 className="text-xl font-bold mb-4 flex items-center gap-2">
 								<MapPin className="h-6 w-6 text-blue-600" />
@@ -391,7 +380,6 @@ const CustomersReports = () => {
 						</div>
 					</div>
 
-					{/* รายงานตามรุ่นรถ (แสดงในโหมดพื้นที่ด้วย) */}
 					<div className="bg-white rounded-lg shadow p-6 mt-6">
 						<h3 className="text-xl font-bold mb-4 flex items-center gap-2">
 							<Package className="h-6 w-6 text-purple-600" />
