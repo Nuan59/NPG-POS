@@ -70,6 +70,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 			"Category",
 			"Brand",
 			"Received date",
+			"Wholesale price",
 		],
 	];
 
@@ -95,6 +96,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 							category: obj["Category"] || obj["ประเภทสินค้า"] || "new",
 							brand: obj["Brand"] || obj["ยี่ห้อ"],
 							received_date: parseThaiDate(String(obj["Received date"] || obj["วันที่รับ"] || "")),
+					wholesale_price: String(obj["Wholesale price"] || obj["ราคาขายส่ง"] || ""),
 						} as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
@@ -168,6 +170,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 		{ label: "หมายเหตุ", value: "notes" },
 		{ label: "ประเภทสินค้า", value: "category" },
 		{ label: "วันที่รับ", value: "received_date" },
+		{ label: "ราคาขายส่ง", value: "wholesale_price" },
 	];
 
 	return (
