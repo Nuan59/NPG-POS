@@ -72,13 +72,15 @@ class BikeViewSet(viewsets.ModelViewSet):
                     engine=bike['engine'],
                     chassi=chassi_value,
                     registration_plate=bike.get('registration_plate', ''),
+                    old_registration_plate=bike.get('old_registration_plate', '') or None,
                     color=bike.get('color', ''),
                     notes=bike.get('notes', ''),
                     category=bike.get('category', 'new'),
                     sale_price=bike.get('sale_price'),
+                    wholesale_price=bike.get('wholesale_price', '') or None,
                     brand=bike.get('brand', 'Honda'),
                     storage_place=storage,
-                    received_date=date.today()
+                    received_date=bike.get('received_date') or date.today(),
                 )
                 created.append(newInstance.id)
             except Exception as e:

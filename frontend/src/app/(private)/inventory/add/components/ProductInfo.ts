@@ -8,7 +8,6 @@ type ProductInfoItem = {
 };
 
 export const product_info: ProductInfoItem[] = [
-  // ✅ 1. ประเภทสินค้า
   {
     name: "category",
     label: "ประเภทสินค้า",
@@ -18,7 +17,6 @@ export const product_info: ProductInfoItem[] = [
       { label: "มือสอง", value: "pre_owned" },
     ],
   },
-  // ✅ 2. ยี่ห้อ
   {
     name: "brand",
     label: "ยี่ห้อ",
@@ -32,38 +30,39 @@ export const product_info: ProductInfoItem[] = [
       { label: "Vespa", value: "Vespa" },
     ],
   },
-  // 3. ชื่อรุ่น
   {
     name: "model_name",
     label: "ชื่อรุ่น",
     placeholder: "เช่น Wave 110i",
   },
-  // 4. รหัสรุ่น
   {
     name: "model_code",
     label: "รหัสรุ่น",
     placeholder: "เช่น AFS125CSFP TH",
   },
-  // 5. เลขเครื่องยนต์
   {
     name: "engine",
     label: "เลขเครื่องยนต์",
     placeholder: "กรอกเลขเครื่องยนต์",
   },
-  // 6. เลขตัวถัง - ✅ แก้เป็น chassis
   {
     name: "chassi",
     label: "เลขตัวถัง",
     placeholder: "กรอกเลขตัวถัง",
   },
-  // ✅ 7. ทะเบียนรถ - แสดงเฉพาะมือสอง
+  // ✅ แสดงเฉพาะมือสอง
   {
-    name: "registration_plate",
-    label: "ทะเบียนรถ",
-    placeholder: "เช่น กข 1234",
+    name: "old_registration_plate",
+    label: "ทะเบียนเก่า",
+    placeholder: "เช่น 2กน 7385 เชียงใหม่",
     showOnlyFor: "pre_owned",
   },
-  // ✅ 8. วันหมดอายุทะเบียน - แสดงเฉพาะมือสอง
+  {
+    name: "registration_plate",
+    label: "ทะเบียนใหม่",
+    placeholder: "เช่น 1กฐ 5535 แพร่",
+    showOnlyFor: "pre_owned",
+  },
   {
     name: "registration_expiry_date",
     label: "วันหมดอายุทะเบียน",
@@ -71,13 +70,11 @@ export const product_info: ProductInfoItem[] = [
     type: "date",
     showOnlyFor: "pre_owned",
   },
-  // 9. สี
   {
     name: "color",
     label: "สี",
     placeholder: "เช่น แดง",
   },
-  // 10. หมายเหตุ
   {
     name: "notes",
     label: "หมายเหตุ",

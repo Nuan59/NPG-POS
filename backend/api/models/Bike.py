@@ -5,8 +5,9 @@ class Bike(models.Model):
     model_name = models.CharField(max_length=200)
     model_code = models.CharField(max_length=100)
     engine     = models.CharField(max_length=100, null=True)
-    chassi     = models.CharField(max_length=100, unique=True)  # ✅ ใช้ chassi ตรงกับ DB
+    chassi     = models.CharField(max_length=100, unique=True)
     registration_plate = models.CharField(max_length=20, null=True, blank=True)
+    old_registration_plate = models.CharField(max_length=20, null=True, blank=True, verbose_name="ทะเบียนเก่า")
     registration_expiry_date = models.DateField(null=True, blank=True)
     color = models.CharField(max_length=50, null=True)
     notes      = models.TextField(null=True, blank=True)
