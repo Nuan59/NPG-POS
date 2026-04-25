@@ -16,7 +16,7 @@ import React from "react";
 import AddProducts from "./AddProducts";
 import ChangePrice from "./ChangePrice";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/authOptions";
+import { authOptions } from "@/util/AuthOptions";
 
 interface ViewGiftProps {
   params: {
