@@ -60,17 +60,18 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 
 	const csvHeaders = [
 		[
-			"Model name",
-			"Model code",
-			"Engine",
-			"Chassis",
-			"Registration plate",
-			"Color",
-			"Notes",
-			"Category",
-			"Brand",
-			"Received date",
-			"Wholesale price",
+			"ชื่อรุ่น",
+			"รหัสรุ่น",
+			"เลขเครื่อง",
+			"เลขถัง",
+			"ทะเบียนเก่า",
+			"ทะเบียนใหม่",
+			"สี",
+			"หมายเหตุ",
+			"ประเภท",
+			"ยี่ห้อ",
+			"วันที่รับ",
+			"ราคาขายส่ง",
 		],
 	];
 
@@ -86,17 +87,18 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 					results.data.map((obj) => {
 						// ✅ รองรับทั้ง header ภาษาไทยและอังกฤษ
 						const bike = {
-							model_name: obj["Model name"] || obj["ชื่อรุ่น"],
-							model_code: obj["Model code"] || obj["รหัสรุ่น"],
-							engine: obj["Engine"],
-							chassi: obj["Chassis"],
-							registration_plate: obj["Registration plate"] || obj["ทะเบียน"],
-							color: obj["Color"] || obj["สี"],
-							notes: obj["Notes"] || obj["หมายเหตุ"] || "",
-							category: obj["Category"] || obj["ประเภทสินค้า"] || "new",
-							brand: obj["Brand"] || obj["ยี่ห้อ"],
-							received_date: parseThaiDate(String(obj["Received date"] || obj["วันที่รับ"] || "")),
-					wholesale_price: String(obj["Wholesale price"] || obj["ราคาขายส่ง"] || ""),
+							model_name: obj["ชื่อรุ่น"] || obj["Model name"],
+							model_code: obj["รหัสรุ่น"] || obj["Model code"],
+							engine: obj["เลขเครื่อง"] || obj["Engine"],
+							chassi: obj["เลขถัง"] || obj["Chassis"],
+							old_registration_plate: String(obj["ทะเบียนเก่า"] || obj["Old registration plate"] || "") || undefined,
+							registration_plate: obj["ทะเบียนใหม่"] || obj["Registration plate"] || obj["ทะเบียน"],
+							color: obj["สี"] || obj["Color"],
+							notes: String(obj["หมายเหตุ"] || obj["Notes"] || ""),
+							category: obj["ประเภท"] || obj["Category"] || obj["ประเภทสินค้า"] || "new",
+							brand: obj["ยี่ห้อ"] || obj["Brand"],
+							received_date: parseThaiDate(String(obj["วันที่รับ"] || obj["Received date"] || "")),
+							wholesale_price: String(obj["ราคาขายส่ง"] || obj["Wholesale price"] || ""),
 						} as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
@@ -163,12 +165,13 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 		{ label: "ยี่ห้อ", value: "brand" },
 		{ label: "ชื่อรุ่น", value: "model_name" },
 		{ label: "รหัสรุ่น", value: "model_code" },
-		{ label: "เลขเครื่องยนต์", value: "engine" },
-		{ label: "เลขตัวถัง", value: "chassi" },
-		{ label: "ทะเบียน", value: "registration_plate" },
+		{ label: "เลขเครื่อง", value: "engine" },
+		{ label: "เลขถัง", value: "chassi" },
+		{ label: "ทะเบียนเก่า", value: "old_registration_plate" },
+		{ label: "ทะเบียนใหม่", value: "registration_plate" },
 		{ label: "สี", value: "color" },
 		{ label: "หมายเหตุ", value: "notes" },
-		{ label: "ประเภทสินค้า", value: "category" },
+		{ label: "ประเภท", value: "category" },
 		{ label: "วันที่รับ", value: "received_date" },
 		{ label: "ราคาขายส่ง", value: "wholesale_price" },
 	];
