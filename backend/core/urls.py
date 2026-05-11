@@ -54,11 +54,6 @@ def get_all_chassis(request):
     chassis_list = list(Bike.objects.values_list('chassi', flat=True))
     return JsonResponse({'count': len(chassis_list), 'chassis': chassis_list})
 
-# ✅ Temp: ลบ Bike ที่เป็น pre_owned ทั้งหมด
-def delete_pre_owned_bikes(request):
-    from api.models import Bike
-    count, _ = Bike.objects.filter(category='pre_owned').delete()
-    return JsonResponse({'status': 'ok', 'deleted': count})
 
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
@@ -75,11 +70,10 @@ router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 urlpatterns = [
     path("admin/", admin.site.urls),
 
-    # ✅ Temp endpoint - ลบหลังใช้งาน
+    # ✅ Temp endpoint
     path('dev/migrate/', run_migrate),
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/chassis/', get_all_chassis),
-    path('dev/delete-pre-owned/', delete_pre_owned_bikes),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
