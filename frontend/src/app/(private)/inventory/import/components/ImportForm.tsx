@@ -89,10 +89,10 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 						const bike = {
 							model_name: obj["ชื่อรุ่น"] || obj["Model name"],
 							model_code: obj["รหัสรุ่น"] || obj["Model code"],
-							engine: obj["เลขเครื่อง"] || obj["Engine"],
-							chassi: obj["เลขถัง"] || obj["Chassis"],
-							old_registration_plate: String(obj["ทะเบียนเก่า"] || obj["Old registration plate"] || "") || undefined,
-							registration_plate: obj["ทะเบียนใหม่"] || obj["Registration plate"] || obj["ทะเบียน"],
+							engine: String(obj["เลขเครื่อง"] || obj["Engine"] || "").trim(),
+							chassi: String(obj["เลขถัง"] || obj["Chassis"] || "").trim(),
+							old_registration_plate: String(obj["ทะเบียนเก่า"] || obj["Old registration plate"] || "").trim() || undefined,
+							registration_plate: String(obj["ทะเบียนใหม่"] || obj["Registration plate"] || obj["ทะเบียน"] || "").trim(),
 							color: obj["สี"] || obj["Color"],
 							notes: String(obj["หมายเหตุ"] || obj["Notes"] || ""),
 							category: obj["ประเภท"] || obj["Category"] || obj["ประเภทสินค้า"] || "new",
@@ -102,7 +102,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 						} as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
-						if (bike.chassi) {
+						if (bike.engine && bike.chassi) {
 							newBikes.push(bike);
 						}
 					});
