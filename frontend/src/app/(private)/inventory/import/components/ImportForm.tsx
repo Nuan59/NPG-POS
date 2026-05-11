@@ -102,7 +102,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 						} as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
-						if (bike.engine && bike.chassi) {
+						if (bike.chassi) {
 							newBikes.push(bike);
 						}
 					});
