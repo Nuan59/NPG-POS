@@ -140,6 +140,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 		importInventory({ storage: selectedStorage, bikes: bikesImport }).then(
 			async (res) => {
 				const data = res.data ? await res.data : null;
+				console.log("IMPORT RESPONSE:", JSON.stringify(data));
 				const created = data?.created_ids?.length || 0;
 				const errors = data?.errors || [];
 
