@@ -86,6 +86,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 				complete: (results: ParseResult<Record<string, unknown>>) => {
 					results.data.map((obj) => {
 						// ✅ รองรับทั้ง header ภาษาไทยและอังกฤษ
+						const received_date = parseThaiDate(String(obj["วันที่รับ"] || obj["Received date"] || ""));
 						const bike = {
 							model_name: obj["ชื่อรุ่น"] || obj["Model name"],
 							model_code: obj["รหัสรุ่น"] || obj["Model code"],
@@ -97,9 +98,9 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 							notes: String(obj["หมายเหตุ"] || obj["Notes"] || ""),
 							category: obj["ประเภท"] || obj["Category"] || obj["ประเภทสินค้า"] || "new",
 							brand: obj["ยี่ห้อ"] || obj["Brand"],
-							received_date: parseThaiDate(String(obj["วันที่รับ"] || obj["Received date"] || "")),
+							...(received_date && { received_date }),
 							wholesale_price: String(obj["ราคาขายส่ง"] || obj["Wholesale price"] || ""),
-						} as IBike;
+						} as unknown as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
 						if (bike.chassi) {
