@@ -35,6 +35,8 @@ export const calculateTotal = (
     paymentMethod === "Cathay" ||
     paymentMethod === "ทรัพย์สยาม" ||
     paymentMethod === "NPG" ||
+    paymentMethod === "Summit" ||
+    paymentMethod === "S Leasing" ||
     paymentMethod === "ไฟแนนซ์";
 
   let calculatedTotal = 0;
@@ -57,6 +59,8 @@ export const calculateFinanceAmount = (getValues: any, setValue: any) => {
     paymentMethod === "Cathay" ||
     paymentMethod === "ทรัพย์สยาม" ||
     paymentMethod === "NPG" ||
+    paymentMethod === "Summit" ||
+    paymentMethod === "S Leasing" ||
     paymentMethod === "ไฟแนนซ์";
 
   if (!isFinance) return;
@@ -81,6 +85,8 @@ export const calculateInstallmentAmount = (getValues: any, setValue: any) => {
     paymentMethod === "Cathay" ||
     paymentMethod === "ทรัพย์สยาม" ||
     paymentMethod === "NPG" ||
+    paymentMethod === "Summit" ||
+    paymentMethod === "S Leasing" ||
     paymentMethod === "ไฟแนนซ์";
 
   if (!isFinance) return;
@@ -118,6 +124,8 @@ export const isFinanceMethod = (paymentMethod: string): boolean => {
     paymentMethod === "Cathay" ||
     paymentMethod === "ทรัพย์สยาม" ||
     paymentMethod === "NPG" ||
+    paymentMethod === "Summit" ||
+    paymentMethod === "S Leasing" ||
     paymentMethod === "ไฟแนนซ์"
   );
 };

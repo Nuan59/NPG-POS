@@ -59,6 +59,7 @@ interface FormDataType {
 	installmentAmount: number;
 	npgPeriod?: string;
 	registrationExpiryDate?: string;
+	saleDate?: string;
 }
 
 interface EditFormProps {
@@ -107,6 +108,7 @@ const EditForm = ({ order }: EditFormProps) => {
 				installmentAmount: Number(order.installment_amount) || 0,
 				npgPeriod: detectNpgPeriod(),
 				registrationExpiryDate: order.registration_expiry_date || "",
+				saleDate: order.sale_date || "",
 			},
 		});
 
@@ -158,6 +160,7 @@ const EditForm = ({ order }: EditFormProps) => {
 			...data,
 			total,
 			bikePrice: data.salePrice,
+			sale_date: data.saleDate || undefined,
 			finance_amount: isFinance ? data.financeAmount : 0,
 			interest_rate: isFinance ? data.interestRate : 0,
 			installment_count: isFinance ? data.installmentCount : 0,
@@ -215,6 +218,20 @@ const EditForm = ({ order }: EditFormProps) => {
 					handleRemoveNewImage(i, setImages, setImagesPreviews)
 				}
 			/>
+
+			{/* วันที่ขาย */}
+			<div className="p-4 bg-slate-50 rounded-lg border border-slate-200 mb-4">
+				<Label htmlFor="saleDate" className="flex items-center gap-2">
+					<Calendar size={16} className="text-slate-600" />
+					วันที่ขาย
+				</Label>
+				<Input
+					type="date"
+					id="saleDate"
+					{...register("saleDate")}
+					className="w-full mt-2"
+				/>
+			</div>
 
 			{/* วันหมดอายุทะเบียน */}
 			<div className="p-4 bg-orange-50 rounded-lg border border-orange-200 mb-4">
@@ -387,6 +404,8 @@ const EditForm = ({ order }: EditFormProps) => {
 								<SelectItem value="NPG">NPG</SelectItem>
 								<SelectItem value="Cathay">Cathay</SelectItem>
 								<SelectItem value="ทรัพย์สยาม">ทรัพย์สยาม</SelectItem>
+								<SelectItem value="Summit">Summit</SelectItem>
+								<SelectItem value="S Leasing">S Leasing</SelectItem>
 							</SelectContent>
 						</Select>
 					)}
