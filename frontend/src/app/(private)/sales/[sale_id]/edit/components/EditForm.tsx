@@ -59,7 +59,7 @@ interface FormDataType {
 	installmentAmount: number;
 	npgPeriod?: string;
 	registrationExpiryDate?: string;
-	saleDate?: string;
+	saleDate?: string; // รูปแบบ วว/ดด/ปปปป
 }
 
 interface EditFormProps {
@@ -75,6 +75,22 @@ const EditForm = ({ order }: EditFormProps) => {
 	const [existingImages, setExistingImages] = useState<string[]>(
 		order.images || []
 	);
+
+	// แปลง YYYY-MM-DD → วว/ดด/ปปปป
+	const toThaiDateFormat = (dateStr: string): string => {
+		if (!dateStr) return "";
+		const parts = dateStr.split("-");
+		if (parts.length !== 3) return dateStr;
+		return `${parts[2]}/${parts[1]}/${parts[0]}`;
+	};
+
+	// แปลง วว/ดด/ปปปป → YYYY-MM-DD
+	const toISODate = (thaiDate: string): string => {
+		if (!thaiDate) return "";
+		const parts = thaiDate.split("/");
+		if (parts.length !== 3) return thaiDate;
+		return `${parts[2]}-${parts[1]}-${parts[0]}`;
+	};
 
 	const detectNpgPeriod = (): string => {
 		if (order.payment_method !== "NPG") return "";
@@ -108,7 +124,7 @@ const EditForm = ({ order }: EditFormProps) => {
 				installmentAmount: Number(order.installment_amount) || 0,
 				npgPeriod: detectNpgPeriod(),
 				registrationExpiryDate: order.registration_expiry_date || "",
-				saleDate: order.sale_date || "",
+				saleDate: toThaiDateFormat(order.sale_date || ""),
 			},
 		});
 
@@ -160,7 +176,7 @@ const EditForm = ({ order }: EditFormProps) => {
 			...data,
 			total,
 			bikePrice: data.salePrice,
-			sale_date: data.saleDate || undefined,
+			sale_date: data.saleDate ? toISODate(data.saleDate) : undefined,
 			finance_amount: isFinance ? data.financeAmount : 0,
 			interest_rate: isFinance ? data.interestRate : 0,
 			installment_count: isFinance ? data.installmentCount : 0,
@@ -226,11 +242,22 @@ const EditForm = ({ order }: EditFormProps) => {
 					วันที่ขาย
 				</Label>
 				<Input
-					type="date"
+					type="text"
 					id="saleDate"
-					{...register("saleDate")}
+					placeholder="วว/ดด/ปปปป"
+					maxLength={10}
+					{...register("saleDate", {
+						onChange: (e) => {
+							// auto-insert /
+							let val = e.target.value.replace(/[^0-9]/g, "");
+							if (val.length > 2) val = val.slice(0, 2) + "/" + val.slice(2);
+							if (val.length > 5) val = val.slice(0, 5) + "/" + val.slice(5);
+							e.target.value = val;
+						},
+					})}
 					className="w-full mt-2"
 				/>
+				<p className="text-xs text-gray-500 mt-1">รูปแบบ: วว/ดด/ปปปป เช่น 21/05/2568</p>
 			</div>
 
 			{/* วันหมดอายุทะเบียน */}
