@@ -245,8 +245,7 @@ const EditForm = ({ order }: EditFormProps) => {
 					type="date"
 					id="saleDate"
 					{...register("saleDate")}
-					className="w-full mt-2 [&::-webkit-datetime-edit-fields-wrapper]:flex [&::-webkit-datetime-edit-year-field]:order-3 [&::-webkit-datetime-edit-month-field]:order-2 [&::-webkit-datetime-edit-day-field]:order-1"
-					style={{ colorScheme: "light" }}
+					className="w-full mt-2"
 				/>
 			</div>
 
