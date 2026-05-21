@@ -213,6 +213,26 @@ class OrderViewSet(viewsets.ModelViewSet):
             order_to_edit.discount = request.data.get('discount', 0)
             order_to_edit.down_payment = request.data.get('downPayment', 0)
 
+            # แก้ไขวันที่ขาย
+            sale_date = request.data.get('sale_date')
+            if sale_date:
+                order_to_edit.sale_date = sale_date
+
+            # แก้ไขวันหมดอายุทะเบียน
+            registration_expiry_date = request.data.get('registration_expiry_date')
+            if registration_expiry_date:
+                order_to_edit.registration_expiry_date = registration_expiry_date
+            elif registration_expiry_date == '' or registration_expiry_date is None:
+                order_to_edit.registration_expiry_date = None
+
+            # แก้ไขข้อมูลไฟแนนซ์
+            order_to_edit.deposit = request.data.get('deposit', order_to_edit.deposit)
+            order_to_edit.finance_amount = request.data.get('finance_amount', order_to_edit.finance_amount)
+            order_to_edit.interest_rate = request.data.get('interest_rate', order_to_edit.interest_rate)
+            order_to_edit.installment_count = request.data.get('installment_count', order_to_edit.installment_count)
+            order_to_edit.installment_amount = request.data.get('installment_amount', order_to_edit.installment_amount)
+            order_to_edit.finance_provider = request.data.get('finance_provider', order_to_edit.finance_provider)
+
             # แก้ไขราคารถ
             bike_to_edit = order_to_edit.bikes.all()[0]
             bike_to_edit.sale_price = request.data.get('bikePrice', bike_to_edit.sale_price)
