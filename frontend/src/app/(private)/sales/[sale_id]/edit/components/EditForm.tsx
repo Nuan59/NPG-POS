@@ -244,6 +244,7 @@ const EditForm = ({ order }: EditFormProps) => {
 				<Input
 					type="date"
 					id="saleDate"
+					lang="en-GB"
 					{...register("saleDate")}
 					className="w-full mt-2"
 				/>
