@@ -190,7 +190,7 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
       if (paymentFilter !== "__ALL__") {
         if (paymentFilter === "ไฟแนนซ์") {
           filtered = filtered.filter(
-            (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม"
+            (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing"
           );
         } else {
           filtered = filtered.filter(
@@ -224,8 +224,8 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
 
         <div>
           <SearchBar
-            value={searchTerm}
-            onChange={setSearchTerm}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
           />
         </div>
       </div>
