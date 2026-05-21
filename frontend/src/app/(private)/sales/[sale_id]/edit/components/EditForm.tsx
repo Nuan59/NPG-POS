@@ -241,12 +241,12 @@ const EditForm = ({ order }: EditFormProps) => {
 					<Calendar size={16} className="text-slate-600" />
 					วันที่ขาย
 				</Label>
-				<Input
+				<input
 					type="date"
 					id="saleDate"
 					lang="en-GB"
 					{...register("saleDate")}
-					className="w-full mt-2"
+					className="w-full mt-2 border border-input rounded-md px-3 py-2 text-sm"
 				/>
 			</div>
 
