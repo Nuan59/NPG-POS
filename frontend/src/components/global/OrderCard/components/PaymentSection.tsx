@@ -77,6 +77,8 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             <SelectItem value="Cathay">Cathay</SelectItem>
             <SelectItem value="ทรัพย์สยาม">ทรัพย์สยาม</SelectItem>
             <SelectItem value="NPG">NPG</SelectItem>
+            <SelectItem value="Summit">Summit</SelectItem>
+            <SelectItem value="S Leasing">S Leasing</SelectItem>
           </SelectContent>
         </Select>
       </div>
