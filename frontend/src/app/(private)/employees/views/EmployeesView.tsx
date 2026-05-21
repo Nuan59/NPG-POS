@@ -40,7 +40,7 @@ const EmployeesView = ({ employees }: EmployeesViewProps) => {
 					<h6 className="prompt">รวมทั้งหมด: {EmployeesDisplay.length}</h6>
 				</div>
 				<div className="flex flex-col gap-2">
-					<SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+					<SearchBar value={searchTerm} onChange={setSearchTerm} />
 					<div className="flex justify-end gap-1">
 						<TooltipProvider>
 							<Tooltip>

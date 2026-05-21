@@ -39,7 +39,7 @@ const StoragesView = ({ storages }: StoragesViewProps) => {
 					<h6 className="prompt">รวมทั้งหมด: {StoragesDisplay.length}</h6>
 				</div>
 				<div className="flex flex-col gap-2">
-					<SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+					<SearchBar value={searchTerm} onChange={setSearchTerm} />
 					<div className="flex justify-end gap-1">
 						<TooltipProvider>
 							<Tooltip>

@@ -224,8 +224,8 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
 
         <div>
           <SearchBar
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
+            value={searchTerm}
+            onChange={setSearchTerm}
           />
         </div>
       </div>
