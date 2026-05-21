@@ -59,6 +59,14 @@ type EditOrderFormDataType = {
 	discount: number;
 	downPayment: number;
 	total: number;
+	sale_date?: string;
+	registration_expiry_date?: string | null;
+	finance_amount?: number;
+	interest_rate?: number;
+	installment_count?: number;
+	installment_amount?: number;
+	finance_provider?: string;
+	deposit?: number;
 };
 
 export const editOrder = async (
