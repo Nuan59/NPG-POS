@@ -124,7 +124,7 @@ const EditForm = ({ order }: EditFormProps) => {
 				installmentAmount: Number(order.installment_amount) || 0,
 				npgPeriod: detectNpgPeriod(),
 				registrationExpiryDate: order.registration_expiry_date || "",
-				saleDate: toThaiDateFormat(order.sale_date || ""),
+				saleDate: order.sale_date || "",
 			},
 		});
 
@@ -176,7 +176,7 @@ const EditForm = ({ order }: EditFormProps) => {
 			...data,
 			total,
 			bikePrice: data.salePrice,
-			sale_date: data.saleDate ? toISODate(data.saleDate) : undefined,
+			sale_date: data.saleDate || undefined,
 			finance_amount: isFinance ? data.financeAmount : 0,
 			interest_rate: isFinance ? data.interestRate : 0,
 			installment_count: isFinance ? data.installmentCount : 0,
@@ -242,22 +242,12 @@ const EditForm = ({ order }: EditFormProps) => {
 					วันที่ขาย
 				</Label>
 				<Input
-					type="text"
+					type="date"
 					id="saleDate"
-					placeholder="วว/ดด/ปปปป"
-					maxLength={10}
-					{...register("saleDate", {
-						onChange: (e) => {
-							// auto-insert /
-							let val = e.target.value.replace(/[^0-9]/g, "");
-							if (val.length > 2) val = val.slice(0, 2) + "/" + val.slice(2);
-							if (val.length > 5) val = val.slice(0, 5) + "/" + val.slice(5);
-							e.target.value = val;
-						},
-					})}
-					className="w-full mt-2"
+					{...register("saleDate")}
+					className="w-full mt-2 [&::-webkit-datetime-edit-fields-wrapper]:flex [&::-webkit-datetime-edit-year-field]:order-3 [&::-webkit-datetime-edit-month-field]:order-2 [&::-webkit-datetime-edit-day-field]:order-1"
+					style={{ colorScheme: "light" }}
 				/>
-				<p className="text-xs text-gray-500 mt-1">รูปแบบ: วว/ดด/ปปปป เช่น 21/05/2568</p>
 			</div>
 
 			{/* วันหมดอายุทะเบียน */}
