@@ -22,7 +22,6 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-// ✅ Import components และ helpers จากไฟล์เดียวกัน
 import { ImageUploadSection } from "./imageuploadsection";
 import {
 	handleImageUpload,
@@ -39,16 +38,8 @@ import {
 interface FormDataType {
 	paymentMethod: string;
 	notes: string;
-	additionalFees: {
-		id: number;
-		description: string;
-		amount?: number;
-	}[];
-	gifts: {
-		id: number;
-		name: string;
-		quantity: number;
-	}[];
+	additionalFees: { id: number; description: string; amount?: number }[];
+	gifts: { id: number; name: string; quantity: number }[];
 	discount: number;
 	downPayment: number;
 	deposit: number;
@@ -59,7 +50,7 @@ interface FormDataType {
 	installmentAmount: number;
 	npgPeriod?: string;
 	registrationExpiryDate?: string;
-	saleDate?: string; // รูปแบบ วว/ดด/ปปปป
+	saleDate?: string;
 }
 
 interface EditFormProps {
@@ -68,35 +59,13 @@ interface EditFormProps {
 
 const EditForm = ({ order }: EditFormProps) => {
 	const router = useRouter();
-
-	// State สำหรับรูปภาพ
 	const [images, setImages] = useState<File[]>([]);
 	const [imagesPreviews, setImagesPreviews] = useState<string[]>([]);
-	const [existingImages, setExistingImages] = useState<string[]>(
-		order.images || []
-	);
-
-	// แปลง YYYY-MM-DD → วว/ดด/ปปปป
-	const toThaiDateFormat = (dateStr: string): string => {
-		if (!dateStr) return "";
-		const parts = dateStr.split("-");
-		if (parts.length !== 3) return dateStr;
-		return `${parts[2]}/${parts[1]}/${parts[0]}`;
-	};
-
-	// แปลง วว/ดด/ปปปป → YYYY-MM-DD
-	const toISODate = (thaiDate: string): string => {
-		if (!thaiDate) return "";
-		const parts = thaiDate.split("/");
-		if (parts.length !== 3) return thaiDate;
-		return `${parts[2]}-${parts[1]}-${parts[0]}`;
-	};
+	const [existingImages, setExistingImages] = useState<string[]>(order.images || []);
 
 	const detectNpgPeriod = (): string => {
 		if (order.payment_method !== "NPG") return "";
-		if (order.installment_count && order.installment_count <= 10) {
-			return "รายปี";
-		}
+		if (order.installment_count && order.installment_count <= 10) return "รายปี";
 		return "รายเดือน";
 	};
 
@@ -128,27 +97,20 @@ const EditForm = ({ order }: EditFormProps) => {
 			},
 		});
 
-	const { fields: feeFields, append: appendFee, remove: removeFee } = 
+	const { fields: feeFields, append: appendFee, remove: removeFee } =
 		useFieldArray({ name: "additionalFees", control });
 
-	const { fields: giftFields, append: appendGift, remove: removeGift } = 
+	const { fields: giftFields, append: appendGift, remove: removeGift } =
 		useFieldArray({ name: "gifts", control });
 
 	const [total, setTotal] = useState<number>(0);
 
 	const watchedFields = watch([
-		"salePrice",
-		"discount",
-		"downPayment",
-		"deposit",
-		"paymentMethod",
-		"financeAmount",
-		"interestRate",
-		"installmentCount",
-		"npgPeriod",
+		"salePrice", "discount", "downPayment", "deposit",
+		"paymentMethod", "financeAmount", "interestRate",
+		"installmentCount", "npgPeriod",
 	]);
 
-	// ✅ แก้ไข infinite loop
 	useEffect(() => {
 		calculateTotal(getValues, setTotal);
 	}, []);
@@ -158,20 +120,13 @@ const EditForm = ({ order }: EditFormProps) => {
 		calculateInstallmentAmount(getValues, setValue);
 		calculateTotal(getValues, setTotal);
 	}, [
-		watchedFields[0],
-		watchedFields[1],
-		watchedFields[2],
-		watchedFields[3],
-		watchedFields[4],
-		watchedFields[5],
-		watchedFields[6],
-		watchedFields[7],
+		watchedFields[0], watchedFields[1], watchedFields[2], watchedFields[3],
+		watchedFields[4], watchedFields[5], watchedFields[6], watchedFields[7],
 		watchedFields[8],
 	]);
 
 	const submitForm = async (data: FormDataType) => {
 		const isFinance = isFinanceMethod(data.paymentMethod);
-
 		const payload = {
 			...data,
 			total,
@@ -193,26 +148,19 @@ const EditForm = ({ order }: EditFormProps) => {
 
 		if (images.length === 0) {
 			const edit = await editOrder(order.id, payload);
-
 			if (edit.status === "success") {
-				toast.success("แก้ไขรายการขายสำเร็จ", {
-					description: getDate(new Date()),
-				});
+				toast.success("แก้ไขรายการขายสำเร็จ", { description: getDate(new Date()) });
 				router.push(`/sales/${order.id}`);
 				return;
 			}
-
 			toast.error("เกิดข้อผิดพลาดในการแก้ไข");
 			return;
 		}
-
 		toast.info("ฟีเจอร์อัปโหลดรูปยังไม่พร้อมใช้งาน");
 	};
 
 	const clearZeroOnFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-		if (e.target.value === "0") {
-			e.target.value = "";
-		}
+		if (e.target.value === "0") e.target.value = "";
 	};
 
 	const isFinance = isFinanceMethod(watch("paymentMethod"));
@@ -220,19 +168,13 @@ const EditForm = ({ order }: EditFormProps) => {
 
 	return (
 		<form id="editorder" onSubmit={handleSubmit(submitForm)}>
-			{/* ส่วนอัปโหลดรูปภาพ */}
+			{/* รูปภาพ */}
 			<ImageUploadSection
 				existingImages={existingImages}
 				imagesPreviews={imagesPreviews}
-				onImageUpload={(e) =>
-					handleImageUpload(e, setImages, setImagesPreviews)
-				}
-				onRemoveExisting={(i) =>
-					handleRemoveExistingImage(i, setExistingImages)
-				}
-				onRemoveNew={(i) =>
-					handleRemoveNewImage(i, setImages, setImagesPreviews)
-				}
+				onImageUpload={(e) => handleImageUpload(e, setImages, setImagesPreviews)}
+				onRemoveExisting={(i) => handleRemoveExistingImage(i, setExistingImages)}
+				onRemoveNew={(i) => handleRemoveNewImage(i, setImages, setImagesPreviews)}
 			/>
 
 			{/* วันที่ขาย */}
@@ -252,10 +194,7 @@ const EditForm = ({ order }: EditFormProps) => {
 
 			{/* วันหมดอายุทะเบียน */}
 			<div className="p-4 bg-orange-50 rounded-lg border border-orange-200 mb-4">
-				<Label
-					htmlFor="registrationExpiryDate"
-					className="flex items-center gap-2"
-				>
+				<Label htmlFor="registrationExpiryDate" className="flex items-center gap-2">
 					<Calendar size={16} className="text-orange-600" />
 					วันหมดอายุทะเบียนรถ
 				</Label>
@@ -276,58 +215,42 @@ const EditForm = ({ order }: EditFormProps) => {
 					<span className="font-medium">ค่าใช้จ่ายเพิ่มเติม</span>
 					<button
 						type="button"
-						onClick={() => {
-							appendFee({
-								id: Math.floor(Math.random() * 1000),
-								description: "",
-								amount: undefined,
-							});
-						}}
+						onClick={() => appendFee({ id: Math.floor(Math.random() * 1000), description: "", amount: undefined })}
 						className="border rounded bg-slate-300 p-1"
 					>
 						<Plus size={16} />
 					</button>
 				</div>
-
-					<div className="max-h-32 overflow-y-auto mb-2">
-						<div className="space-y-2">
-							{feeFields.map((field, index) => (
-								<div
-									key={field.id}
-									className="flex justify-between items-center bg-amber-50 p-2 rounded gap-2 border border-amber-200"
+				<div className="max-h-32 overflow-y-auto mb-2">
+					<div className="space-y-2">
+						{feeFields.map((field, index) => (
+							<div key={field.id} className="flex justify-between items-center bg-amber-50 p-2 rounded gap-2 border border-amber-200">
+								<input
+									type="text"
+									placeholder="รายการ"
+									className="border-none text-xs p-2 bg-white rounded flex-1"
+									{...register(`additionalFees.${index}.description`)}
+								/>
+								<input
+									type="number"
+									placeholder="0"
+									min="0"
+									onFocus={clearZeroOnFocus}
+									className="border-none text-xs p-2 bg-slate-200 rounded w-[100px] text-right"
+									{...register(`additionalFees.${index}.amount`, {
+										onChange: () => calculateTotal(getValues, setTotal),
+										valueAsNumber: true,
+									})}
+								/>
+								<button
+									type="button"
+									onClick={() => { removeFee(index); setTimeout(() => calculateTotal(getValues, setTotal), 0); }}
+									className="bg-red-400 hover:bg-red-500 rounded p-1"
 								>
-									<input
-										type="text"
-										placeholder="รายการ"
-										className="border-none text-xs p-2 bg-white rounded flex-1"
-										{...register(`additionalFees.${index}.description`)}
-									/>
-
-									<input
-										type="number"
-										placeholder="0"
-										min="0"
-										onFocus={clearZeroOnFocus}
-										className="border-none text-xs p-2 bg-slate-200 rounded w-[100px] text-right"
-										{...register(`additionalFees.${index}.amount`, {
-											onChange: () => calculateTotal(getValues, setTotal),
-											valueAsNumber: true,
-										})}
-									/>
-
-									<button
-										type="button"
-										onClick={() => {
-											removeFee(index);
-											setTimeout(() => calculateTotal(getValues, setTotal), 0);
-										}}
-										className="bg-red-400 hover:bg-red-500 rounded p-1"
-									>
-										<X size={16} />
-									</button>
-								</div>
-							))}
-						</div>
+									<X size={16} />
+								</button>
+							</div>
+						))}
 					</div>
 				</div>
 			</div>
@@ -336,54 +259,40 @@ const EditForm = ({ order }: EditFormProps) => {
 			<div className="p-2">
 				<div className="flex items-center gap-2 mb-2">
 					<span className="font-medium">ของแถม</span>
-						<button
-							type="button"
-							onClick={() => {
-								appendGift({
-									id: Math.floor(Math.random() * 1000),
-									name: "",
-									quantity: 1,
-								});
-							}}
-							className="border rounded bg-slate-300 p-1"
-						>
-							<Plus size={16} />
-						</button>
-					</div>
-
-					<div className="max-h-24 overflow-y-auto mb-2">
-						{giftFields.map((field, index) => (
-							<div
-								key={field.id}
-								className="flex justify-between items-center bg-green-50 p-2 rounded mb-2 gap-2 border border-green-200"
+					<button
+						type="button"
+						onClick={() => appendGift({ id: Math.floor(Math.random() * 1000), name: "", quantity: 1 })}
+						className="border rounded bg-slate-300 p-1"
+					>
+						<Plus size={16} />
+					</button>
+				</div>
+				<div className="max-h-24 overflow-y-auto mb-2">
+					{giftFields.map((field, index) => (
+						<div key={field.id} className="flex justify-between items-center bg-green-50 p-2 rounded mb-2 gap-2 border border-green-200">
+							<input
+								type="text"
+								placeholder="ชื่อของแถม"
+								className="border-none text-xs p-2 bg-white rounded flex-1"
+								{...register(`gifts.${index}.name`)}
+							/>
+							<input
+								type="number"
+								placeholder="1"
+								min="1"
+								className="border-none text-xs p-2 bg-white rounded w-[70px] text-center"
+								{...register(`gifts.${index}.quantity`, { valueAsNumber: true })}
+							/>
+							<button
+								type="button"
+								onClick={() => removeGift(index)}
+								className="bg-red-400 hover:bg-red-500 rounded p-1"
 							>
-								<input
-									type="text"
-									placeholder="ชื่อของแถม"
-									className="border-none text-xs p-2 bg-white rounded flex-1"
-									{...register(`gifts.${index}.name`)}
-								/>
-
-								<input
-									type="number"
-									placeholder="1"
-									min="1"
-									className="border-none text-xs p-2 bg-white rounded w-[70px] text-center"
-									{...register(`gifts.${index}.quantity`, {
-										valueAsNumber: true,
-									})}
-								/>
-
-								<button
-									type="button"
-									onClick={() => removeGift(index)}
-									className="bg-red-400 hover:bg-red-500 rounded p-1"
-								>
-									<X size={16} />
-								</button>
-							</div>
-						))}
-					</div>
+								<X size={16} />
+							</button>
+						</div>
+					))}
+				</div>
 			</div>
 
 			{/* ข้อมูลการขาย */}
@@ -437,10 +346,7 @@ const EditForm = ({ order }: EditFormProps) => {
 							<Select
 								onValueChange={(value) => {
 									field.onChange(value);
-									setTimeout(
-										() => calculateInstallmentAmount(getValues, setValue),
-										0
-									);
+									setTimeout(() => calculateInstallmentAmount(getValues, setValue), 0);
 								}}
 								value={field.value}
 							>
@@ -465,10 +371,7 @@ const EditForm = ({ order }: EditFormProps) => {
 					onFocus={clearZeroOnFocus}
 					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
 					{...register("salePrice", {
-						onChange: () => {
-							calculateFinanceAmount(getValues, setValue);
-							calculateTotal(getValues, setTotal);
-						},
+						onChange: () => { calculateFinanceAmount(getValues, setValue); calculateTotal(getValues, setTotal); },
 						valueAsNumber: true,
 					})}
 				/>
@@ -496,10 +399,7 @@ const EditForm = ({ order }: EditFormProps) => {
 					onFocus={clearZeroOnFocus}
 					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
 					{...register("discount", {
-						onChange: () => {
-							calculateFinanceAmount(getValues, setValue);
-							calculateTotal(getValues, setTotal);
-						},
+						onChange: () => { calculateFinanceAmount(getValues, setValue); calculateTotal(getValues, setTotal); },
 						valueAsNumber: true,
 					})}
 				/>
@@ -513,16 +413,13 @@ const EditForm = ({ order }: EditFormProps) => {
 					onFocus={clearZeroOnFocus}
 					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
 					{...register("downPayment", {
-						onChange: () => {
-							calculateFinanceAmount(getValues, setValue);
-							calculateTotal(getValues, setTotal);
-						},
+						onChange: () => { calculateFinanceAmount(getValues, setValue); calculateTotal(getValues, setTotal); },
 						valueAsNumber: true,
 					})}
 				/>
 			</div>
 
-			{/* ถ้าเป็นไฟแนนซ์ */}
+			{/* ไฟแนนซ์ */}
 			{isFinance && (
 				<>
 					<div className="flex items-center justify-between p-2">
@@ -553,11 +450,7 @@ const EditForm = ({ order }: EditFormProps) => {
 					</div>
 
 					<div className="flex items-center justify-between p-2">
-						<span>
-							{isNPG && watch("npgPeriod") === "รายปี"
-								? "จำนวนงวด (ปี)"
-								: "จำนวนงวด"}
-						</span>
+						<span>{isNPG && watch("npgPeriod") === "รายปี" ? "จำนวนงวด (ปี)" : "จำนวนงวด"}</span>
 						<input
 							type="number"
 							onFocus={clearZeroOnFocus}
@@ -570,11 +463,7 @@ const EditForm = ({ order }: EditFormProps) => {
 					</div>
 
 					<div className="flex items-center justify-between p-2">
-						<span>
-							{isNPG && watch("npgPeriod") === "รายปี"
-								? "ค่างวด (ต่อปี)"
-								: "ค่างวด"}
-						</span>
+						<span>{isNPG && watch("npgPeriod") === "รายปี" ? "ค่างวด (ต่อปี)" : "ค่างวด"}</span>
 						<input
 							type="number"
 							onFocus={clearZeroOnFocus}
