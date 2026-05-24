@@ -1,6 +1,4 @@
 // EditForm.tsx
-// วางไฟล์นี้ใน: src/app/(private)/sales/[sale_id]/edit/components/
-
 "use client";
 
 import { FormField } from "@/components/ui/form";
@@ -17,23 +15,15 @@ import { getDate } from "@/util/GetDateString";
 import { Plus, X, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { ImageUploadSection } from "./imageuploadsection";
-import {
-	handleImageUpload,
-	handleRemoveNewImage,
-	handleRemoveExistingImage,
-} from "./imageHandlers";
-import {
-	calculateTotal,
-	calculateFinanceAmount,
-	calculateInstallmentAmount,
-	isFinanceMethod,
-} from "./calculations";
+import { handleImageUpload, handleRemoveNewImage, handleRemoveExistingImage } from "./imageHandlers";
+import { calculateTotal, calculateFinanceAmount, calculateInstallmentAmount, isFinanceMethod } from "./calculations";
 
 interface FormDataType {
 	paymentMethod: string;
@@ -59,6 +49,9 @@ interface EditFormProps {
 
 const EditForm = ({ order }: EditFormProps) => {
 	const router = useRouter();
+	const { data: session } = useSession();
+	const isManager = (session?.user as any)?.role === "adm";
+
 	const [images, setImages] = useState<File[]>([]);
 	const [imagesPreviews, setImagesPreviews] = useState<string[]>([]);
 	const [existingImages, setExistingImages] = useState<string[]>(order.images || []);
@@ -78,11 +71,7 @@ const EditForm = ({ order }: EditFormProps) => {
 					...f,
 					amount: f.amount === 0 ? undefined : f.amount,
 				})) || [],
-				gifts: order.gifts?.map((g) => ({
-					id: g.id,
-					name: g.name,
-					quantity: g.quantity,
-				})) || [],
+				gifts: order.gifts?.map((g) => ({ id: g.id, name: g.name, quantity: g.quantity })) || [],
 				discount: order.discount || 0,
 				downPayment: order.down_payment || 0,
 				deposit: order.deposit || 0,
@@ -111,19 +100,14 @@ const EditForm = ({ order }: EditFormProps) => {
 		"installmentCount", "npgPeriod",
 	]);
 
-	useEffect(() => {
-		calculateTotal(getValues, setTotal);
-	}, []);
+	useEffect(() => { calculateTotal(getValues, setTotal); }, []);
 
 	useEffect(() => {
 		calculateFinanceAmount(getValues, setValue);
 		calculateInstallmentAmount(getValues, setValue);
 		calculateTotal(getValues, setTotal);
-	}, [
-		watchedFields[0], watchedFields[1], watchedFields[2], watchedFields[3],
-		watchedFields[4], watchedFields[5], watchedFields[6], watchedFields[7],
-		watchedFields[8],
-	]);
+	}, [watchedFields[0], watchedFields[1], watchedFields[2], watchedFields[3],
+		watchedFields[4], watchedFields[5], watchedFields[6], watchedFields[7], watchedFields[8]]);
 
 	const submitForm = async (data: FormDataType) => {
 		const isFinance = isFinanceMethod(data.paymentMethod);
@@ -137,12 +121,8 @@ const EditForm = ({ order }: EditFormProps) => {
 			installment_count: isFinance ? data.installmentCount : 0,
 			installment_amount: isFinance ? data.installmentAmount : 0,
 			finance_provider:
-				isFinance &&
-				(data.paymentMethod === "Cathay" ||
-					data.paymentMethod === "ทรัพย์สยาม" ||
-					data.paymentMethod === "NPG")
-					? data.paymentMethod
-					: "",
+				isFinance && (data.paymentMethod === "Cathay" || data.paymentMethod === "ทรัพย์สยาม" || data.paymentMethod === "NPG")
+					? data.paymentMethod : "",
 			registration_expiry_date: data.registrationExpiryDate || null,
 		};
 
@@ -180,44 +160,28 @@ const EditForm = ({ order }: EditFormProps) => {
 			{/* วันที่ขาย */}
 			<div className="p-4 bg-slate-50 rounded-lg border border-slate-200 mb-4">
 				<Label htmlFor="saleDate" className="flex items-center gap-2">
-					<Calendar size={16} className="text-slate-600" />
-					วันที่ขาย
+					<Calendar size={16} className="text-slate-600" />วันที่ขาย
 				</Label>
-				<input
-					type="date"
-					id="saleDate"
-					lang="en-GB"
-					{...register("saleDate")}
-					className="w-full mt-2 border border-input rounded-md px-3 py-2 text-sm"
-				/>
+				<input type="date" id="saleDate" lang="en-GB" {...register("saleDate")}
+					className="w-full mt-2 border border-input rounded-md px-3 py-2 text-sm" />
 			</div>
 
 			{/* วันหมดอายุทะเบียน */}
 			<div className="p-4 bg-orange-50 rounded-lg border border-orange-200 mb-4">
 				<Label htmlFor="registrationExpiryDate" className="flex items-center gap-2">
-					<Calendar size={16} className="text-orange-600" />
-					วันหมดอายุทะเบียนรถ
+					<Calendar size={16} className="text-orange-600" />วันหมดอายุทะเบียนรถ
 				</Label>
-				<Input
-					type="date"
-					id="registrationExpiryDate"
-					{...register("registrationExpiryDate")}
-					className="w-full mt-2"
-				/>
-				<p className="text-xs text-gray-500 mt-2">
-					ระบบจะแจ้งเตือนก่อนหมดอายุ 1 เดือนและ 3 เดือน
-				</p>
+				<Input type="date" id="registrationExpiryDate" {...register("registrationExpiryDate")} className="w-full mt-2" />
+				<p className="text-xs text-gray-500 mt-2">ระบบจะแจ้งเตือนก่อนหมดอายุ 1 เดือนและ 3 เดือน</p>
 			</div>
 
 			{/* ค่าใช้จ่ายเพิ่มเติม */}
 			<div className="p-2">
 				<div className="flex items-center gap-2 mb-2">
 					<span className="font-medium">ค่าใช้จ่ายเพิ่มเติม</span>
-					<button
-						type="button"
+					<button type="button"
 						onClick={() => appendFee({ id: Math.floor(Math.random() * 1000), description: "", amount: undefined })}
-						className="border rounded bg-slate-300 p-1"
-					>
+						className="border rounded bg-slate-300 p-1">
 						<Plus size={16} />
 					</button>
 				</div>
@@ -225,28 +189,20 @@ const EditForm = ({ order }: EditFormProps) => {
 					<div className="space-y-2">
 						{feeFields.map((field, index) => (
 							<div key={field.id} className="flex justify-between items-center bg-amber-50 p-2 rounded gap-2 border border-amber-200">
-								<input
-									type="text"
-									placeholder="รายการ"
+								<input type="text" placeholder="รายการ"
 									className="border-none text-xs p-2 bg-white rounded flex-1"
-									{...register(`additionalFees.${index}.description`)}
-								/>
-								<input
-									type="number"
-									placeholder="0"
-									min="0"
+									{...register(`additionalFees.${index}.description`)} />
+								<input type="number" placeholder="0" min="0"
 									onFocus={clearZeroOnFocus}
-									className="border-none text-xs p-2 bg-slate-200 rounded w-[100px] text-right"
+									disabled={!isManager}
+									className={`border-none text-xs p-2 rounded w-[100px] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 									{...register(`additionalFees.${index}.amount`, {
 										onChange: () => calculateTotal(getValues, setTotal),
 										valueAsNumber: true,
-									})}
-								/>
-								<button
-									type="button"
+									})} />
+								<button type="button"
 									onClick={() => { removeFee(index); setTimeout(() => calculateTotal(getValues, setTotal), 0); }}
-									className="bg-red-400 hover:bg-red-500 rounded p-1"
-								>
+									className="bg-red-400 hover:bg-red-500 rounded p-1">
 									<X size={16} />
 								</button>
 							</div>
@@ -259,35 +215,22 @@ const EditForm = ({ order }: EditFormProps) => {
 			<div className="p-2">
 				<div className="flex items-center gap-2 mb-2">
 					<span className="font-medium">ของแถม</span>
-					<button
-						type="button"
+					<button type="button"
 						onClick={() => appendGift({ id: Math.floor(Math.random() * 1000), name: "", quantity: 1 })}
-						className="border rounded bg-slate-300 p-1"
-					>
+						className="border rounded bg-slate-300 p-1">
 						<Plus size={16} />
 					</button>
 				</div>
 				<div className="max-h-24 overflow-y-auto mb-2">
 					{giftFields.map((field, index) => (
 						<div key={field.id} className="flex justify-between items-center bg-green-50 p-2 rounded mb-2 gap-2 border border-green-200">
-							<input
-								type="text"
-								placeholder="ชื่อของแถม"
+							<input type="text" placeholder="ชื่อของแถม"
 								className="border-none text-xs p-2 bg-white rounded flex-1"
-								{...register(`gifts.${index}.name`)}
-							/>
-							<input
-								type="number"
-								placeholder="1"
-								min="1"
+								{...register(`gifts.${index}.name`)} />
+							<input type="number" placeholder="1" min="1"
 								className="border-none text-xs p-2 bg-white rounded w-[70px] text-center"
-								{...register(`gifts.${index}.quantity`, { valueAsNumber: true })}
-							/>
-							<button
-								type="button"
-								onClick={() => removeGift(index)}
-								className="bg-red-400 hover:bg-red-500 rounded p-1"
-							>
+								{...register(`gifts.${index}.quantity`, { valueAsNumber: true })} />
+							<button type="button" onClick={() => removeGift(index)} className="bg-red-400 hover:bg-red-500 rounded p-1">
 								<X size={16} />
 							</button>
 						</div>
@@ -300,56 +243,49 @@ const EditForm = ({ order }: EditFormProps) => {
 				<span className="font-semibold">ข้อมูลการขาย</span>
 			</div>
 
-			{/* วิธีชำระเงิน */}
+			{/* วิธีชำระเงิน - เฉพาะ adm */}
 			<div className="flex items-center justify-between p-2">
 				<span>เงื่อนไขการชำระ</span>
-				<FormField
-					control={control}
-					name="paymentMethod"
-					render={({ field }) => (
-						<Select
-							onValueChange={(value) => {
+				{isManager ? (
+					<FormField control={control} name="paymentMethod"
+						render={({ field }) => (
+							<Select onValueChange={(value) => {
 								field.onChange(value);
 								setTimeout(() => {
 									calculateFinanceAmount(getValues, setValue);
 									calculateInstallmentAmount(getValues, setValue);
 									calculateTotal(getValues, setTotal);
 								}, 0);
-							}}
-							defaultValue={field.value}
-						>
-							<SelectTrigger className="border-none text-xs p-2 w-[40%] bg-slate-200 rounded">
-								<SelectValue placeholder={field.value} />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="เงินสด">เงินสด</SelectItem>
-								<SelectItem value="ไฟแนนซ์">ไฟแนนซ์</SelectItem>
-								<SelectItem value="NPG">NPG</SelectItem>
-								<SelectItem value="Cathay">Cathay</SelectItem>
-								<SelectItem value="ทรัพย์สยาม">ทรัพย์สยาม</SelectItem>
-								<SelectItem value="Summit">Summit</SelectItem>
-								<SelectItem value="S Leasing">S Leasing</SelectItem>
-							</SelectContent>
-						</Select>
-					)}
-				/>
+							}} defaultValue={field.value}>
+								<SelectTrigger className="border-none text-xs p-2 w-[40%] bg-slate-200 rounded">
+									<SelectValue placeholder={field.value} />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="เงินสด">เงินสด</SelectItem>
+									<SelectItem value="ไฟแนนซ์">ไฟแนนซ์</SelectItem>
+									<SelectItem value="NPG">NPG</SelectItem>
+									<SelectItem value="Cathay">Cathay</SelectItem>
+									<SelectItem value="ทรัพย์สยาม">ทรัพย์สยาม</SelectItem>
+									<SelectItem value="Summit">Summit</SelectItem>
+									<SelectItem value="S Leasing">S Leasing</SelectItem>
+								</SelectContent>
+							</Select>
+						)} />
+				) : (
+					<span className="text-xs p-2 w-[40%] text-right text-gray-600">{watch("paymentMethod")}</span>
+				)}
 			</div>
 
 			{/* NPG Period */}
-			{isNPG && (
+			{isNPG && isManager && (
 				<div className="flex items-center justify-between p-2">
 					<span>รอบชำระ</span>
-					<FormField
-						control={control}
-						name="npgPeriod"
+					<FormField control={control} name="npgPeriod"
 						render={({ field }) => (
-							<Select
-								onValueChange={(value) => {
-									field.onChange(value);
-									setTimeout(() => calculateInstallmentAmount(getValues, setValue), 0);
-								}}
-								value={field.value}
-							>
+							<Select onValueChange={(value) => {
+								field.onChange(value);
+								setTimeout(() => calculateInstallmentAmount(getValues, setValue), 0);
+							}} value={field.value}>
 								<SelectTrigger className="border-none text-xs p-2 w-[40%] bg-slate-200 rounded">
 									<SelectValue placeholder="เลือกรอบชำระ" />
 								</SelectTrigger>
@@ -358,65 +294,56 @@ const EditForm = ({ order }: EditFormProps) => {
 									<SelectItem value="รายปี">รายปี</SelectItem>
 								</SelectContent>
 							</Select>
-						)}
-					/>
+						)} />
 				</div>
 			)}
 
 			{/* ราคาสินค้า */}
 			<div className="flex items-center justify-between p-2">
 				<span>ราคาสินค้า</span>
-				<input
-					type="number"
-					onFocus={clearZeroOnFocus}
-					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+				<input type="number" onFocus={clearZeroOnFocus}
+					disabled={!isManager}
+					className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 					{...register("salePrice", {
 						onChange: () => { calculateFinanceAmount(getValues, setValue); calculateTotal(getValues, setTotal); },
 						valueAsNumber: true,
-					})}
-				/>
+					})} />
 			</div>
 
 			{/* มัดจำ */}
 			<div className="flex items-center justify-between p-2">
 				<span>มัดจำ</span>
-				<input
-					type="number"
-					onFocus={clearZeroOnFocus}
-					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+				<input type="number" onFocus={clearZeroOnFocus}
+					disabled={!isManager}
+					className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 					{...register("deposit", {
 						onChange: () => calculateTotal(getValues, setTotal),
 						valueAsNumber: true,
-					})}
-				/>
+					})} />
 			</div>
 
 			{/* ส่วนลด */}
 			<div className="flex items-center justify-between p-2">
 				<span>ส่วนลด</span>
-				<input
-					type="number"
-					onFocus={clearZeroOnFocus}
-					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+				<input type="number" onFocus={clearZeroOnFocus}
+					disabled={!isManager}
+					className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 					{...register("discount", {
 						onChange: () => { calculateFinanceAmount(getValues, setValue); calculateTotal(getValues, setTotal); },
 						valueAsNumber: true,
-					})}
-				/>
+					})} />
 			</div>
 
 			{/* เงินดาวน์ */}
 			<div className="flex items-center justify-between p-2">
 				<span>เงินดาวน์</span>
-				<input
-					type="number"
-					onFocus={clearZeroOnFocus}
-					className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+				<input type="number" onFocus={clearZeroOnFocus}
+					disabled={!isManager}
+					className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 					{...register("downPayment", {
 						onChange: () => { calculateFinanceAmount(getValues, setValue); calculateTotal(getValues, setTotal); },
 						valueAsNumber: true,
-					})}
-				/>
+					})} />
 			</div>
 
 			{/* ไฟแนนซ์ */}
@@ -424,52 +351,40 @@ const EditForm = ({ order }: EditFormProps) => {
 				<>
 					<div className="flex items-center justify-between p-2">
 						<span>ยอดจัด</span>
-						<input
-							type="number"
-							onFocus={clearZeroOnFocus}
-							className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+						<input type="number" onFocus={clearZeroOnFocus}
+							disabled={!isManager}
+							className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 							{...register("financeAmount", {
 								onChange: () => calculateInstallmentAmount(getValues, setValue),
 								valueAsNumber: true,
-							})}
-						/>
+							})} />
 					</div>
-
 					<div className="flex items-center justify-between p-2">
 						<span>ดอกเบี้ย (%)</span>
-						<input
-							type="number"
-							step="0.01"
-							onFocus={clearZeroOnFocus}
-							className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+						<input type="number" step="0.01" onFocus={clearZeroOnFocus}
+							disabled={!isManager}
+							className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 							{...register("interestRate", {
 								onChange: () => calculateInstallmentAmount(getValues, setValue),
 								valueAsNumber: true,
-							})}
-						/>
+							})} />
 					</div>
-
 					<div className="flex items-center justify-between p-2">
 						<span>{isNPG && watch("npgPeriod") === "รายปี" ? "จำนวนงวด (ปี)" : "จำนวนงวด"}</span>
-						<input
-							type="number"
-							onFocus={clearZeroOnFocus}
-							className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+						<input type="number" onFocus={clearZeroOnFocus}
+							disabled={!isManager}
+							className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
 							{...register("installmentCount", {
 								onChange: () => calculateInstallmentAmount(getValues, setValue),
 								valueAsNumber: true,
-							})}
-						/>
+							})} />
 					</div>
-
 					<div className="flex items-center justify-between p-2">
 						<span>{isNPG && watch("npgPeriod") === "รายปี" ? "ค่างวด (ต่อปี)" : "ค่างวด"}</span>
-						<input
-							type="number"
-							onFocus={clearZeroOnFocus}
-							className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
-							{...register("installmentAmount", { valueAsNumber: true })}
-						/>
+						<input type="number" onFocus={clearZeroOnFocus}
+							disabled={!isManager}
+							className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
+							{...register("installmentAmount", { valueAsNumber: true })} />
 					</div>
 				</>
 			)}
@@ -477,11 +392,8 @@ const EditForm = ({ order }: EditFormProps) => {
 			{/* หมายเหตุ */}
 			<div className="flex items-center justify-between p-2">
 				<span>หมายเหตุ</span>
-				<input
-					type="text"
-					className="border-none text-xs p-2 bg-slate-200 rounded w-[60%]"
-					{...register("notes")}
-				/>
+				<input type="text" className="border-none text-xs p-2 bg-slate-200 rounded w-[60%]"
+					{...register("notes")} />
 			</div>
 
 			<hr className="my-3" />
