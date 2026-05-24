@@ -38,10 +38,6 @@ interface EditSaleParams {
 const EditSale = async ({ params }: EditSaleParams) => {
 	const session = await getServerSession(authOptions);
 
-	if (session?.user.role !== "adm") {
-		redirect(`/sales/${params.sale_id}`);
-	}
-
 	const order = (await getOrder(parseInt(params.sale_id)).then((res) => {
 		if (!res?.ok) {
 			return null;
