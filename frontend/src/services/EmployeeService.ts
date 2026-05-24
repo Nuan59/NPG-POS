@@ -69,7 +69,7 @@ export const getEmployee = async (employee_id: number) => {
   return response;
 };
 
-export const editEmployee = async (employee_id: number, payload: IEmployee) => {
+export const editEmployee = async (employee_id: number, payload: IEmployee & { permissions?: Record<string, boolean> }) => {
   "use server";
   const response = await authorizedFetch(
     `${process.env.API_URL}/employees/${employee_id}/`,
