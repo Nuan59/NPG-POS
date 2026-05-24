@@ -384,7 +384,6 @@ const EditForm = ({ order }: EditFormProps) => {
 							</div>
 						))}
 					</div>
-				</div>
 			</div>
 
 			{/* ข้อมูลการขาย */}
