@@ -271,24 +271,23 @@ const EditForm = ({ order }: EditFormProps) => {
 			</div>
 
 			{/* ค่าใช้จ่ายเพิ่มเติม */}
-			{feeFields.length > 0 && (
-				<div className="p-2">
-					<div className="flex items-center gap-2 mb-2">
-						<span className="font-medium">ค่าใช้จ่ายเพิ่มเติม</span>
-						<button
-							type="button"
-							onClick={() => {
-								appendFee({
-									id: Math.floor(Math.random() * 1000),
-									description: "",
-									amount: undefined,
-								});
-							}}
-							className="border rounded bg-slate-300 p-1"
-						>
-							<Plus size={16} />
-						</button>
-					</div>
+			<div className="p-2">
+				<div className="flex items-center gap-2 mb-2">
+					<span className="font-medium">ค่าใช้จ่ายเพิ่มเติม</span>
+					<button
+						type="button"
+						onClick={() => {
+							appendFee({
+								id: Math.floor(Math.random() * 1000),
+								description: "",
+								amount: undefined,
+							});
+						}}
+						className="border rounded bg-slate-300 p-1"
+					>
+						<Plus size={16} />
+					</button>
+				</div>
 
 					<div className="max-h-32 overflow-y-auto mb-2">
 						<div className="space-y-2">
@@ -331,13 +330,12 @@ const EditForm = ({ order }: EditFormProps) => {
 						</div>
 					</div>
 				</div>
-			)}
+			</div>
 
 			{/* ของแถม */}
-			{giftFields.length > 0 && (
-				<div className="p-2">
-					<div className="flex items-center gap-2 mb-2">
-						<span className="font-medium">ของแถม</span>
+			<div className="p-2">
+				<div className="flex items-center gap-2 mb-2">
+					<span className="font-medium">ของแถม</span>
 						<button
 							type="button"
 							onClick={() => {
@@ -387,7 +385,7 @@ const EditForm = ({ order }: EditFormProps) => {
 						))}
 					</div>
 				</div>
-			)}
+			</div>
 
 			{/* ข้อมูลการขาย */}
 			<div className="flex items-center justify-between p-2 bg-slate-50">
@@ -532,9 +530,12 @@ const EditForm = ({ order }: EditFormProps) => {
 						<span>ยอดจัด</span>
 						<input
 							type="number"
-							readOnly
-							className="border-none text-xs p-2 bg-gray-100 rounded w-[40%] text-right cursor-not-allowed"
-							{...register("financeAmount", { valueAsNumber: true })}
+							onFocus={clearZeroOnFocus}
+							className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
+							{...register("financeAmount", {
+								onChange: () => calculateInstallmentAmount(getValues, setValue),
+								valueAsNumber: true,
+							})}
 						/>
 					</div>
 
@@ -577,8 +578,8 @@ const EditForm = ({ order }: EditFormProps) => {
 						</span>
 						<input
 							type="number"
-							readOnly
-							className="border-none text-xs p-2 bg-gray-100 rounded w-[40%] text-right cursor-not-allowed"
+							onFocus={clearZeroOnFocus}
+							className="border-none text-xs p-2 bg-slate-200 rounded w-[40%] text-right"
 							{...register("installmentAmount", { valueAsNumber: true })}
 						/>
 					</div>
