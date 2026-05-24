@@ -78,3 +78,29 @@
 .rdp-vhidden {
 	@apply hidden;
 }
+
+/* ===== Responsive Scaling สำหรับจอ 4K / High-DPI ===== */
+html {
+  font-size: 16px; /* base = 1080p */
+}
+
+/* 1440p */
+@media screen and (min-width: 2560px) and (max-width: 3839px) {
+  html {
+    font-size: 13px;
+  }
+}
+
+/* 4K (3840px+) */
+@media screen and (min-width: 3840px) {
+  html {
+    font-size: 11px;
+  }
+}
+
+/* 27 นิ้ว 4K ที่ Windows scale 150% จะเห็น ~2560px */
+@media screen and (min-width: 2000px) and (max-width: 2559px) {
+  html {
+    font-size: 14px;
+  }
+}
