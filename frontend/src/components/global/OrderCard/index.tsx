@@ -198,7 +198,7 @@ const OrderCard = () => {
   const inputCls = "w-40 text-right p-2 text-sm";
 
   return (
-    <div className="w-[420px] h-full flex flex-col bg-slate-50 shadow-lg overflow-y-auto">
+    <div className="w-full h-full flex flex-col bg-slate-50 shadow-lg overflow-y-auto">
       <div className="flex-1 overflow-y-auto p-4">
         <h1 className="text-2xl font-extrabold mb-5 text-center">รายการสั่งซื้อ</h1>
 

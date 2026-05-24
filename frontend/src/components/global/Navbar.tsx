@@ -27,26 +27,26 @@ export const Navbar = () => {
 
   return (
     <nav className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 shadow-xl border-b-4 border-orange-500">
-      <div className="px-8 py-5">
+      <div className="px-3 sm:px-8 py-3 sm:py-5">
         <div className="flex justify-between items-center gap-6">
           
           {/* Logo */}
           <Link
             href="/dashboard"
-            className="text-4xl font-black bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent hover:scale-105 transition-transform whitespace-nowrap"
+            className="text-xl sm:text-4xl font-black bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent hover:scale-105 transition-transform whitespace-nowrap"
           >
             คาราเมโล POS
           </Link>
 
           {/* Menu */}
-          <div className="flex items-center gap-2 flex-1 justify-center">
+          <div className="hidden lg:flex items-center gap-2 flex-1 justify-center">
             {menuItems.map((item) => {
               if (item.admin && userInfo?.role !== "adm") return null;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="px-6 py-3 text-lg font-bold text-white rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-105 transition-all duration-300 whitespace-nowrap"
+                  className="px-3 py-2 text-sm font-bold text-white rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-105 transition-all duration-300 whitespace-nowrap"
                 >
                   {item.label}
                 </Link>
@@ -56,7 +56,7 @@ export const Navbar = () => {
 
           {/* Right */}
           <div className="flex items-center gap-4">
-            <span className="text-lg font-bold text-orange-300">
+            <span className="hidden sm:block text-sm sm:text-lg font-bold text-orange-300">
               {userInfo?.name ?? userInfo?.username}
             </span>
             
