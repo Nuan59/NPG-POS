@@ -114,7 +114,7 @@ const MenuItems = () => {
   const userInfo = session?.user;
 
   return (
-    <div className="grid grid-cols-3 gap-6 mt-8">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6 mt-4 sm:mt-8">
       {menuPages.map((item) => {
         // ถ้าเป็น admin menu แต่ user ไม่ใช่ admin ให้ skip
         if (item.admin && userInfo?.role !== "adm") {
@@ -124,7 +124,7 @@ const MenuItems = () => {
         return (
           <a key={item.href} href={item.href} className="block">
             <div
-              className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.gradient} ${item.hoverGradient} shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer h-40`}
+              className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.gradient} ${item.hoverGradient} shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer h-28 sm:h-40`}
             >
               {/* Background Pattern */}
               <div className="absolute inset-0 opacity-10">
@@ -133,16 +133,16 @@ const MenuItems = () => {
               </div>
 
               {/* Content */}
-              <div className="relative h-full flex flex-col justify-between p-6 text-white">
+              <div className="relative h-full flex flex-col justify-between p-3 sm:p-6 text-white">
                 <div className="flex items-start justify-between">
-                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl group-hover:scale-110 transition-transform duration-300">
+                  <div className="p-2 sm:p-3 bg-white/20 backdrop-blur-sm rounded-xl group-hover:scale-110 transition-transform duration-300">
                     {item.icon}
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-2xl font-bold mb-1">{item.label}</h3>
-                  <p className="text-sm text-white/90">{item.description}</p>
+                  <h3 className="text-base sm:text-2xl font-bold mb-1">{item.label}</h3>
+                  <p className="text-xs sm:text-sm text-white/90 hidden sm:block">{item.description}</p>
                 </div>
               </div>
 

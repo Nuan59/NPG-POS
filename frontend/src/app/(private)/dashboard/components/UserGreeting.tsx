@@ -40,38 +40,38 @@ const UserGreeting = () => {
   };
 
   return (
-    <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-xl p-8 text-white">
+    <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-xl p-4 sm:p-8 text-white">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-lg font-medium opacity-90 mb-1">{getGreeting()}</p>
-          <h1 className="text-4xl font-black mb-4">
+          <p className="text-sm sm:text-lg font-medium opacity-90 mb-1">{getGreeting()}</p>
+          <h1 className="text-2xl sm:text-4xl font-black mb-2 sm:mb-4">
             คุณ{userInfo?.name ?? userInfo?.username}
           </h1>
           
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-6 text-xs sm:text-sm">
             {/* ✅ แสดงเฉพาะเมื่อ currentTime มีค่าแล้ว */}
             {currentTime ? (
               <>
-                <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg backdrop-blur-sm">
-                  <Calendar size={18} />
+                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
+                  <Calendar size={14} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="font-medium">{formatDate(currentTime)}</span>
                 </div>
                 
-                <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg backdrop-blur-sm">
-                  <Clock size={18} />
+                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
+                  <Clock size={14} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="font-medium font-mono">{formatTime(currentTime)}</span>
                 </div>
               </>
             ) : (
               /* ✅ แสดง placeholder ระหว่างรอ */
               <>
-                <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg backdrop-blur-sm">
-                  <Calendar size={18} />
+                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
+                  <Calendar size={14} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="font-medium">กำลังโหลด...</span>
                 </div>
                 
-                <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-lg backdrop-blur-sm">
-                  <Clock size={18} />
+                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
+                  <Clock size={14} className="sm:w-[18px] sm:h-[18px]" />
                   <span className="font-medium font-mono">--:--:--</span>
                 </div>
               </>
