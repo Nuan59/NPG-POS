@@ -214,14 +214,12 @@ const OrderRowButtons = ({ order }: { order: IOrder }) => {
 						</DropdownMenuItem>
 					</Link>
 
-					{isManager && (
-						<Link href={`/sales/${order.id}/edit`}>
-							<DropdownMenuItem className="flex justify-between gap-2">
-								<Pencil className="opacity-60 h-4 w-4" />
-								แก้ไข
-							</DropdownMenuItem>
-						</Link>
-					)}
+					<Link href={`/sales/${order.id}/edit`}>
+						<DropdownMenuItem className="flex justify-between gap-2">
+							<Pencil className="opacity-60 h-4 w-4" />
+							แก้ไข
+						</DropdownMenuItem>
+					</Link>
 
 					<Link href={`/sales/${order.id}/receipt`}>
 						<DropdownMenuItem className="flex justify-between gap-2">

@@ -25,14 +25,12 @@ const ActionButtons = ({ order }: ActionButtonsProps) => {
 			</DeleteOrderDialog>
 
 			<div className="flex gap-1">
-				{userInfo?.role === "adm" && (
-					<Link href={`/sales/${order.id}/edit`}>
-						<Button variant={"outline"} className="flex items-center gap-2">
-							<Pencil size={"1rem"} opacity={"60%"} />
-							แก้ไข
-						</Button>
-					</Link>
-				)}
+				<Link href={`/sales/${order.id}/edit`}>
+					<Button variant={"outline"} className="flex items-center gap-2">
+						<Pencil size={"1rem"} opacity={"60%"} />
+						แก้ไข
+					</Button>
+				</Link>
 				<Link href={`/sales/${order.id}/receipt`}>
 					<Button className="flex items-center gap-2">
 						<Receipt size={"1rem"} opacity={"60%"} />
