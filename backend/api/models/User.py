@@ -13,8 +13,8 @@ class User(AbstractUser):
 
     role = models.CharField(max_length=3, choices=ROLE_CHOICES)
 
-    # permissions สำหรับ emp (adm เห็นทุกอย่างอยู่แล้ว)
-    permissions = models.JSONField(
+    # เปลี่ยนชื่อเป็น user_permissions_data เพื่อไม่ชนกับ Django built-in
+    user_permissions_data = models.JSONField(
         default=dict,
         blank=True,
         help_text='{"sale": true, "inventory": true, "customer": true, "registration": false, "npg": false, "board": false}'
@@ -30,6 +30,6 @@ class User(AbstractUser):
             "npg": False,
             "board": False,
         }
-        if isinstance(self.permissions, dict):
-            defaults.update(self.permissions)
+        if isinstance(self.user_permissions_data, dict):
+            defaults.update(self.user_permissions_data)
         return defaults
