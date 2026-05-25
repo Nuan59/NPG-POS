@@ -16,6 +16,7 @@ import { EmployeeColumns } from "../components/EmployeeColumns";
 import Link from "next/link";
 import { handleFilter } from "@/app/hooks/useFilter";
 import TableLoading from "@/components/global/TableLoading";
+import WorkHoursSettings from "../components/WorkHoursSettings";
 
 interface EmployeesViewProps {
 	employees: IEmployee[];
@@ -58,7 +59,9 @@ const EmployeesView = ({ employees }: EmployeesViewProps) => {
 				</div>
 			</div>
 
-			<Suspense fallback={<TableLoading />}>
+			<WorkHoursSettings />
+
+		<Suspense fallback={<TableLoading />}>
 				<ScrollArea className="mt-3">
 					<DataTable data={EmployeesDisplay} columns={EmployeeColumns} />
 				</ScrollArea>
