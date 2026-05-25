@@ -12,10 +12,8 @@ const WorkHoursSettings = () => {
   const { data: session } = useSession();
   const isManager = (session?.user as any)?.role === "adm";
 
-  const [startHour, setStartHour] = useState(8);
-  const [startMinute, setStartMinute] = useState(0);
-  const [endHour, setEndHour] = useState(18);
-  const [endMinute, setEndMinute] = useState(0);
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("18:00");
   const [isEnabled, setIsEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,10 +26,9 @@ const WorkHoursSettings = () => {
     })
       .then((r) => r.json())
       .then((data) => {
-        setStartHour(data.start_hour);
-        setStartMinute(data.start_minute);
-        setEndHour(data.end_hour);
-        setEndMinute(data.end_minute);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        setStartTime(`${pad(data.start_hour)}:${pad(data.start_minute)}`);
+        setEndTime(`${pad(data.end_hour)}:${pad(data.end_minute)}`);
         setIsEnabled(data.is_enabled);
       })
       .finally(() => setLoading(false));
@@ -40,6 +37,8 @@ const WorkHoursSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     const token = (session?.user as any)?.accessToken;
+    const [startHour, startMinute] = startTime.split(":").map(Number);
+    const [endHour, endMinute] = endTime.split(":").map(Number);
     try {
       const res = await fetch(`${API_URL}/work-hours/`, {
         method: "PATCH",
@@ -47,13 +46,7 @@ const WorkHoursSettings = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          start_hour: startHour,
-          start_minute: startMinute,
-          end_hour: endHour,
-          end_minute: endMinute,
-          is_enabled: isEnabled,
-        }),
+        body: JSON.stringify({ start_hour: startHour, start_minute: startMinute, end_hour: endHour, end_minute: endMinute, is_enabled: isEnabled }),
       });
       if (res.ok) toast.success("บันทึกเวลาทำงานเรียบร้อยแล้ว");
       else toast.error("เกิดข้อผิดพลาด");
@@ -65,75 +58,50 @@ const WorkHoursSettings = () => {
 
   if (!isManager || loading) return null;
 
-  const pad = (n: number) => String(n).padStart(2, "0");
-
-  const TimeInput = ({
-    hour, setHour, minute, setMinute
-  }: {
-    hour: number; setHour: (v: number) => void;
-    minute: number; setMinute: (v: number) => void;
-  }) => (
-    <div className="flex items-center gap-1">
-      <select
-        value={hour}
-        onChange={(e) => setHour(Number(e.target.value))}
-        className="border rounded px-2 py-1 text-sm bg-white"
-      >
-        {Array.from({ length: 24 }, (_, i) => (
-          <option key={i} value={i}>{pad(i)}</option>
-        ))}
-      </select>
-      <span className="text-slate-400">:</span>
-      <input
-        type="number"
-        min={0}
-        max={59}
-        value={minute}
-        onChange={(e) => {
-          const v = Math.max(0, Math.min(59, Number(e.target.value)));
-          setMinute(v);
-        }}
-        className="border rounded px-2 py-1 text-sm bg-white w-14 text-center"
-      />
-    </div>
-  );
-
   return (
-    <div className="mt-6 p-4 border rounded-xl bg-slate-50 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div className="mt-4 p-4 border rounded-xl bg-slate-50 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Clock size={18} className="text-orange-500" />
-          <h3 className="font-semibold text-slate-800">เวลาทำงานพนักงาน</h3>
+          <Clock size={16} className="text-orange-500" />
+          <h3 className="font-semibold text-slate-800 text-sm">เวลาทำงานพนักงาน</h3>
         </div>
         <button onClick={() => setIsEnabled(!isEnabled)} className="flex items-center gap-2 text-sm">
-          {isEnabled ? (
-            <><ToggleRight size={28} className="text-green-500" /><span className="text-green-600 font-medium">เปิดใช้งาน</span></>
-          ) : (
-            <><ToggleLeft size={28} className="text-slate-400" /><span className="text-slate-500">ปิด (ไม่จำกัดเวลา)</span></>
-          )}
+          {isEnabled
+            ? <><ToggleRight size={26} className="text-green-500" /><span className="text-green-600 font-medium text-xs">เปิดใช้งาน</span></>
+            : <><ToggleLeft size={26} className="text-slate-400" /><span className="text-slate-500 text-xs">ปิด</span></>}
         </button>
       </div>
 
       {isEnabled && (
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">เริ่มงาน</span>
-            <TimeInput hour={startHour} setHour={setStartHour} minute={startMinute} setMinute={setStartMinute} />
+            <span className="text-xs text-slate-600">เริ่ม</span>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="border rounded px-2 py-1 text-sm bg-white"
+            />
           </div>
           <span className="text-slate-400">—</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">เลิกงาน</span>
-            <TimeInput hour={endHour} setHour={setEndHour} minute={endMinute} setMinute={setEndMinute} />
+            <span className="text-xs text-slate-600">เลิก</span>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="border rounded px-2 py-1 text-sm bg-white"
+            />
           </div>
-          <p className="text-xs text-slate-500 w-full">
-            พนักงานจะ login ได้เฉพาะ {pad(startHour)}:{pad(startMinute)} — {pad(endHour)}:{pad(endMinute)} น.
+          <p className="text-xs text-slate-400 w-full">
+            พนักงาน login ได้เฉพาะ {startTime} — {endTime} น.
           </p>
         </div>
       )}
 
-      <div className="mt-4 flex justify-end">
-        <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
-          <Save size={14} />
+      <div className="mt-3 flex justify-end">
+        <Button onClick={handleSave} disabled={saving} size="sm" className="gap-1">
+          <Save size={13} />
           {saving ? "กำลังบันทึก..." : "บันทึก"}
         </Button>
       </div>
