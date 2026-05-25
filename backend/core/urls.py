@@ -19,9 +19,10 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
-from rest_framework_simplejwt.views import TokenRefreshView
-from api.views.CustomTokenView import CustomTokenObtainPairView
-from api.views.WorkHoursView import WorkHoursView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -54,6 +55,17 @@ def get_all_chassis(request):
     return JsonResponse({'count': len(chassis_list), 'chassis': chassis_list})
 
 
+
+def fake_migrate_0021(request):
+    from django.core.management import call_command
+    from io import StringIO
+    out = StringIO()
+    try:
+        call_command('migrate', 'api', '0021', '--fake', stdout=out)
+        return JsonResponse({'status': 'ok', 'output': out.getvalue()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -72,6 +84,7 @@ urlpatterns = [
     # ✅ Temp endpoint
     path('dev/migrate/', run_migrate),
     path('dev/fake-0019/', fake_migrate_0019),
+    path('dev/fake-0021/', fake_migrate_0021),
     path('dev/chassis/', get_all_chassis),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
@@ -104,8 +117,7 @@ urlpatterns = [
     path("reports/inventory/models/", ReportsView.inventory_models),
     path("reports/inventory/storages/", ReportsView.inventory_storages),
 
-    path("login/", CustomTokenObtainPairView.as_view(), name="login"),
-    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("login/", TokenObtainPairView.as_view(), name="login"),
+    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
 ]
