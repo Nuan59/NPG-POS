@@ -58,6 +58,26 @@ const WorkHoursSettings = () => {
 
   if (!isManager || loading) return null;
 
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+
+  const TimeSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+    const [h, m] = value.split(":");
+    return (
+      <div className="flex items-center gap-1">
+        <select value={h} onChange={(e) => onChange(`${e.target.value}:${m}`)}
+          className="border rounded px-2 py-1 text-sm bg-white">
+          {hours.map((hh) => <option key={hh} value={hh}>{hh}</option>)}
+        </select>
+        <span className="text-slate-400">:</span>
+        <select value={m} onChange={(e) => onChange(`${h}:${e.target.value}`)}
+          className="border rounded px-2 py-1 text-sm bg-white">
+          {minutes.map((mm) => <option key={mm} value={mm}>{mm}</option>)}
+        </select>
+      </div>
+    );
+  };
+
   return (
     <div className="mt-4 p-4 border rounded-xl bg-slate-50 shadow-sm">
       <div className="flex items-center justify-between mb-3">
@@ -76,24 +96,12 @@ const WorkHoursSettings = () => {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-600">เริ่ม</span>
-            <input
-              type="time"
-              lang="en-GB"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="border rounded px-2 py-1 text-sm bg-white"
-            />
+            <TimeSelect value={startTime} onChange={setStartTime} />
           </div>
           <span className="text-slate-400">—</span>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-600">เลิก</span>
-            <input
-              type="time"
-              lang="en-GB"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="border rounded px-2 py-1 text-sm bg-white"
-            />
+            <TimeSelect value={endTime} onChange={setEndTime} />
           </div>
           <p className="text-xs text-slate-400 w-full">
             พนักงาน login ได้เฉพาะ {startTime} — {endTime} น.
