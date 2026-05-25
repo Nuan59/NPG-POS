@@ -19,10 +19,9 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
+from api.views.CustomTokenView import CustomTokenObtainPairView
+from api.views.WorkHoursView import WorkHoursView
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -66,6 +65,21 @@ def fake_migrate_0021(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+
+def fake_all_then_migrate(request):
+    from django.core.management import call_command
+    from io import StringIO
+    out = StringIO()
+    try:
+        # fake 0020 และ 0021 ที่มีอยู่ใน DB แล้วแต่ไม่ถูก mark
+        call_command('migrate', 'api', '0020', '--fake', stdout=out)
+        call_command('migrate', 'api', '0021', '--fake', stdout=out)
+        # migrate ที่เหลือ (รวม 0022 workhours)
+        call_command('migrate', stdout=out)
+        return JsonResponse({'status': 'ok', 'output': out.getvalue()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e), 'output': out.getvalue()})
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -85,6 +99,7 @@ urlpatterns = [
     path('dev/migrate/', run_migrate),
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/fake-0021/', fake_migrate_0021),
+    path('dev/fake-all/', fake_all_then_migrate),
     path('dev/chassis/', get_all_chassis),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
@@ -117,7 +132,8 @@ urlpatterns = [
     path("reports/inventory/models/", ReportsView.inventory_models),
     path("reports/inventory/storages/", ReportsView.inventory_storages),
 
-    path("login/", TokenObtainPairView.as_view(), name="login"),
-    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("login/", CustomTokenObtainPairView.as_view(), name="login"),
+    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
 ]
