@@ -11,3 +11,4 @@ from .NPGAccount import NPGAccount
 from .NPGPayment import NPGPayment
 from .Registration import RegistrationLog
 from .Issue import Issue, IssueUpdate
+from .WorkHours import WorkHours

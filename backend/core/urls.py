@@ -19,10 +19,9 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
+from api.views.CustomTokenView import CustomTokenObtainPairView
+from api.views.WorkHoursView import WorkHoursView
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -105,7 +104,8 @@ urlpatterns = [
     path("reports/inventory/models/", ReportsView.inventory_models),
     path("reports/inventory/storages/", ReportsView.inventory_storages),
 
-    path("login/", TokenObtainPairView.as_view(), name="login"),
-    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("login/", CustomTokenObtainPairView.as_view(), name="login"),
+    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
 ]
