@@ -78,6 +78,7 @@ const WorkHoursSettings = () => {
             <span className="text-xs text-slate-600">เริ่ม</span>
             <input
               type="time"
+              lang="en-GB"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               className="border rounded px-2 py-1 text-sm bg-white"
@@ -88,6 +89,7 @@ const WorkHoursSettings = () => {
             <span className="text-xs text-slate-600">เลิก</span>
             <input
               type="time"
+              lang="en-GB"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               className="border rounded px-2 py-1 text-sm bg-white"
