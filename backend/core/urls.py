@@ -19,10 +19,9 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
+from api.views.CustomTokenView import CustomTokenObtainPairView
+from api.views.WorkHoursView import WorkHoursView
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -66,6 +65,33 @@ def fake_migrate_0021(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+
+def create_workhours_table(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS api_workhours (
+                    id SERIAL PRIMARY KEY,
+                    start_hour INTEGER NOT NULL DEFAULT 8,
+                    start_minute INTEGER NOT NULL DEFAULT 0,
+                    end_hour INTEGER NOT NULL DEFAULT 18,
+                    end_minute INTEGER NOT NULL DEFAULT 0,
+                    is_enabled BOOLEAN NOT NULL DEFAULT TRUE
+                );
+            """)
+            cursor.execute("""
+                INSERT INTO django_migrations (app, name, applied)
+                VALUES 
+                    ('api', '0020_fix_chassi_unique_gift_wholesale_pr', NOW()),
+                    ('api', '0021_bike_old_registration_plate', NOW()),
+                    ('api', '0022_add_workhours', NOW())
+                ON CONFLICT DO NOTHING;
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'Done'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -85,6 +111,7 @@ urlpatterns = [
     path('dev/migrate/', run_migrate),
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/fake-0021/', fake_migrate_0021),
+    path('dev/create-workhours/', create_workhours_table),
     path('dev/chassis/', get_all_chassis),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
@@ -117,7 +144,8 @@ urlpatterns = [
     path("reports/inventory/models/", ReportsView.inventory_models),
     path("reports/inventory/storages/", ReportsView.inventory_storages),
 
-    path("login/", TokenObtainPairView.as_view(), name="login"),
-    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("login/", CustomTokenObtainPairView.as_view(), name="login"),
+    path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
 ]
