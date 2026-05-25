@@ -23,7 +23,6 @@ const WorkHoursSettings = () => {
   useEffect(() => {
     if (!isManager) return;
     const token = (session?.user as any)?.accessToken;
-
     fetch(`${API_URL}/work-hours/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -56,22 +55,48 @@ const WorkHoursSettings = () => {
           is_enabled: isEnabled,
         }),
       });
-
-      if (res.ok) {
-        toast.success("บันทึกเวลาทำงานเรียบร้อยแล้ว");
-      } else {
-        toast.error("เกิดข้อผิดพลาด");
-      }
+      if (res.ok) toast.success("บันทึกเวลาทำงานเรียบร้อยแล้ว");
+      else toast.error("เกิดข้อผิดพลาด");
     } catch {
       toast.error("ไม่สามารถเชื่อมต่อได้");
     }
     setSaving(false);
   };
 
-  if (!isManager) return null;
-  if (loading) return null;
+  if (!isManager || loading) return null;
 
   const pad = (n: number) => String(n).padStart(2, "0");
+
+  const TimeInput = ({
+    hour, setHour, minute, setMinute
+  }: {
+    hour: number; setHour: (v: number) => void;
+    minute: number; setMinute: (v: number) => void;
+  }) => (
+    <div className="flex items-center gap-1">
+      <select
+        value={hour}
+        onChange={(e) => setHour(Number(e.target.value))}
+        className="border rounded px-2 py-1 text-sm bg-white"
+      >
+        {Array.from({ length: 24 }, (_, i) => (
+          <option key={i} value={i}>{pad(i)}</option>
+        ))}
+      </select>
+      <span className="text-slate-400">:</span>
+      <input
+        type="number"
+        min={0}
+        max={59}
+        value={minute}
+        onChange={(e) => {
+          const v = Math.max(0, Math.min(59, Number(e.target.value)));
+          setMinute(v);
+        }}
+        className="border rounded px-2 py-1 text-sm bg-white w-14 text-center"
+      />
+    </div>
+  );
 
   return (
     <div className="mt-6 p-4 border rounded-xl bg-slate-50 shadow-sm">
@@ -80,10 +105,7 @@ const WorkHoursSettings = () => {
           <Clock size={18} className="text-orange-500" />
           <h3 className="font-semibold text-slate-800">เวลาทำงานพนักงาน</h3>
         </div>
-        <button
-          onClick={() => setIsEnabled(!isEnabled)}
-          className="flex items-center gap-2 text-sm"
-        >
+        <button onClick={() => setIsEnabled(!isEnabled)} className="flex items-center gap-2 text-sm">
           {isEnabled ? (
             <><ToggleRight size={28} className="text-green-500" /><span className="text-green-600 font-medium">เปิดใช้งาน</span></>
           ) : (
@@ -93,57 +115,16 @@ const WorkHoursSettings = () => {
       </div>
 
       {isEnabled && (
-        <div className="flex items-center gap-6 flex-wrap">
-          {/* เวลาเริ่ม */}
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600 min-w-[60px]">เริ่มงาน</span>
-            <select
-              value={startHour}
-              onChange={(e) => setStartHour(Number(e.target.value))}
-              className="border rounded px-2 py-1 text-sm bg-white"
-            >
-              {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>{pad(i)}</option>
-              ))}
-            </select>
-            <span className="text-slate-400">:</span>
-            <select
-              value={startMinute}
-              onChange={(e) => setStartMinute(Number(e.target.value))}
-              className="border rounded px-2 py-1 text-sm bg-white"
-            >
-              {[0, 15, 30, 45].map((m) => (
-                <option key={m} value={m}>{pad(m)}</option>
-              ))}
-            </select>
+            <span className="text-sm text-slate-600">เริ่มงาน</span>
+            <TimeInput hour={startHour} setHour={setStartHour} minute={startMinute} setMinute={setStartMinute} />
           </div>
-
           <span className="text-slate-400">—</span>
-
-          {/* เวลาสิ้นสุด */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600 min-w-[60px]">เลิกงาน</span>
-            <select
-              value={endHour}
-              onChange={(e) => setEndHour(Number(e.target.value))}
-              className="border rounded px-2 py-1 text-sm bg-white"
-            >
-              {Array.from({ length: 24 }, (_, i) => (
-                <option key={i} value={i}>{pad(i)}</option>
-              ))}
-            </select>
-            <span className="text-slate-400">:</span>
-            <select
-              value={endMinute}
-              onChange={(e) => setEndMinute(Number(e.target.value))}
-              className="border rounded px-2 py-1 text-sm bg-white"
-            >
-              {[0, 15, 30, 45].map((m) => (
-                <option key={m} value={m}>{pad(m)}</option>
-              ))}
-            </select>
+            <span className="text-sm text-slate-600">เลิกงาน</span>
+            <TimeInput hour={endHour} setHour={setEndHour} minute={endMinute} setMinute={setEndMinute} />
           </div>
-
           <p className="text-xs text-slate-500 w-full">
             พนักงานจะ login ได้เฉพาะ {pad(startHour)}:{pad(startMinute)} — {pad(endHour)}:{pad(endMinute)} น.
           </p>

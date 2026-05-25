@@ -36,6 +36,16 @@ export const authOptions: NextAuthOptions = {
 						accessToken: access,
 					};
 				}
+
+				if (response.status === 401) {
+					const errData = await response.json();
+					if (errData?.detail === "outside_working_hours") {
+						throw new Error(
+							`ไม่อยู่ในเวลางาน กรุณาเข้าระบบระหว่าง ${errData.start} - ${errData.end} น.`
+						);
+					}
+				}
+
 				return null;
 			},
 		}),
