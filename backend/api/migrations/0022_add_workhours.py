@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0021_bike_old_registration_plate'),
+        ('api', '0020_fix_chassi_unique_gift_wholesale_pr'),
     ]
 
     operations = [
