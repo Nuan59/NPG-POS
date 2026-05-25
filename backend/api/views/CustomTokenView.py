@@ -15,11 +15,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         except User.DoesNotExist:
             return super().post(request, *args, **kwargs)
 
-        # adm ไม่จำกัดเวลา
         if user.role == "adm":
             return super().post(request, *args, **kwargs)
 
-        # emp — เช็คเวลา
         work = WorkHours.get_settings()
 
         if work.is_enabled:
@@ -30,8 +28,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             end_minutes = work.end_hour * 60 + work.end_minute
 
             if not (start_minutes <= current_minutes <= end_minutes):
+                # ส่ง error code พิเศษ outside_working_hours
                 return Response(
-                    {"detail": "No active account found with the given credentials"},
+                    {"detail": "outside_working_hours",
+                     "start": f"{work.start_hour:02d}:{work.start_minute:02d}",
+                     "end": f"{work.end_hour:02d}:{work.end_minute:02d}"},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
