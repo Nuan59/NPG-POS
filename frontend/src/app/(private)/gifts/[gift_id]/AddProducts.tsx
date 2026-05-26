@@ -5,6 +5,7 @@ import { addGiftsToStock } from "@/services/GiftService";
 import { Gift } from "@/types/Gift";
 import React, { useState } from "react";
 import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 interface AddProductsProps {
   gift: Gift;
@@ -12,37 +13,39 @@ interface AddProductsProps {
 
 const AddProducts = ({ gift }: AddProductsProps) => {
   const [amount, setAmount] = useState<number | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
 
   async function addProducts() {
-    if (!amount) {
-      toast.warning("Define the amount to add to stock!");
+    if (!amount || amount <= 0) {
+      toast.warning("กรุณากรอกจำนวนที่ต้องการเพิ่ม");
       return;
     }
-
+    setLoading(true);
     const result = await addGiftsToStock(gift.id, amount);
-
     const { message } = result.data;
-
     if (result.status === "success") {
-      setAmount(0);
-      toast.success(message);
-      return;
+      setAmount(undefined);
+      toast.success(message || `เพิ่ม stock ${gift.name} +${amount} สำเร็จ`);
+    } else {
+      toast.error(message || "เพิ่ม stock ไม่สำเร็จ");
     }
-
-    toast.error(message);
+    setLoading(false);
   }
 
   return (
-    <div className="col-span-1 flex gap-1">
+    <div className="flex gap-2">
       <Input
         type="number"
-        value={amount}
-        onChange={(e) =>
-          setAmount(e.target.value ? Number(e.target.value) : undefined)
-        }
-        placeholder={`Add ${gift.name}s to stock`}
-      ></Input>
-      <Button onClick={addProducts}>Add products</Button>
+        min={1}
+        value={amount ?? ""}
+        onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : undefined)}
+        placeholder="จำนวนที่เพิ่ม"
+        className="flex-1"
+      />
+      <Button onClick={addProducts} disabled={loading} className="gap-1 whitespace-nowrap">
+        <Plus size={16} />
+        {loading ? "กำลังเพิ่ม..." : "เพิ่ม Stock"}
+      </Button>
     </div>
   );
 };
