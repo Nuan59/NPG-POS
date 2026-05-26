@@ -6,7 +6,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Trash2, Pencil } from "lucide-react";
+import { MoreHorizontal, Eye, Trash2, Pencil, Plus, DollarSign } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { useState } from "react";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Gift } from "@/types/Gift";
@@ -23,6 +27,27 @@ const GiftRowButton = ({ gift }: { gift: Gift }) => {
   const { data: session } = useSession();
   const roleCode = String((session as any)?.user?.role ?? "").toLowerCase();
   const isManager = roleCode === "adm";
+
+  const [addStockOpen, setAddStockOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [loadingStock, setLoadingStock] = useState(false);
+
+  const handleAddStock = async () => {
+    if (!amount || Number(amount) <= 0) { toast.warning("กรุณากรอกจำนวน"); return; }
+    setLoadingStock(true);
+    try {
+      const s = await getSession();
+      const token = (s as any)?.user?.accessToken;
+      const res = await fetch(`${API_BASE_URL}/gifts/${gift.id}/add_stock/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount: Number(amount) }),
+      });
+      if (res.ok) { toast.success(`เพิ่ม stock +${amount} สำเร็จ`); setAddStockOpen(false); setAmount(""); router.refresh(); }
+      else { toast.error("เพิ่ม stock ไม่สำเร็จ"); }
+    } catch { toast.error("เกิดข้อผิดพลาด"); }
+    setLoadingStock(false);
+  };
 
   const handleDelete = async () => {
     const ok = window.confirm("ต้องการลบของแถมนี้ใช่ไหม?\n(ลบแล้วกู้คืนไม่ได้)");
@@ -69,7 +94,7 @@ const GiftRowButton = ({ gift }: { gift: Gift }) => {
   };
 
   return (
-    <DropdownMenu>
+    <>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 w-8 p-0">
           <span className="sr-only">Open menu</span>
@@ -85,6 +110,15 @@ const GiftRowButton = ({ gift }: { gift: Gift }) => {
             ดู
           </DropdownMenuItem>
         </Link>
+
+        {/* เพิ่ม Stock: ทุก role */}
+        <DropdownMenuItem
+          onClick={() => { setAmount(""); setAddStockOpen(true); }}
+          className="flex justify-between gap-2"
+        >
+          <Plus className="opacity-60 h-4 w-4" />
+          เพิ่ม Stock
+        </DropdownMenuItem>
 
         {/* ✏️ แก้ไข: เฉพาะผู้จัดการ */}
         {isManager && (
@@ -109,6 +143,25 @@ const GiftRowButton = ({ gift }: { gift: Gift }) => {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <Dialog open={addStockOpen} onOpenChange={setAddStockOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>เพิ่ม Stock — {gift.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-slate-500">คงเหลือปัจจุบัน: <span className="font-semibold">{gift.stock}</span></p>
+            <Input type="number" min={1} placeholder="จำนวนที่เพิ่ม" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">ยกเลิก</Button></DialogClose>
+            <Button onClick={handleAddStock} disabled={loadingStock}>
+              {loadingStock ? "กำลังเพิ่ม..." : "เพิ่ม Stock"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
