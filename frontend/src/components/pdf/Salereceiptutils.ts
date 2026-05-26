@@ -25,7 +25,6 @@ export const sanitizeText = (text: any): string => {
     .replace(/&#39;/g, "'");
   str = str.replace(/ำ/g, `ำ${ZWJ}`);
   str = str.replace(/-([ก-๙])/g, `-${ZWJ}$1`);
-  str = str.replace(/(ง|ญ|ว|ย|ร|ล|ศ|ส|ห|อ|ฮ|ป|ด|บ|ท)/g, `$1${ZWJ}`);
   str = str.replace(/([0-9])/g, `$1${ZWJ}`);
   return str.trim();
 };
