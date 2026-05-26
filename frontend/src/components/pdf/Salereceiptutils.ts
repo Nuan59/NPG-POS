@@ -23,6 +23,10 @@ export const sanitizeText = (text: any): string => {
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
+  // แก้ปัญหาสระลอยหายท้ายคำ: เพิ่ม ZWJ หลังสระทุกตัวที่อยู่ท้ายคำ
+  // ครอบคลุม ี ื ็ ์ ั ิ ่ ้ ๊ ๋ ึ ุ ู ำ
+  str = str.replace(/([\u0E30-\u0E4E])$/gm, `$1${ZWJ}`);
+  str = str.replace(/([\u0E30-\u0E4E])(\s)/g, `$1${ZWJ}$2`);
   str = str.replace(/ำ/g, `ำ${ZWJ}`);
   str = str.replace(/-([ก-๙])/g, `-${ZWJ}$1`);
   str = str.replace(/([0-9])/g, `$1${ZWJ}`);

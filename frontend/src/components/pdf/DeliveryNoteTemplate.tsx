@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
+import { sanitizeText } from "./Salereceiptutils";
 
 // ✅ ใช้ Sarabun (มีอยู่แล้วใน public/fonts)
 Font.register({
@@ -319,19 +320,19 @@ export default function DeliveryNoteTemplate({
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>นาม</Text>
               <View style={styles.infoValue}>
-                <Text>{customerName}</Text>
+                <Text>{sanitizeText(customerName)}</Text>
               </View>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>ที่{ZWJ}อยู่{ZWJ}</Text>
               <View style={styles.infoValue}>
-                <Text>{address}</Text>
+                <Text>{sanitizeText(address)}</Text>
               </View>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>โทรศั{ZWJ}พท์{ZWJ}</Text>
               <View style={styles.infoValue}>
-                <Text>{phone}</Text>
+                <Text>{sanitizeText(phone)}</Text>
               </View>
             </View>
           </View>
@@ -361,10 +362,10 @@ export default function DeliveryNoteTemplate({
           {vehicles.map((vehicle, idx) => (
             <View key={idx} style={styles.tableRow}>
               <Text style={styles.col1}>{idx + 1}{ZWJ}</Text>
-              <Text style={styles.col2}>{vehicle.modelCode}{ZWJ}</Text>
-              <Text style={styles.col3}>{vehicle.engineNo}{ZWJ}</Text>
-              <Text style={styles.col4}>{vehicle.frameNo}{ZWJ}</Text>
-              <Text style={styles.col5}>{vehicle.color}{ZWJ}</Text>
+              <Text style={styles.col2}>{sanitizeText(vehicle.modelCode)}</Text>
+              <Text style={styles.col3}>{sanitizeText(vehicle.engineNo)}</Text>
+              <Text style={styles.col4}>{sanitizeText(vehicle.frameNo)}</Text>
+              <Text style={styles.col5}>{sanitizeText(vehicle.color)}</Text>
             </View>
           ))}
 
