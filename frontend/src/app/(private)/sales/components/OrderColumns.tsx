@@ -39,10 +39,15 @@ export const OrderColumns: ColumnDef<IOrder>[] = [
 
 			// ✅ สีตามโลโก้แต่ละบริษัท
 			const colorClass = 
-				method === "เงินสด" ? "bg-yellow-50 text-black" :        // เงินสด (เหลืองอ่อนมาก + ตัวอักษรดำ)
-				method === "Cathay" ? "bg-green-100 text-green-800" :      // สีเขียว
-				method === "ทรัพย์สยาม" ? "bg-blue-100 text-blue-800" : // สีม่วงน้ำเงิน
-				method === "NPG" ? "bg-orange-500 text-white" :            // พื้นส้ม ตัวอักษรขาว (ตามโลโก้)
+				method === "เงินสด" ? "bg-yellow-50 text-black" :
+				method === "Cathay" ? "bg-green-100 text-green-800" :
+				method === "ทรัพย์สยาม" ? "bg-blue-100 text-blue-800" :
+				method === "NPG" ? "bg-orange-500 text-white" :
+				method === "Summit" ? "bg-purple-100 text-purple-800" :
+				method === "S Leasing" ? "bg-cyan-100 text-cyan-800" :
+				method === "CIMB" ? "bg-red-100 text-red-800" :
+				method === "World Lease" ? "bg-indigo-100 text-indigo-800" :
+				method === "เงินติดล้อ" ? "bg-lime-100 text-lime-800" :
 				"bg-gray-100 text-gray-800";
 
 			return (
