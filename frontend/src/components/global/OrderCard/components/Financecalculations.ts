@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
  */
 
 // ================== TYPES ==================
-export type FinanceProvider = "Cathay" | "ทรัพย์สยาม" | "NPG" | "Summit" | "S Leasing" | "";
+export type FinanceProvider = "Cathay" | "ทรัพย์สยาม" | "NPG" | "Summit" | "S Leasing" | "CIMB" | "World Lease" | "เงินติดล้อ" | "";
 export type NpgPeriod = "รายปี" | "รายเดือน" | "";
 export type RoundingMethod = "standard" | "up" | "down";
 
