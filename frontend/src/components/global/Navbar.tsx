@@ -50,7 +50,7 @@ export const Navbar = () => {
               <Link
                 key={item.href}
                 href={item.href}
-                className="px-3 py-2 text-sm font-bold text-white rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-105 transition-all duration-300 whitespace-nowrap"
+                className="px-3 py-2 text-base font-bold text-white rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-105 transition-all duration-300 whitespace-nowrap"
               >
                 {item.label}
               </Link>
