@@ -16,10 +16,12 @@ interface RecentActivityFeedProps {
 }
 
 const STATUS_DOT: Record<DocStatus, string> = {
-  pending:   "bg-gray-400",
-  received:  "bg-blue-400",
-  fixing:    "bg-yellow-400",
-  completed: "bg-green-500",
+  pending_staff:    "bg-gray-400",
+  received_staff:   "bg-blue-400",
+  fixing:           "bg-yellow-400",
+  pending_transfer: "bg-purple-400",
+  sent_transport:   "bg-orange-400",
+  completed:        "bg-green-500",
 };
 
 function StatusBadge({ status }: { status: DocStatus }) {
@@ -101,10 +103,12 @@ export default function RecentActivityFeed({ token, onViewAll, onOrderClick }: R
                 "flex items-center gap-3 px-4 py-2.5 border-l-[3px] transition-colors",
                 onOrderClick ? "cursor-pointer hover:bg-gray-50 group" : "",
                 // สีตาม to_status
-                log.to_status === "pending"   && "border-l-gray-300",
-                log.to_status === "received"  && "border-l-blue-300",
-                log.to_status === "fixing"    && "border-l-yellow-400",
-                log.to_status === "completed" && "border-l-green-400",
+                log.to_status === "pending_staff"    && "border-l-gray-300",
+                log.to_status === "received_staff"   && "border-l-blue-300",
+                log.to_status === "fixing"           && "border-l-yellow-400",
+                log.to_status === "pending_transfer" && "border-l-purple-400",
+                log.to_status === "sent_transport"   && "border-l-orange-400",
+                log.to_status === "completed"        && "border-l-green-400",
               )}
             >
               {/* dot */}
