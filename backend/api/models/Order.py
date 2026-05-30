@@ -51,10 +51,12 @@ class Order(models.Model):
     ]
     
     REGISTRATION_DOC_STATUS = [
-        ('pending',   'รอเอกสาร'),
-        ('received',  'รับเอกสารแล้ว'),
-        ('fixing',    'แก้เอกสาร'),
-        ('completed', 'ลูกค้ารับเล่มแล้ว'),
+        ('pending_staff',    'รอเอกสารจากพนักงาน'),
+        ('received_staff',   'รับเอกสารจากพนักงานแล้ว'),
+        ('fixing',           'รอแก้เอกสาร'),
+        ('pending_transfer', 'รอแจ้งย้ายปลายทาง'),
+        ('sent_transport',   'ส่งจดทะเบียนให้ขนส่งแล้ว'),
+        ('completed',        'เสร็จสิ้น รอลูกค้ารับเล่ม'),
     ]
     
     # ข้อมูลหลัก
@@ -96,9 +98,9 @@ class Order(models.Model):
     gifts = models.ManyToManyField(OrderGift, blank=True)
     
     doc_status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=REGISTRATION_DOC_STATUS,
-        default='pending',
+        default='pending_staff',
         null=True,
         blank=True
     )

@@ -25,7 +25,7 @@ def registration_list(request):
             days_passed = (now - order.created_at).days
             is_overdue = days_passed > 45
 
-        doc_status = order.doc_status or 'pending'
+        doc_status = order.doc_status or 'pending_staff'
 
         if status_filter == 'overdue':
             if not (is_overdue and doc_status != 'completed'):
@@ -74,7 +74,7 @@ def update_status(request, pk):
         return Response({'error': 'ไม่พบ Order'}, status=404)
 
     new_status = request.data.get('doc_status')
-    valid_statuses = ['pending', 'received', 'fixing', 'completed']
+    valid_statuses = ['pending_staff', 'received_staff', 'fixing', 'pending_transfer', 'sent_transport', 'completed']
 
     if new_status not in valid_statuses:
         return Response({'error': 'สถานะไม่ถูกต้อง'}, status=400)
