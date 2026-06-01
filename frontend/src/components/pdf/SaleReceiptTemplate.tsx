@@ -188,7 +188,7 @@ const ReceiptPage: React.FC<{
             <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
           </View>
           <View style={styles.tableRow}>
-            <Text style={styles.col1}>  รุ่น {sanitizeText(bike?.model_name || bike?.name || '-')}{ZWJ}</Text>
+            <Text style={styles.col1}>  รุ่น {sanitizeText(bike?.model_code || bike?.model_name || '-')}{ZWJ}</Text>
             <Text style={styles.col2}>1</Text>
             <Text style={styles.col3}>คัน</Text>
             <Text style={styles.col4}>{fmt(salePrice)}</Text>
@@ -246,31 +246,28 @@ const ReceiptPage: React.FC<{
           <Text style={styles.giftLabel}>ของแถม</Text>
           <View style={styles.giftContent}>
             <View style={{ flexDirection: 'row', width: '100%' }}>
-              {/* คอลัมน์ซ้าย - รายการที่ 1-4 */}
+              {/* คอลัมน์ซ้าย - รายการที่ 1-5 */}
               <View style={{ flex: 1, paddingRight: 4 }}>
-                {Array.from({ length: 4 }).map((_, index) => {
+                {Array.from({ length: 5 }).map((_, index) => {
                   const gift = order.gifts && Array.isArray(order.gifts) 
                     ? order.gifts[index] 
                     : null;
-                  
                   return (
                     <Text key={`gift-left-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
                         ? `${sanitizeText(gift.item?.name || gift.name || '')}${gift.quantity && gift.quantity > 1 ? ` (${gift.quantity})` : ''}`
-                        : index === 0 ? '-' : ' '}
+                        : index === 0 && (!order.gifts || order.gifts.length === 0) ? '-' : ' '}
                     </Text>
                   );
                 })}
               </View>
-              
-              {/* คอลัมน์ขวา - รายการที่ 5-8 */}
+              {/* คอลัมน์ขวา - รายการที่ 6-10 */}
               <View style={{ flex: 1, paddingLeft: 4 }}>
-                {Array.from({ length: 4 }).map((_, index) => {
-                  const giftIndex = index + 4; // รายการที่ 5-8
-                  const gift = order.gifts && Array.isArray(order.gifts) && order.gifts.length > 4
+                {Array.from({ length: 5 }).map((_, index) => {
+                  const giftIndex = index + 5;
+                  const gift = order.gifts && Array.isArray(order.gifts)
                     ? order.gifts[giftIndex] 
                     : null;
-                  
                   return (
                     <Text key={`gift-right-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
@@ -295,11 +292,7 @@ const ReceiptPage: React.FC<{
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
             <View style={styles.checkbox}>
               {!isFinance && (
-                <View style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#000',
-                }} />
+                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินสด</Text>
@@ -309,11 +302,7 @@ const ReceiptPage: React.FC<{
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
             <View style={styles.checkbox}>
               {isFinance && (
-                <View style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#000',
-                }} />
+                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>สินเชื่อ FN:</Text>
@@ -331,11 +320,7 @@ const ReceiptPage: React.FC<{
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
             <View style={styles.checkbox}>
               {isPaymentType("เงินสด") && (
-                <View style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#000',
-                }} />
+                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินสด</Text>
@@ -345,11 +330,7 @@ const ReceiptPage: React.FC<{
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
             <View style={styles.checkbox}>
               {isPaymentType("เงินโอน") && (
-                <View style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#000',
-                }} />
+                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินโอน</Text>
@@ -366,11 +347,7 @@ const ReceiptPage: React.FC<{
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
             <View style={styles.checkbox}>
               {isPaymentType("เช็ค") && (
-                <View style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#000',
-                }} />
+                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เช็คเลขที่</Text>
@@ -411,9 +388,11 @@ const ReceiptPage: React.FC<{
             <Text style={styles.summaryLabel}>ส่วนลด</Text>
             <Text style={styles.summaryValue}>{fmt(discount)}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>ยอดเงินสุทธิ</Text>
-            <Text style={styles.summaryValue}>{fmt(totalAmount)}</Text>
+          <View style={{ borderTop: '1pt solid #000', marginTop: 2, paddingTop: 2 }}>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { fontWeight: 'bold' }]}>ยอดเงินสุทธิ</Text>
+              <Text style={[styles.summaryValue, { fontWeight: 'bold' }]}>{fmt(totalAmount)}</Text>
+            </View>
           </View>
         </View>
       </View>
