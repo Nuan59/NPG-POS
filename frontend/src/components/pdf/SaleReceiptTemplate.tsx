@@ -394,10 +394,11 @@ const ReceiptPage: React.FC<{
 
         {/* สรุปยอด */}
         <View style={styles.rightSummary}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>รวมเงิน</Text>
-            <Text style={styles.summaryValue}>{fmt(totalAmount)}</Text>
-          </View>
+          <View style={styles.totalRow}>
+            <Text style={{ width: "60%", textAlign: "right" }}>รวมเงิน</Text>
+            <Text style={{ width: "40%", textAlign: "right" }}>{fmt(netTotal)}</Text>
+          </View>        
+
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>มัดจำ{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(deposit)}</Text>
@@ -410,9 +411,9 @@ const ReceiptPage: React.FC<{
             <Text style={styles.summaryLabel}>ส่วนลด</Text>
             <Text style={styles.summaryValue}>{fmt(discount)}</Text>
           </View>
-          <View style={styles.totalRow}>
-            <Text style={{ width: "60%", textAlign: "right" }}>ยอดเงินสุทธิ</Text>
-            <Text style={{ width: "40%", textAlign: "right" }}>{fmt(netTotal)}</Text>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>ยอดเงินสุทธิ</Text>
+            <Text style={styles.summaryValue}>{fmt(totalAmount)}</Text>
           </View>
         </View>
       </View>
