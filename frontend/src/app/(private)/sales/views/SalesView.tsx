@@ -160,19 +160,28 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
   ];
 
   useEffect(() => {
-    const fetch = async () => {
+    const run = async () => {
       const params = {
         startDate: dateFilter?.from,
         endDate: dateFilter?.to,
       };
 
+      // fetch ตาม date range จาก API เท่านั้น
       const result = await getFilteredOrders(params);
 
       let filtered = result;
 
+      // ค้นหาทุก field
       if (searchTerm) {
+        const q = searchTerm.toLowerCase();
         filtered = filtered.filter((o) =>
-          o.customer?.toLowerCase().includes(searchTerm.toLowerCase())
+          o.customer?.toLowerCase().includes(q) ||
+          o.bikes?.[0]?.model_name?.toLowerCase().includes(q) ||
+          o.bikes?.[0]?.model_code?.toLowerCase().includes(q) ||
+          o.bikes?.[0]?.chassi?.toLowerCase().includes(q) ||
+          o.bikes?.[0]?.engine?.toLowerCase().includes(q) ||
+          o.bikes?.[0]?.registration_plate?.toLowerCase().includes(q) ||
+          o.payment_method?.toLowerCase().includes(q)
         );
       }
 
@@ -186,11 +195,10 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
         );
       }
 
-      // ✅ ถ้าเลือก "ไฟแนนซ์" → แสดงทั้ง Cathay และ ทรัพย์สยาม
       if (paymentFilter !== "__ALL__") {
         if (paymentFilter === "ไฟแนนซ์") {
           filtered = filtered.filter(
-            (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing"
+            (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing" || o.payment_method === "CIMB" || o.payment_method === "World Lease" || o.payment_method === "เงินติดล้อ"
           );
         } else {
           filtered = filtered.filter(
@@ -202,7 +210,7 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
       setOrdersDisplay(filtered);
     };
 
-    fetch();
+    run();
   }, [searchTerm, customerFilter, modelFilter, paymentFilter, dateFilter]);
 
   const clearFilters = () => {
