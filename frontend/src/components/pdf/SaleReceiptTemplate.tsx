@@ -290,9 +290,9 @@ const ReceiptPage: React.FC<{
 
           {/* เงินสด */}
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
-            <View style={[styles.checkbox, { position: 'relative' }]}>
+            <View style={[styles.checkbox, { justifyContent: 'center', alignItems: 'center' }]}>
               {!isFinance && (
-                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
+                <Text style={{ fontSize: 7, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินสด</Text>
@@ -300,9 +300,9 @@ const ReceiptPage: React.FC<{
 
           {/* สินเชื่อ + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
-            <View style={[styles.checkbox, { position: 'relative' }]}>
+            <View style={[styles.checkbox, { justifyContent: 'center', alignItems: 'center' }]}>
               {isFinance && (
-                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
+                <Text style={{ fontSize: 7, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>สินเชื่อ FN:</Text>
@@ -318,9 +318,9 @@ const ReceiptPage: React.FC<{
 
           {/* เงินสด */}
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
-            <View style={[styles.checkbox, { position: 'relative' }]}>
+            <View style={[styles.checkbox, { justifyContent: 'center', alignItems: 'center' }]}>
               {isPaymentType("เงินสด") && (
-                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
+                <Text style={{ fontSize: 7, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินสด</Text>
@@ -328,9 +328,9 @@ const ReceiptPage: React.FC<{
 
           {/* เงินโอน + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
-            <View style={[styles.checkbox, { position: 'relative' }]}>
+            <View style={[styles.checkbox, { justifyContent: 'center', alignItems: 'center' }]}>
               {isPaymentType("เงินโอน") && (
-                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
+                <Text style={{ fontSize: 7, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินโอน</Text>
@@ -345,9 +345,9 @@ const ReceiptPage: React.FC<{
 
           {/* เช็ค + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
-            <View style={[styles.checkbox, { position: 'relative' }]}>
+            <View style={[styles.checkbox, { justifyContent: 'center', alignItems: 'center' }]}>
               {isPaymentType("เช็ค") && (
-                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
+                <Text style={{ fontSize: 7, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เช็คเลขที่</Text>
