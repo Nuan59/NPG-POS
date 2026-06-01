@@ -101,10 +101,8 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
   }
 
   // ✅ ตรวจสอบว่าเป็นไฟแนนซ์หรือไม่
-  const isFinance = 
-    order.payment_method === "Cathay" || 
-    order.payment_method === "ทรัพย์สยาม" || 
-    order.payment_method === "NPG";
+  const FINANCE_PROVIDERS = ["Cathay", "ทรัพย์สยาม", "NPG", "Summit", "S Leasing", "CIMB", "World Lease", "เงินติดล้อ"];
+  const isFinance = FINANCE_PROVIDERS.includes(order.payment_method);
 
   // ✅ คำนวณยอดชำระรวมทั้งหมด
   let calculatedTotal = 0;
