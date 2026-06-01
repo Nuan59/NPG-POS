@@ -57,6 +57,7 @@ class Order(models.Model):
         ('pending_transfer', 'รอแจ้งย้ายปลายทาง'),
         ('sent_transport',   'ส่งจดทะเบียนให้ขนส่งแล้ว'),
         ('completed',        'เสร็จสิ้น รอลูกค้ารับเล่ม'),
+        ('received_book',    'ลูกค้ารับเล่มแล้ว'),
     ]
     
     # ข้อมูลหลัก

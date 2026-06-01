@@ -74,7 +74,7 @@ def update_status(request, pk):
         return Response({'error': 'ไม่พบ Order'}, status=404)
 
     new_status = request.data.get('doc_status')
-    valid_statuses = ['pending_staff', 'received_staff', 'fixing', 'pending_transfer', 'sent_transport', 'completed']
+    valid_statuses = ['pending_staff', 'received_staff', 'fixing', 'pending_transfer', 'sent_transport', 'completed', 'received_book']
 
     if new_status not in valid_statuses:
         return Response({'error': 'สถานะไม่ถูกต้อง'}, status=400)
