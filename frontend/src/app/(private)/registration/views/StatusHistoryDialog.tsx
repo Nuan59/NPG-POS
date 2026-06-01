@@ -20,8 +20,8 @@ const STATUS_OPTIONS = [
   { value: "pending_staff"    as DocStatus, label: "รอเอกสารจากพนักงาน",       bg: "bg-gray-50",    border: "border-gray-300",    text: "text-gray-700",    activeBg: "bg-gray-200 border-gray-500",     dot: "bg-gray-400"    },
   { value: "received_staff"   as DocStatus, label: "รับเอกสารจากพนักงานแล้ว",  bg: "bg-blue-50",    border: "border-blue-300",    text: "text-blue-700",    activeBg: "bg-blue-200 border-blue-600",     dot: "bg-blue-500"    },
   { value: "fixing"           as DocStatus, label: "รอแก้เอกสาร",               bg: "bg-yellow-50",  border: "border-yellow-300",  text: "text-yellow-700",  activeBg: "bg-yellow-200 border-yellow-600", dot: "bg-yellow-500"  },
+  { value: "sent_transport"   as DocStatus, label: "ส่งจดทะเบียนให้ต้นทางแล้ว", bg: "bg-orange-50",  border: "border-orange-300",  text: "text-orange-700",  activeBg: "bg-orange-200 border-orange-600", dot: "bg-orange-500"  },
   { value: "pending_transfer" as DocStatus, label: "รอแจ้งย้ายปลายทาง",        bg: "bg-purple-50",  border: "border-purple-300",  text: "text-purple-700",  activeBg: "bg-purple-200 border-purple-600", dot: "bg-purple-500"  },
-  { value: "sent_transport"   as DocStatus, label: "ส่งจดทะเบียนให้ขนส่งแล้ว", bg: "bg-orange-50",  border: "border-orange-300",  text: "text-orange-700",  activeBg: "bg-orange-200 border-orange-600", dot: "bg-orange-500"  },
   { value: "completed"        as DocStatus, label: "เสร็จสิ้น รอลูกค้ารับเล่ม", bg: "bg-green-50",  border: "border-green-300",   text: "text-green-700",   activeBg: "bg-green-200 border-green-600",  dot: "bg-green-500"   },
   { value: "received_book"    as DocStatus, label: "ลูกค้ารับเล่มแล้ว",          bg: "bg-teal-50",   border: "border-teal-300",    text: "text-teal-700",    activeBg: "bg-teal-200 border-teal-600",    dot: "bg-teal-500"    },
 ];
