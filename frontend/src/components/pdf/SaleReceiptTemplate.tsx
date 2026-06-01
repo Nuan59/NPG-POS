@@ -255,8 +255,8 @@ const ReceiptPage: React.FC<{
                   return (
                     <Text key={`gift-left-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
-                        ? `${sanitizeText(gift.item?.name || gift.name || '')}${gift.quantity && gift.quantity > 1 ? ` (${gift.quantity})` : ''}`
-                        : index === 0 && (!order.gifts || order.gifts.length === 0) ? '-' : ' '}
+                        ? `${sanitizeText(gift.item?.name || gift.name || '')}${gift.quantity && gift.quantity > 1 ? ` (${gift.quantity})` : ''}${ZWJ}`
+                        : index === 0 && (!order.gifts || order.gifts.length === 0) ? `-${ZWJ}` : ` ${ZWJ}`}
                     </Text>
                   );
                 })}
@@ -271,8 +271,8 @@ const ReceiptPage: React.FC<{
                   return (
                     <Text key={`gift-right-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
-                        ? `${sanitizeText(gift.item?.name || gift.name || '')}${gift.quantity && gift.quantity > 1 ? ` (${gift.quantity})` : ''}`
-                        : ' '}
+                        ? `${sanitizeText(gift.item?.name || gift.name || '')}${gift.quantity && gift.quantity > 1 ? ` (${gift.quantity})` : ''}${ZWJ}`
+                        : ` ${ZWJ}`}
                     </Text>
                   );
                 })}
@@ -290,9 +290,9 @@ const ReceiptPage: React.FC<{
 
           {/* เงินสด */}
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
-            <View style={styles.checkbox}>
+            <View style={[styles.checkbox, { position: 'relative' }]}>
               {!isFinance && (
-                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
+                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินสด</Text>
@@ -300,9 +300,9 @@ const ReceiptPage: React.FC<{
 
           {/* สินเชื่อ + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
-            <View style={styles.checkbox}>
+            <View style={[styles.checkbox, { position: 'relative' }]}>
               {isFinance && (
-                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
+                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>สินเชื่อ FN:</Text>
@@ -318,9 +318,9 @@ const ReceiptPage: React.FC<{
 
           {/* เงินสด */}
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
-            <View style={styles.checkbox}>
+            <View style={[styles.checkbox, { position: 'relative' }]}>
               {isPaymentType("เงินสด") && (
-                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
+                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินสด</Text>
@@ -328,9 +328,9 @@ const ReceiptPage: React.FC<{
 
           {/* เงินโอน + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
-            <View style={styles.checkbox}>
+            <View style={[styles.checkbox, { position: 'relative' }]}>
               {isPaymentType("เงินโอน") && (
-                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
+                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เงินโอน</Text>
@@ -345,9 +345,9 @@ const ReceiptPage: React.FC<{
 
           {/* เช็ค + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
-            <View style={styles.checkbox}>
+            <View style={[styles.checkbox, { position: 'relative' }]}>
               {isPaymentType("เช็ค") && (
-                <Text style={{ fontSize: 8, fontWeight: 'bold', lineHeight: 1 }}>X</Text>
+                <Text style={{ position: 'absolute', top: -1, left: 0, fontSize: 9, fontWeight: 'bold' }}>X</Text>
               )}
             </View>
             <Text style={styles.checkLabel}>เช็คเลขที่</Text>
@@ -371,10 +371,10 @@ const ReceiptPage: React.FC<{
 
         {/* สรุปยอด */}
         <View style={styles.rightSummary}>
-          <View style={styles.totalRow}>
-            <Text style={{ width: "60%", textAlign: "right" }}>รวมเงิน</Text>
-            <Text style={{ width: "40%", textAlign: "right" }}>{fmt(netTotal)}</Text>
-          </View>        
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>รวมเงิน</Text>
+            <Text style={styles.summaryValue}>{fmt(netTotal)}</Text>
+          </View>
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>มัดจำ{ZWJ}</Text>
@@ -388,10 +388,10 @@ const ReceiptPage: React.FC<{
             <Text style={styles.summaryLabel}>ส่วนลด</Text>
             <Text style={styles.summaryValue}>{fmt(discount)}</Text>
           </View>
-          <View style={{ borderTop: '1pt solid #000', marginTop: 2, paddingTop: 2 }}>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { fontWeight: 'bold' }]}>ยอดเงินสุทธิ</Text>
-              <Text style={[styles.summaryValue, { fontWeight: 'bold' }]}>{fmt(totalAmount)}</Text>
+          <View style={{ borderTop: '1pt solid #000', marginTop: 2, paddingTop: 3 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ textAlign: 'right', width: '60%', fontSize: 11, fontWeight: 'bold' }}>ยอดเงินสุทธิ</Text>
+              <Text style={{ textAlign: 'right', width: '40%', fontSize: 11, fontWeight: 'bold' }}>{fmt(totalAmount)}</Text>
             </View>
           </View>
         </View>
