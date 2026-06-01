@@ -22,6 +22,7 @@ const STATUS_DOT: Record<DocStatus, string> = {
   pending_transfer: "bg-purple-400",
   sent_transport:   "bg-orange-400",
   completed:        "bg-green-500",
+  received_book:    "bg-teal-500",
 };
 
 function StatusBadge({ status }: { status: DocStatus }) {
@@ -109,6 +110,7 @@ export default function RecentActivityFeed({ token, onViewAll, onOrderClick }: R
                 log.to_status === "pending_transfer" && "border-l-purple-400",
                 log.to_status === "sent_transport"   && "border-l-orange-400",
                 log.to_status === "completed"        && "border-l-green-400",
+                log.to_status === "received_book"    && "border-l-teal-400",
               )}
             >
               {/* dot */}

@@ -28,6 +28,7 @@ const STATUS_CARDS = [
   { key: "pending_transfer", label: "รอแจ้งย้ายปลายทาง",           description: "รอแจ้งย้ายปลายทาง",             icon: FileText,    bg: "bg-purple-50 hover:bg-purple-100 border-purple-300", iconColor: "text-purple-600", countColor: "text-purple-900" },
   { key: "sent_transport",   label: "ส่งจดทะเบียนให้ขนส่งแล้ว",    description: "ส่งจดทะเบียนให้ขนส่งแล้ว",      icon: FileCheck,   bg: "bg-orange-50 hover:bg-orange-100 border-orange-300", iconColor: "text-orange-600", countColor: "text-orange-900" },
   { key: "completed",        label: "เสร็จสิ้น รอลูกค้ารับเล่ม",   description: "เสร็จสมบูรณ์",                  icon: CheckCircle, bg: "bg-green-50 hover:bg-green-100 border-green-300",    iconColor: "text-green-600",  countColor: "text-green-900"  },
+  { key: "received_book",    label: "ลูกค้ารับเล่มแล้ว",            description: "ลูกค้ารับเล่มทะเบียนแล้ว",      icon: CheckCircle, bg: "bg-teal-50 hover:bg-teal-100 border-teal-300",       iconColor: "text-teal-600",   countColor: "text-teal-900"   },
   { key: "overdue",          label: "เกิน 45 วัน",                  description: "ยังไม่เสร็จและเกิน 45 วัน",     icon: AlertCircle, bg: "bg-red-50 hover:bg-red-100 border-red-300",          iconColor: "text-red-600",    countColor: "text-red-900"    },
 ];
 
@@ -38,6 +39,7 @@ const ROW_STATUS_COLOR: Record<DocStatus, string> = {
   pending_transfer: "border-l-4 border-l-purple-400",
   sent_transport:   "border-l-4 border-l-orange-400",
   completed:        "border-l-4 border-l-green-400",
+  received_book:    "border-l-4 border-l-teal-400",
 };
 
 function StatusBadge({ status }: { status: DocStatus }) {
@@ -109,16 +111,17 @@ export default function RegistrationView() {
     })();
   }, [token]);
 
-  // ✅ map สถานะเก่า → ใหม่ (รองรับข้อมูลเก่าในฐานข้อมูล)
   const normalizeStatus = (status: string): string => {
     if (status === "pending")  return "pending_staff";
     if (status === "received") return "received_staff";
     return status;
   };
 
+  const DONE_STATUSES = ["completed", "received_book"];
+
   const countByStatus = (key: string) => {
     if (key === "all") return allItems.length;
-    if (key === "overdue") return allItems.filter((i) => normalizeStatus(i.doc_status) !== "completed" && i.is_overdue).length;
+    if (key === "overdue") return allItems.filter((i) => !DONE_STATUSES.includes(normalizeStatus(i.doc_status)) && i.is_overdue).length;
     return allItems.filter((i) => normalizeStatus(i.doc_status) === key).length;
   };
 
@@ -128,7 +131,7 @@ export default function RegistrationView() {
   const filteredItems = allItems.filter((item) => {
     const status = normalizeStatus(item.doc_status);
     if (selectedStatus && selectedStatus !== "all") {
-      if (selectedStatus === "overdue") { if (!(item.is_overdue && status !== "completed")) return false; }
+      if (selectedStatus === "overdue") { if (!(item.is_overdue && !DONE_STATUSES.includes(status))) return false; }
       else { if (status !== selectedStatus) return false; }
     }
     if (sellerFilter  !== "__ALL__" && item.seller_name    !== sellerFilter)  return false;
@@ -279,7 +282,7 @@ export default function RegistrationView() {
                 <tr key={item.id} className={cn(
                   "hover:bg-gray-50 transition-colors",
                   ROW_STATUS_COLOR[normalizeStatus(item.doc_status) as DocStatus] || ROW_STATUS_COLOR["pending_staff"],
-                  item.is_overdue && normalizeStatus(item.doc_status) !== "completed" && "bg-red-50 hover:bg-red-100"
+                  item.is_overdue && !DONE_STATUSES.includes(normalizeStatus(item.doc_status)) && "bg-red-50 hover:bg-red-100"
                 )}>
                   <td className="px-4 py-3">
                     <p className="font-bold text-gray-900">{item.customer_name}</p>
@@ -305,9 +308,9 @@ export default function RegistrationView() {
                   </td>
                   <td className="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">{formatDate(item.sale_date)}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("font-bold text-sm", item.is_overdue && normalizeStatus(item.doc_status) !== "completed" ? "text-red-600" : "text-gray-700")}>
+                    <span className={cn("font-bold text-sm", item.is_overdue && !DONE_STATUSES.includes(normalizeStatus(item.doc_status)) ? "text-red-600" : "text-gray-700")}>
                       {item.days_passed ?? "-"} วัน
-                      {item.is_overdue && normalizeStatus(item.doc_status) !== "completed" && " ⚠️"}
+                      {item.is_overdue && !DONE_STATUSES.includes(normalizeStatus(item.doc_status)) && " ⚠️"}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{item.seller_name}</td>
