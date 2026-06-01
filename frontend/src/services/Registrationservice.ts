@@ -2,20 +2,24 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export type DocStatus = "pending" | "received" | "fixing" | "completed";
+export type DocStatus = "pending_staff" | "received_staff" | "fixing" | "pending_transfer" | "sent_transport" | "completed";
 
 export const DOC_STATUS_LABEL: Record<DocStatus, string> = {
-  pending:   "รอเอกสาร",
-  received:  "รับเอกสารแล้ว",
-  fixing:    "แก้เอกสาร",
-  completed: "ลูกค้ารับเล่มแล้ว",
+  pending_staff:    "รอเอกสารจากพนักงาน",
+  received_staff:   "รับเอกสารจากพนักงานแล้ว",
+  fixing:           "รอแก้เอกสาร",
+  pending_transfer: "รอแจ้งย้ายปลายทาง",
+  sent_transport:   "ส่งจดทะเบียนให้ขนส่งแล้ว",
+  completed:        "เสร็จสิ้น รอลูกค้ารับเล่ม",
 };
 
 export const DOC_STATUS_COLOR: Record<DocStatus, string> = {
-  pending:   "bg-gray-50 border-gray-300 text-gray-700",
-  received:  "bg-blue-50 border-blue-300 text-blue-700",
-  fixing:    "bg-yellow-50 border-yellow-300 text-yellow-700",
-  completed: "bg-green-50 border-green-300 text-green-700",
+  pending_staff:    "bg-gray-50 border-gray-300 text-gray-700",
+  received_staff:   "bg-blue-50 border-blue-300 text-blue-700",
+  fixing:           "bg-yellow-50 border-yellow-300 text-yellow-700",
+  pending_transfer: "bg-purple-50 border-purple-300 text-purple-700",
+  sent_transport:   "bg-orange-50 border-orange-300 text-orange-700",
+  completed:        "bg-green-50 border-green-300 text-green-700",
 };
 
 export interface BikeInfo {
