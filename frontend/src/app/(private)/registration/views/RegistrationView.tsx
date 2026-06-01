@@ -21,19 +21,23 @@ import StatusDialog from "./StatusHistoryDialog";
 import RecentActivityFeed from "./RecentActivityFeed";
 
 const STATUS_CARDS = [
-  { key: "all",       label: "ทั้งหมด",          description: "รายการทะเบียนทั้งหมด",      icon: FileText,    bg: "bg-slate-50 hover:bg-slate-100 border-slate-300",    iconColor: "text-slate-600",  countColor: "text-slate-900"  },
-  { key: "pending",   label: "รอเอกสาร",          description: "รายการที่รอรับเอกสาร",      icon: FileText,    bg: "bg-gray-50 hover:bg-gray-100 border-gray-300",       iconColor: "text-gray-600",   countColor: "text-gray-900"   },
-  { key: "received",  label: "รับเอกสารแล้ว",      description: "รับเอกสารแล้ว",             icon: FileCheck,   bg: "bg-blue-50 hover:bg-blue-100 border-blue-300",       iconColor: "text-blue-600",   countColor: "text-blue-900"   },
-  { key: "fixing",    label: "แก้เอกสาร",          description: "กำลังแก้เอกสาร",            icon: FilePen,     bg: "bg-yellow-50 hover:bg-yellow-100 border-yellow-300", iconColor: "text-yellow-600", countColor: "text-yellow-900" },
-  { key: "completed", label: "ลูกค้ารับเล่มแล้ว",  description: "เสร็จสมบูรณ์",              icon: CheckCircle, bg: "bg-green-50 hover:bg-green-100 border-green-300",    iconColor: "text-green-600",  countColor: "text-green-900"  },
-  { key: "overdue",   label: "เกิน 45 วัน",        description: "ยังไม่เสร็จและเกิน 45 วัน", icon: AlertCircle, bg: "bg-red-50 hover:bg-red-100 border-red-300",          iconColor: "text-red-600",    countColor: "text-red-900"    },
+  { key: "all",              label: "ทั้งหมด",                    description: "รายการทะเบียนทั้งหมด",          icon: FileText,    bg: "bg-slate-50 hover:bg-slate-100 border-slate-300",    iconColor: "text-slate-600",  countColor: "text-slate-900"  },
+  { key: "pending_staff",    label: "รอเอกสารจากพนักงาน",          description: "รอรับเอกสารจากพนักงาน",         icon: FileText,    bg: "bg-gray-50 hover:bg-gray-100 border-gray-300",       iconColor: "text-gray-600",   countColor: "text-gray-900"   },
+  { key: "received_staff",   label: "รับเอกสารจากพนักงานแล้ว",     description: "รับเอกสารจากพนักงานแล้ว",       icon: FileCheck,   bg: "bg-blue-50 hover:bg-blue-100 border-blue-300",       iconColor: "text-blue-600",   countColor: "text-blue-900"   },
+  { key: "fixing",           label: "รอแก้เอกสาร",                 description: "กำลังแก้เอกสาร",                icon: FilePen,     bg: "bg-yellow-50 hover:bg-yellow-100 border-yellow-300", iconColor: "text-yellow-600", countColor: "text-yellow-900" },
+  { key: "pending_transfer", label: "รอแจ้งย้ายปลายทาง",           description: "รอแจ้งย้ายปลายทาง",             icon: FileText,    bg: "bg-purple-50 hover:bg-purple-100 border-purple-300", iconColor: "text-purple-600", countColor: "text-purple-900" },
+  { key: "sent_transport",   label: "ส่งจดทะเบียนให้ขนส่งแล้ว",    description: "ส่งจดทะเบียนให้ขนส่งแล้ว",      icon: FileCheck,   bg: "bg-orange-50 hover:bg-orange-100 border-orange-300", iconColor: "text-orange-600", countColor: "text-orange-900" },
+  { key: "completed",        label: "เสร็จสิ้น รอลูกค้ารับเล่ม",   description: "เสร็จสมบูรณ์",                  icon: CheckCircle, bg: "bg-green-50 hover:bg-green-100 border-green-300",    iconColor: "text-green-600",  countColor: "text-green-900"  },
+  { key: "overdue",          label: "เกิน 45 วัน",                  description: "ยังไม่เสร็จและเกิน 45 วัน",     icon: AlertCircle, bg: "bg-red-50 hover:bg-red-100 border-red-300",          iconColor: "text-red-600",    countColor: "text-red-900"    },
 ];
 
 const ROW_STATUS_COLOR: Record<DocStatus, string> = {
-  pending:   "border-l-4 border-l-gray-400",
-  received:  "border-l-4 border-l-blue-400",
-  fixing:    "border-l-4 border-l-yellow-400",
-  completed: "border-l-4 border-l-green-400",
+  pending_staff:    "border-l-4 border-l-gray-400",
+  received_staff:   "border-l-4 border-l-blue-400",
+  fixing:           "border-l-4 border-l-yellow-400",
+  pending_transfer: "border-l-4 border-l-purple-400",
+  sent_transport:   "border-l-4 border-l-orange-400",
+  completed:        "border-l-4 border-l-green-400",
 };
 
 function StatusBadge({ status }: { status: DocStatus }) {
@@ -105,19 +109,27 @@ export default function RegistrationView() {
     })();
   }, [token]);
 
+  // ✅ map สถานะเก่า → ใหม่ (รองรับข้อมูลเก่าในฐานข้อมูล)
+  const normalizeStatus = (status: string): string => {
+    if (status === "pending")  return "pending_staff";
+    if (status === "received") return "received_staff";
+    return status;
+  };
+
   const countByStatus = (key: string) => {
     if (key === "all") return allItems.length;
-    if (key === "overdue") return allItems.filter((i) => i.is_overdue && i.doc_status !== "completed").length;
-    return allItems.filter((i) => i.doc_status === key).length;
+    if (key === "overdue") return allItems.filter((i) => normalizeStatus(i.doc_status) !== "completed" && i.is_overdue).length;
+    return allItems.filter((i) => normalizeStatus(i.doc_status) === key).length;
   };
 
   const sellerOptions  = [{ value: "__ALL__", label: "ทั้งหมด" }, ...Array.from(new Set(allItems.map((i) => i.seller_name))).filter(Boolean).map((s) => ({ value: s, label: s }))];
   const paymentOptions = [{ value: "__ALL__", label: "ทั้งหมด" }, ...Array.from(new Set(allItems.map((i) => i.payment_method))).filter(Boolean).map((p) => ({ value: p, label: p }))];
 
   const filteredItems = allItems.filter((item) => {
+    const status = normalizeStatus(item.doc_status);
     if (selectedStatus && selectedStatus !== "all") {
-      if (selectedStatus === "overdue") { if (!(item.is_overdue && item.doc_status !== "completed")) return false; }
-      else { if (item.doc_status !== selectedStatus) return false; }
+      if (selectedStatus === "overdue") { if (!(item.is_overdue && status !== "completed")) return false; }
+      else { if (status !== selectedStatus) return false; }
     }
     if (sellerFilter  !== "__ALL__" && item.seller_name    !== sellerFilter)  return false;
     if (paymentFilter !== "__ALL__" && item.payment_method !== paymentFilter) return false;
@@ -266,8 +278,8 @@ export default function RegistrationView() {
               {filteredItems.map((item) => (
                 <tr key={item.id} className={cn(
                   "hover:bg-gray-50 transition-colors",
-                  ROW_STATUS_COLOR[item.doc_status],
-                  item.is_overdue && item.doc_status !== "completed" && "bg-red-50 hover:bg-red-100"
+                  ROW_STATUS_COLOR[normalizeStatus(item.doc_status) as DocStatus] || ROW_STATUS_COLOR["pending_staff"],
+                  item.is_overdue && normalizeStatus(item.doc_status) !== "completed" && "bg-red-50 hover:bg-red-100"
                 )}>
                   <td className="px-4 py-3">
                     <p className="font-bold text-gray-900">{item.customer_name}</p>
@@ -293,16 +305,16 @@ export default function RegistrationView() {
                   </td>
                   <td className="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">{formatDate(item.sale_date)}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("font-bold text-sm", item.is_overdue && item.doc_status !== "completed" ? "text-red-600" : "text-gray-700")}>
+                    <span className={cn("font-bold text-sm", item.is_overdue && normalizeStatus(item.doc_status) !== "completed" ? "text-red-600" : "text-gray-700")}>
                       {item.days_passed ?? "-"} วัน
-                      {item.is_overdue && item.doc_status !== "completed" && " ⚠️"}
+                      {item.is_overdue && normalizeStatus(item.doc_status) !== "completed" && " ⚠️"}
                     </span>
                   </td>
                   <td className="px-4 py-3 font-semibold text-gray-800">{item.seller_name}</td>
 
                   {/* ✅ สถานะ — read-only badge เท่านั้น */}
                   <td className="px-4 py-3">
-                    <StatusBadge status={item.doc_status} />
+                    <StatusBadge status={normalizeStatus(item.doc_status) as DocStatus} />
                     {item.notes && (
                       <p className="text-xs text-gray-400 mt-1 truncate max-w-[130px]">{item.notes}</p>
                     )}
