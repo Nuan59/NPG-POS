@@ -85,22 +85,27 @@ const ModelSales = () => {
     [rawData, selectedYears]
   );
 
-  // ถ้าเลือกหลายปี → รวมยอดแต่ละรุ่น-เดือน
-  // ถ้าเลือกปีเดียว → แยกตามรุ่น
+  // กรองเฉพาะรุ่นที่มียอดขายในช่วงที่เลือก
+  const activeModels = useMemo(
+    () => allModels.filter(model =>
+      filteredData.some(d => d.model_name === model && d.total > 0)
+    ),
+    [allModels, filteredData]
+  );
   const chartData = useMemo(() => {
     if (filteredData.length === 0) return [];
 
     return MONTHS.map((month) => {
       const row: any = { month };
-      allModels.forEach((model) => {
+      activeModels.forEach((model) => {
         const total = filteredData
           .filter(d => d.month === month && d.model_name === model)
           .reduce((sum, d) => sum + d.total, 0);
-        row[model] = total;
+        row[model] = total || null; // null = ไม่แสดงจุด
       });
       return row;
     });
-  }, [filteredData, allModels]);
+  }, [filteredData, activeModels]);
 
   const toggleYear = (year: number) => {
     setSelectedYears(prev => {
@@ -188,7 +193,7 @@ const ModelSales = () => {
             wrapperStyle={{ fontSize: 11 }}
             formatter={(value) => value}
           />
-          {allModels.map((model, idx) => (
+          {activeModels.map((model, idx) => (
             <Line
               key={model}
               type="monotone"
