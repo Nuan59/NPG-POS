@@ -21,8 +21,9 @@ def registration_list(request):
     for order in orders:
         days_passed = None
         is_overdue = False
-        if order.created_at:
-            days_passed = (now - order.created_at).days
+        if order.sale_date:
+            from datetime import date
+            days_passed = (date.today() - order.sale_date).days
             is_overdue = days_passed > 45
 
         doc_status = order.doc_status or 'pending_staff'
