@@ -72,6 +72,7 @@ const menuPages = [
     icon: <BookOpen size={"2.5rem"} />,
     label: "ทะเบียน",
     description: "จัดการทะเบียนรถ",
+    admin: true,
   },
   {
     href: "/installment",

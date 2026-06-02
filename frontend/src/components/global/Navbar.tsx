@@ -19,7 +19,7 @@ export const Navbar = () => {
     { href: "/inventory", label: "สินค้า" },
     { href: "/storage", label: "คลัง" },
     { href: "/gifts", label: "ของแถม" },
-    { href: "/registration", label: "ทะเบียน" },
+    { href: "/registration", label: "ทะเบียน", admin: true },
     { href: "/installment", label: "คำนวณ" },
     { href: "/npg", label: "NPG" },
     { href: "/issues", label: "กระทู้" },
