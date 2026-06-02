@@ -14,9 +14,6 @@ import {
 import { getSalesByModelReport } from "@/services/ReportsService";
 import { MONTHS } from "../util/index";
 
-/* =======================
-   🧠 Normalize ปี (รองรับ พ.ศ.)
-======================= */
 const normalizeYear = (rawYear: any): number => {
   const y = Number(String(rawYear).match(/\d{4}/)?.[0]);
   if (!y) return 0;
@@ -30,235 +27,174 @@ type ModelSalesRow = {
   total: number;
 };
 
-/* =======================
-   🎨 กำหนดสีพื้นฐานสำหรับแต่ละรุ่นรถ
-======================= */
-const BASE_MODEL_COLORS: Record<string, string> = {
-  "WAVE110i": "#3B82F6",      // น้ำเงิน
-  "Click125i": "#10B981",     // เขียว
-  "PCX160": "#F59E0B",        // ส้ม
-  "ADV160": "#EF4444",        // แดง
-  "Scoopy": "#8B5CF6",        // ม่วง
-  "Beat": "#EC4899",          // ชมพู
-  "CBR150R": "#06B6D4",       // ฟ้า
-  "CRF250L": "#84CC16",       // เขียวมะนาว
-  "Forza350": "#F97316",      // ส้มเข้ม
-  "PCX125": "#FBBF24",        // เหลือง
-};
+const MODEL_COLORS = [
+  "#F36B21","#3B82F6","#10B981","#8B5CF6",
+  "#EF4444","#F59E0B","#EC4899","#06B6D4",
+  "#84CC16","#F97316","#6366F1","#14B8A6",
+];
 
-/* =======================
-   🎨 ปรับโทนสีตามปี (ปีล่าสุด = สีเข้มที่สุด, ปีก่อนหน้า = สีอ่อนลง)
-======================= */
-const adjustColorByYear = (baseColor: string, yearIndex: number, totalYears: number): string => {
-  // Convert hex to RGB
-  const r = parseInt(baseColor.slice(1, 3), 16);
-  const g = parseInt(baseColor.slice(3, 5), 16);
-  const b = parseInt(baseColor.slice(5, 7), 16);
-  
-  // คำนวณความเข้มของสี (ปีล่าสุด = 1.0, ปีก่อนๆ = ลดลง)
-  // ใช้ช่วง 0.5 - 1.0 เพื่อให้ยังมองเห็นได้ชัดเจน
-  const intensity = 0.5 + (yearIndex / Math.max(totalYears - 1, 1)) * 0.5;
-  
-  // ปรับความสว่างของสี
-  const newR = Math.round(255 - (255 - r) * intensity);
-  const newG = Math.round(255 - (255 - g) * intensity);
-  const newB = Math.round(255 - (255 - b) * intensity);
-  
-  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
-};
-
-/* =======================
-   🎨 สร้างสีสำหรับรุ่นที่ไม่มีในรายการ
-======================= */
-const generateFallbackColor = (index: number): string => {
-  const colors = [
-    "#6366F1", "#14B8A6", "#F43F5E", "#A855F7", 
-    "#0EA5E9", "#22C55E", "#EAB308", "#EC4899"
-  ];
-  return colors[index % colors.length];
+const YEAR_COLORS: Record<number, string> = {
+  2023: "#9CA3AF",
+  2024: "#FDBA74",
+  2025: "#F36B21",
+  2026: "#3B82F6",
 };
 
 const ModelSales = () => {
   const [rawData, setRawData] = useState<ModelSalesRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const res: any = await getSalesByModelReport();
-
         if (res?.data && Array.isArray(res.data)) {
-          // Normalize ข้อมูล
           const normalized: ModelSalesRow[] = res.data.map((item: any) => ({
             year: normalizeYear(item.year),
             month: item.month,
             model_name: item.model_name || "ไม่ระบุ",
             total: Number(item.total ?? 0),
           }));
-
           setRawData(normalized);
+          const years = Array.from(new Set(normalized.map(d => d.year))).sort();
+          setSelectedYears(new Set(years));
         }
       } catch (error) {
         console.error("❌ Error fetching model sales data:", error);
-        setRawData([]);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  /* =======================
-     📊 จัดข้อมูลสำหรับกราฟ (เติมเดือนที่ขาด)
-  ======================= */
+  const allYears = useMemo(
+    () => Array.from(new Set(rawData.map(d => d.year))).sort(),
+    [rawData]
+  );
+
+  const allModels = useMemo(
+    () => Array.from(new Set(rawData.map(d => d.model_name))).sort(),
+    [rawData]
+  );
+
+  // กรองข้อมูลตามปีที่เลือก
+  const filteredData = useMemo(
+    () => rawData.filter(d => selectedYears.has(d.year)),
+    [rawData, selectedYears]
+  );
+
+  // ถ้าเลือกหลายปี → รวมยอดแต่ละรุ่น-เดือน
+  // ถ้าเลือกปีเดียว → แยกตามรุ่น
   const chartData = useMemo(() => {
-    if (rawData.length === 0) return [];
+    if (filteredData.length === 0) return [];
 
-    // หาปีและรุ่นทั้งหมด
-    const years = Array.from(new Set(rawData.map(d => d.year))).sort();
-    const models = Array.from(new Set(rawData.map(d => d.model_name))).sort();
-
-    // สร้างข้อมูลครบทุกเดือน
     return MONTHS.map((month) => {
-      const monthData: any = { month };
-
-      // เติมข้อมูลแต่ละปี-รุ่น
-      years.forEach((year) => {
-        models.forEach((model) => {
-          const key = `${year}_${model}`;
-          
-          // หาข้อมูลจริง
-          const found = rawData.find(
-            (d) => d.year === year && d.month === month && d.model_name === model
-          );
-
-          monthData[key] = found ? found.total : 0; // ✅ เติม 0 ถ้าไม่มีข้อมูล
-        });
+      const row: any = { month };
+      allModels.forEach((model) => {
+        const total = filteredData
+          .filter(d => d.month === month && d.model_name === model)
+          .reduce((sum, d) => sum + d.total, 0);
+        row[model] = total;
       });
-
-      return monthData;
+      return row;
     });
-  }, [rawData]);
+  }, [filteredData, allModels]);
 
-  /* =======================
-     📊 หาคู่ปี-รุ่นทั้งหมด และเรียงลำดับ
-  ======================= */
-  const yearModelData = useMemo(() => {
-    const years = Array.from(new Set(rawData.map(d => d.year))).sort(); // เรียงปีจากน้อย -> มาก
-    const models = Array.from(new Set(rawData.map(d => d.model_name))).sort();
-    
-    const combinations: Array<{key: string, year: number, model: string}> = [];
-    
-    // จัดกลุ่มตามรุ่น แล้วเรียงตามปี
-    models.forEach(model => {
-      years.forEach(year => {
-        const hasData = rawData.some(d => d.year === year && d.model_name === model);
-        if (hasData) {
-          combinations.push({
-            key: `${year}_${model}`,
-            year,
-            model
-          });
-        }
-      });
+  const toggleYear = (year: number) => {
+    setSelectedYears(prev => {
+      const next = new Set(prev);
+      if (next.has(year) && next.size > 1) next.delete(year);
+      else next.add(year);
+      return next;
     });
-    
-    return combinations;
-  }, [rawData]);
+  };
 
-  /* =======================
-     🎨 กำหนดสีให้แต่ละเส้น
-  ======================= */
-  const lineColors = useMemo(() => {
-    const colors: Record<string, string> = {};
-    const modelYearCount: Record<string, number> = {};
-    
-    // นับจำนวนปีของแต่ละรุ่น
-    yearModelData.forEach(({ model }) => {
-      modelYearCount[model] = (modelYearCount[model] || 0) + 1;
-    });
-    
-    // กำหนดสีให้แต่ละรุ่น
-    const modelBaseColors: Record<string, string> = {};
-    const usedModels = Array.from(new Set(yearModelData.map(d => d.model)));
-    
-    usedModels.forEach((model, idx) => {
-      modelBaseColors[model] = BASE_MODEL_COLORS[model] || generateFallbackColor(idx);
-    });
-    
-    // กำหนดสีให้แต่ละคู่ปี-รุ่น
-    const modelYearIndex: Record<string, number> = {};
-    
-    yearModelData.forEach(({ key, model }) => {
-      if (!modelYearIndex[model]) {
-        modelYearIndex[model] = 0;
-      }
-      
-      const baseColor = modelBaseColors[model];
-      const yearIndex = modelYearIndex[model];
-      const totalYears = modelYearCount[model];
-      
-      colors[key] = adjustColorByYear(baseColor, yearIndex, totalYears);
-      modelYearIndex[model]++;
-    });
+  const toggleAll = () => {
+    if (selectedYears.size === allYears.length) {
+      setSelectedYears(new Set([allYears[allYears.length - 1]]));
+    } else {
+      setSelectedYears(new Set(allYears));
+    }
+  };
 
-    return colors;
-  }, [yearModelData]);
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-gray-500">กำลังโหลด...</p>
+    </div>
+  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center w-full h-64">
-        <p className="text-gray-500">กำลังโหลด...</p>
-      </div>
-    );
-  }
+  if (chartData.length === 0) return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-gray-500">ไม่มีข้อมูลยอดขาย</p>
+    </div>
+  );
 
-  if (chartData.length === 0) {
-    return (
-      <div className="flex items-center justify-center w-full h-64">
-        <p className="text-gray-500">ไม่มีข้อมูลยอดขาย</p>
-      </div>
-    );
-  }
+  const isAllSelected = selectedYears.size === allYears.length;
 
   return (
-    <div className="flex flex-col items-center justify-center w-full">
-      <h2 className="mb-2">ยอดขายแยกตามรุ่นรถ (รายเดือน)</h2>
+    <div className="flex flex-col items-center w-full">
+      <h2 className="mb-3">ยอดขายแยกตามรุ่นรถ (รายเดือน)</h2>
 
-      <ResponsiveContainer width="100%" height={280}>
+      {/* ปุ่มเลือกปี */}
+      <div className="flex gap-2 flex-wrap mb-4">
+        <button
+          onClick={toggleAll}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all ${
+            isAllSelected
+              ? "bg-gray-800 text-white border-gray-800"
+              : "bg-white text-gray-600 border-gray-300"
+          }`}
+        >
+          ทั้งหมด
+        </button>
+        {allYears.map(year => {
+          const color = YEAR_COLORS[year] || "#888";
+          const active = selectedYears.has(year);
+          return (
+            <button
+              key={year}
+              onClick={() => toggleYear(year)}
+              style={{
+                borderColor: color,
+                backgroundColor: active ? color : "transparent",
+                color: active ? "#fff" : color,
+              }}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all"
+            >
+              {year}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* label ว่าดูอะไรอยู่ */}
+      <p className="text-xs text-gray-400 mb-3">
+        {isAllSelected
+          ? "แสดงยอดรวมทุกปี แยกตามรุ่นรถ"
+          : `แสดงปี ${[...selectedYears].sort().join(", ")} แยกตามรุ่นรถ`}
+      </p>
+
+      <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>
           <CartesianGrid stroke="#E5E7EB" />
-          <XAxis dataKey="month" />
-          <YAxis allowDecimals={false} />
-          <Tooltip 
-            formatter={(value: number, name: string) => {
-              // แปลง key เช่น "2025_WAVE110i" เป็น "WAVE110i 2025"
-              const parts = String(name).split('_');
-              const year = parts[0];
-              const modelName = parts.slice(1).join('_');
-              const displayName = `${modelName} ${year}`;
-              return [`${value} คัน`, displayName];
-            }}
+          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+          <Tooltip
+            formatter={(value: number, name: string) => [`${value} คัน`, name]}
           />
-          <Legend 
-            formatter={(value: string) => {
-              // แสดง Legend เป็น "รุ่นรถ ปี" เช่น "WAVE110i 2025"
-              const parts = value.split('_');
-              const year = parts[0];
-              const modelName = parts.slice(1).join('_');
-              return `${modelName} ${year}`;
-            }}
+          <Legend
+            wrapperStyle={{ fontSize: 11 }}
+            formatter={(value) => value}
           />
-
-          {/* สร้างเส้นสำหรับแต่ละคู่ปี-รุ่น */}
-          {yearModelData.map(({ key }) => (
+          {allModels.map((model, idx) => (
             <Line
-              key={key}
+              key={model}
               type="monotone"
-              dataKey={key}
-              name={key}
-              stroke={lineColors[key]}
+              dataKey={model}
+              name={model}
+              stroke={MODEL_COLORS[idx % MODEL_COLORS.length]}
               strokeWidth={2}
               dot={{ r: 3 }}
               connectNulls={false}
