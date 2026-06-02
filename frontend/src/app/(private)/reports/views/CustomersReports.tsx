@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { GoogleMap, LoadScript, Marker, InfoWindow } from "@react-google-maps/api";
 import { MapPin, TrendingUp, Users, Package, Map as MapIcon, BarChart3 } from "lucide-react";
+import { getSession } from "next-auth/react";
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -47,10 +48,13 @@ const CustomersReports = () => {
 				setLoading(true);
 				setError(null);
 
-				// ✅ แก้: ใช้ API_BASE_URL แทน hardcode localhost
+				const s = await getSession();
+				const token = (s as any)?.user?.accessToken;
+
 				const response = await fetch(`${API_BASE_URL}/customers/map/`, {
 					headers: {
 						'Content-Type': 'application/json',
+						...(token ? { Authorization: `Bearer ${token}` } : {}),
 					},
 				});
 
