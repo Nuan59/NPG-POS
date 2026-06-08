@@ -247,14 +247,12 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
                   </TableRow>
 
                   {/* มัดจำ */}
-                  {deposit > 0 && (
-                    <TableRow>
-                      <TableCell className="font-medium">มัดจำ</TableCell>
-                      <TableCell className="font-medium text-right">
-                        {deposit.toLocaleString()} บาท
-                      </TableCell>
-                    </TableRow>
-                  )}
+                  <TableRow>
+                    <TableCell className="font-medium">มัดจำ</TableCell>
+                    <TableCell className="font-medium text-right">
+                      {deposit.toLocaleString()} บาท
+                    </TableCell>
+                  </TableRow>
 
                   {/* ส่วนลด */}
                   <TableRow>
