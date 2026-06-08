@@ -98,8 +98,8 @@ const ReceiptPage: React.FC<{
   const totalAmount = salePrice + additionalFeesTotal;
   const deposit = Number(order.deposit || 0);
   const discount = Number(order.discount || 0);
-  const afterDeposit = Math.max(0, totalAmount - deposit);
-  const netTotal = Math.max(0, afterDeposit - discount);
+  const beforeDeposit = Math.max(0, totalAmount - discount);   // ก่อนรวมมัดจำ
+  const netTotal = Math.max(0, beforeDeposit - deposit);       // ยอดเงินสุทธิ
   const totalInWords = numberToThaiText(netTotal);
   const isPayment = (method: string) => isPaymentMethod(method, order);
   
@@ -361,25 +361,24 @@ const ReceiptPage: React.FC<{
         <View style={styles.rightSummary}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>รวมเงิน</Text>
-            <Text style={styles.summaryValue}>{fmt(netTotal)}</Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>มัดจำ{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(deposit)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>หลังหักมัดจำ{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(afterDeposit)}</Text>
+            <Text style={styles.summaryValue}>{fmt(totalAmount)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>ส่วนลด</Text>
             <Text style={styles.summaryValue}>{fmt(discount)}</Text>
           </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>ก่อนรวมมัดจำ{ZWJ}</Text>
+            <Text style={styles.summaryValue}>{fmt(beforeDeposit)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>มัดจำ{ZWJ}</Text>
+            <Text style={styles.summaryValue}>{fmt(deposit)}</Text>
+          </View>
           <View style={{ borderTop: '1pt solid #000', marginTop: 2, paddingTop: 3 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ textAlign: 'right', width: '60%', fontSize: 11, fontWeight: 'bold' }}>ยอดเงินสุทธิ</Text>
-              <Text style={{ textAlign: 'right', width: '40%', fontSize: 11, fontWeight: 'bold' }}>{fmt(totalAmount)}</Text>
+              <Text style={{ textAlign: 'right', width: '40%', fontSize: 11, fontWeight: 'bold' }}>{fmt(netTotal)}</Text>
             </View>
           </View>
         </View>
