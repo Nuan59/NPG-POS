@@ -192,7 +192,7 @@ const EditForm = ({ order }: EditFormProps) => {
 								<input type="text" placeholder="รายการ"
 									className="border-none text-xs p-2 bg-white rounded flex-1"
 									{...register(`additionalFees.${index}.description`)} />
-								<input type="number" placeholder="0" min="0"
+								<input type="number" placeholder="0"
 									onFocus={clearZeroOnFocus}
 									disabled={!isManager}
 									className={`border-none text-xs p-2 rounded w-[100px] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
