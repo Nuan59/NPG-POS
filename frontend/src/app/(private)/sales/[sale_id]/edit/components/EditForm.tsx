@@ -28,6 +28,7 @@ import { calculateTotal, calculateFinanceAmount, calculateInstallmentAmount, isF
 interface FormDataType {
 	paymentMethod: string;
 	notes: string;
+	depositReceiptNo: string;
 	additionalFees: { id: number; description: string; amount?: number }[];
 	gifts: { id: number; name: string; quantity: number }[];
 	discount: number;
@@ -66,7 +67,11 @@ const EditForm = ({ order }: EditFormProps) => {
 		useForm<FormDataType>({
 			defaultValues: {
 				paymentMethod: order.payment_method || "เงินสด",
-				notes: order.notes || "",
+				notes: (order.notes || "").replace(/DEPOSIT_RECEIPT:[^\n]+\n?/, "").trim(),
+				depositReceiptNo: (() => {
+					const m = (order.notes || "").match(/DEPOSIT_RECEIPT:([^\n]+)/);
+					return m ? m[1].trim() : "";
+				})(),
 				additionalFees: order.additional_fees?.map((f) => ({
 					...f,
 					amount: f.amount === 0 ? undefined : f.amount,
@@ -111,8 +116,15 @@ const EditForm = ({ order }: EditFormProps) => {
 
 	const submitForm = async (data: FormDataType) => {
 		const isFinance = isFinanceMethod(data.paymentMethod);
+
+		// รวม depositReceiptNo กลับเข้า notes
+		const notesWithDeposit = data.depositReceiptNo
+			? `DEPOSIT_RECEIPT:${data.depositReceiptNo}${data.notes ? `\n${data.notes}` : ''}`
+			: data.notes;
+
 		const payload = {
 			...data,
+			notes: notesWithDeposit,
 			total,
 			bikePrice: data.salePrice,
 			sale_date: data.saleDate || undefined,
@@ -320,6 +332,16 @@ const EditForm = ({ order }: EditFormProps) => {
 						onChange: () => calculateTotal(getValues, setTotal),
 						valueAsNumber: true,
 					})} />
+			</div>
+
+			{/* เลขใบมัดจำ */}
+			<div className="flex items-center justify-between p-2">
+				<span className="text-xs text-gray-500">เลขใบมัดจำ</span>
+				<input type="text"
+					disabled={!isManager}
+					placeholder="MD-XXXX"
+					className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
+					{...register("depositReceiptNo")} />
 			</div>
 
 			{/* ส่วนลด */}
