@@ -98,8 +98,8 @@ const ReceiptPage: React.FC<{
   const totalAmount = salePrice + additionalFeesTotal;
   const deposit = Number(order.deposit || 0);
   const discount = Number(order.discount || 0);
-  const afterDeposit = Math.max(0, totalAmount - deposit);
-  const netTotal = Math.max(0, totalAmount - discount);  // ไม่หักมัดจำ
+  const afterDeposit = Math.max(0, totalAmount - deposit);  // แสดงในตาราง
+  const netTotal = Math.max(0, totalAmount - discount);     // ยอดสุทธิ ไม่หักมัดจำ
   const totalInWords = numberToThaiText(netTotal);
 
   // ดึงเลขใบมัดจำจาก notes
@@ -376,6 +376,14 @@ const ReceiptPage: React.FC<{
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>รวมเงิน</Text>
             <Text style={styles.summaryValue}>{fmt(totalAmount)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>มัดจำ{ZWJ}</Text>
+            <Text style={styles.summaryValue}>{fmt(deposit)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>หลังหักมัดจำ{ZWJ}</Text>
+            <Text style={styles.summaryValue}>{fmt(afterDeposit)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>ส่วนลด</Text>
