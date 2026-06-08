@@ -406,7 +406,7 @@ const ReceiptPage: React.FC<{
           <Text style={styles.sigDate}>วันที่ ................................</Text>
         </View>
         <View style={styles.sigBox}>
-          <Text style={styles.sigTitle}>ผู้รับเงิน</Text>
+          <Text style={styles.sigTitle}>ผู้รับเงิน/ผู้ขาย</Text>
           <View style={styles.sigLine}></View>
           <Text style={styles.sigDate}>วันที่ ................................</Text>
         </View>
