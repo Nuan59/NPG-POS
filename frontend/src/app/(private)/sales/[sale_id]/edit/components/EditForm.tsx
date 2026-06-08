@@ -336,11 +336,10 @@ const EditForm = ({ order }: EditFormProps) => {
 
 			{/* เลขใบมัดจำ */}
 			<div className="flex items-center justify-between p-2">
-				<span className="text-xs text-gray-500">เลขใบมัดจำ</span>
+				<span>เลขใบมัดจำ</span>
 				<input type="text"
-					disabled={!isManager}
 					placeholder="MD-XXXX"
-					className={`border-none text-xs p-2 rounded w-[40%] text-right ${isManager ? "bg-slate-200" : "bg-gray-100 cursor-not-allowed"}`}
+					className="border-none text-xs p-2 rounded w-[40%] text-right bg-slate-200"
 					{...register("depositReceiptNo")} />
 			</div>
 
