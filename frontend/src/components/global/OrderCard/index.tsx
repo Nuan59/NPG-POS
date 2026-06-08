@@ -72,6 +72,7 @@ const OrderCard = () => {
 
   // มัดจำ (Deposit)
   const [deposit, setDeposit] = useState<number>(0);
+  const [depositReceiptNo, setDepositReceiptNo] = useState<string>("");
 
   // วิธีการชำระเงิน
   const [paymentType, setPaymentType] = useState<PaymentType>("");
@@ -172,7 +173,9 @@ const OrderCard = () => {
       transfer_bank: paymentType === "เงินโอน" ? transferBank : "",
       check_number: paymentType === "เช็ค" ? checkNumber : "",
 
-      notes,
+      notes: depositReceiptNo
+        ? `DEPOSIT_RECEIPT:${depositReceiptNo}${notes ? `\n${notes}` : ''}`
+        : notes,
       total: payment_method === "ไฟแนนซ์" ? totalPayment : cashTotal,
     } as IOrder;
 
@@ -307,6 +310,20 @@ const OrderCard = () => {
                       className={inputCls}
                     />
                   </div>
+
+                  {/* ช่องเลขใบมัดจำ - แสดงเมื่อมัดจำ > 0 */}
+                  {deposit > 0 && (
+                    <div className="mt-1 flex justify-between items-center p-2">
+                      <label className={labelCls}>เลขใบมัดจำ</label>
+                      <Input
+                        type="text"
+                        value={depositReceiptNo}
+                        onChange={(e) => setDepositReceiptNo(e.target.value)}
+                        className={inputCls}
+                        placeholder="MD-XXXX"
+                      />
+                    </div>
+                  )}
 
                   <div className="mt-2 flex justify-between items-center p-2">
                     <label className={labelCls}>ส่วนลด</label>

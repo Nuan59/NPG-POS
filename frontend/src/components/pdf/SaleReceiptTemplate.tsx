@@ -101,6 +101,11 @@ const ReceiptPage: React.FC<{
   const afterDeposit = Math.max(0, totalAmount - deposit);
   const netTotal = Math.max(0, afterDeposit - discount);
   const totalInWords = numberToThaiText(netTotal);
+
+  // ดึงเลขใบมัดจำจาก notes
+  const notesRaw = String(order.notes || "");
+  const depositReceiptMatch = notesRaw.match(/DEPOSIT_RECEIPT:([^\n]+)/);
+  const depositReceiptNo = depositReceiptMatch ? depositReceiptMatch[1].trim() : "";
   const isPayment = (method: string) => isPaymentMethod(method, order);
   
   // ✅ ฟังก์ชันตรวจสอบ payment_type
@@ -209,6 +214,15 @@ const ReceiptPage: React.FC<{
             <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
             <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
           </View>
+
+          {/* แสดงเลขใบมัดจำ ถ้ามีมัดจำ */}
+          {deposit > 0 && (
+            <View style={styles.tableRow}>
+              <Text style={styles.col1}>  ใบมัดจำที่{ZWJ} {sanitizeText(depositReceiptNo) || '_______________'}{ZWJ}</Text>
+              <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
+              <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
+            </View>
+          )}
           
           {/* แถวสำหรับค่าใช้จ่ายเพิ่มเติม (ล็อค 3 แถวไว้) */}
           {Array.from({ length: 3 }).map((_, index) => {
