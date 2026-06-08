@@ -81,7 +81,6 @@ const AdditionalFeeDialog = ({ children, fee }: AdditionalFeeDialogProps) => {
 									onChange={(e) =>
 										setAmount(e.target.value === "" ? "" : Number(e.target.value))
 									}
-									placeholder="กรอก - เพื่อหัก"
 								/>
 							</div>
 						</div>
