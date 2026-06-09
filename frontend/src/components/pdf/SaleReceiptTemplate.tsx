@@ -170,7 +170,7 @@ const ReceiptPage: React.FC<{
           <Text style={{ ...styles.headerText, ...styles.col4 }}>ราคา/หน่วย</Text>
           <Text style={{ ...styles.headerText, ...styles.col5 }}>จำ{ZWJ}นวนเงิน</Text>
         </View>
-        <View style={[styles.tableBody, { minHeight: 90 }]}>
+        <View style={[styles.tableBody, { minHeight: 120 }]}>
           <View style={styles.tableRow}>
             <Text style={styles.col1}>รถจักรยานยนต์</Text>
             <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
@@ -236,7 +236,7 @@ const ReceiptPage: React.FC<{
           <View style={styles.giftContent}>
             <View style={{ flexDirection: 'row', width: '100%' }}>
               <View style={{ flex: 1, paddingRight: 4 }}>
-                {Array.from({ length: 3 }).map((_, index) => {
+                {Array.from({ length: 5 }).map((_, index) => {
                   const gift = order.gifts && Array.isArray(order.gifts) ? order.gifts[index] : null;
                   return (
                     <Text key={`gift-left-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
@@ -248,8 +248,8 @@ const ReceiptPage: React.FC<{
                 })}
               </View>
               <View style={{ flex: 1, paddingLeft: 4 }}>
-                {Array.from({ length: 3 }).map((_, index) => {
-                  const gift = order.gifts && Array.isArray(order.gifts) ? order.gifts[index + 3] : null;
+                {Array.from({ length: 5 }).map((_, index) => {
+                  const gift = order.gifts && Array.isArray(order.gifts) ? order.gifts[index + 5] : null;
                   return (
                     <Text key={`gift-right-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
