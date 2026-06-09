@@ -99,7 +99,7 @@ const ReceiptPage: React.FC<{
   const deposit = Number(order.deposit || 0);
   const discount = Number(order.discount || 0);
   const afterDeposit = Math.max(0, totalAmount - deposit);
-  const netTotal = Math.max(0, afterDeposit - discount);
+  const netTotal = Math.max(0, totalAmount - discount);  // รวมเงิน - ส่วนลด เท่านั้น
   const totalInWords = numberToThaiText(netTotal);
   const isPayment = (method: string) => isPaymentMethod(method, order);
   
@@ -231,8 +231,8 @@ const ReceiptPage: React.FC<{
             );
           })}
           
-          {/* แถวว่างสำรอง 1 แถว */}
-          {Array.from({ length: 1 }).map((_, i) => (
+          {/* แถวว่างสำรอง 2 แถว */}
+          {Array.from({ length: 2 }).map((_, i) => (
             <View key={`empty-${i}`} style={styles.emptyRow}>
               <Text style={styles.col1}> </Text>
               <Text style={styles.col2}> </Text>
