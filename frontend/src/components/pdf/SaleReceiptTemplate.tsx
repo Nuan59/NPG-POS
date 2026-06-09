@@ -27,6 +27,9 @@ interface Props {
   customer?: CustomerData;
 }
 
+// ============================
+// Sub-component: ใบเสร็จ 1 ใบ
+// ============================
 const ReceiptPage: React.FC<{
   order: IOrder;
   customerData?: CustomerData;
@@ -64,6 +67,7 @@ const ReceiptPage: React.FC<{
   const customerAddress = buildFullAddress(order, customerData);
   const customerPhone = getCustomerField('phone', order, customerData) || "ไม่ระบุเบอร์";
 
+  // ✅ ตรวจสอบว่าเป็นไฟแนนซ์หรือไม่ (รองรับทุก finance provider)
   const isFinance = Boolean(
     order.finance_provider && 
     order.finance_provider.trim() !== "" && 
@@ -73,6 +77,14 @@ const ReceiptPage: React.FC<{
   isPaymentMethod("npg", order) ||
   ["ทรัพย์สยาม", "Cathay", "NPG", "ไฟแนนซ์"].includes(String(order.payment_method || "").trim());
   
+  // Debug
+  console.log('=== Receipt Debug ===');
+  console.log('payment_method:', order.payment_method);
+  console.log('payment_type:', order.payment_type);
+  console.log('finance_provider:', order.finance_provider);
+  console.log('isFinance:', isFinance);
+  
+  // ✅ ถ้าเป็นไฟแนนซ์ใช้ down_payment, ถ้าเป็นเงินสดใช้ sale_price
   const salePrice = isFinance 
     ? Number(order.down_payment || 0)
     : Number(order.sale_price || bike?.sale_price || 0);
@@ -87,27 +99,26 @@ const ReceiptPage: React.FC<{
   const deposit = Number(order.deposit || 0);
   const discount = Number(order.discount || 0);
   const afterDeposit = Math.max(0, totalAmount - deposit);
-  const netTotal = Math.max(0, totalAmount - discount);
+  const netTotal = Math.max(0, afterDeposit - discount);
   const totalInWords = numberToThaiText(netTotal);
-
-  const notesRaw = String(order.notes || "");
-  const depositReceiptMatch = notesRaw.match(/DEPOSIT_RECEIPT:([^\n]+)/);
-  const depositReceiptNo = depositReceiptMatch ? depositReceiptMatch[1].trim() : "";
-
+  const isPayment = (method: string) => isPaymentMethod(method, order);
+  
+  // ✅ ฟังก์ชันตรวจสอบ payment_type
   const isPaymentType = (type: string): boolean => {
     const pt = String(order.payment_type || "").trim();
-    if (pt === type) return true;
+    const checkType = String(type).trim();
+    
+    // ตรวจสอบแบบตรงทั้งหมด
+    if (pt === checkType) return true;
+    
+    // ตรวจสอบเฉพาะกรณีพิเศษ
     if (type === "เงินสด" && (pt === "เงินสด" || pt === "cash")) return true;
     if (type === "เงินโอน" && (pt === "เงินโอน" || pt === "transfer")) return true;
     if (type === "เช็ค" && (pt === "เช็ค" || pt === "check")) return true;
+    if (type === "สินเชื่อ FN" && (pt === "สินเชื่อ FN" || pt === "สินเชื่อ fn")) return true;
+    
     return false;
   };
-
-  // คำนวณแถวว่างที่ต้องเติม (ให้มีแถวรวมไม่เกิน 2 เสมอ)
-  const feeCount = Math.min(3, order.additional_fees?.length || 0);
-  const depositRow = deposit > 0 ? 1 : 0;
-  const fixedRows = 5 + depositRow; // รถจักร, รุ่น, สี, เลขเครื่อง, เลขตัวถัง + ใบมัดจำ
-  const emptyNeeded = Math.max(0, 2 - feeCount);
 
   return (
     <View>
@@ -170,7 +181,7 @@ const ReceiptPage: React.FC<{
           <Text style={{ ...styles.headerText, ...styles.col4 }}>ราคา/หน่วย</Text>
           <Text style={{ ...styles.headerText, ...styles.col5 }}>จำ{ZWJ}นวนเงิน</Text>
         </View>
-        <View style={[styles.tableBody, { minHeight: 120 }]}>
+        <View style={styles.tableBody}>
           <View style={styles.tableRow}>
             <Text style={styles.col1}>รถจักรยานยนต์</Text>
             <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
@@ -198,28 +209,30 @@ const ReceiptPage: React.FC<{
             <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
             <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
           </View>
-
-          {deposit > 0 && (
-            <View style={styles.tableRow}>
-              <Text style={styles.col1}>  ใบมัดจำที่{ZWJ} {sanitizeText(depositReceiptNo) || '_______________'}{ZWJ}</Text>
-              <Text style={styles.col2}></Text><Text style={styles.col3}></Text>
-              <Text style={styles.col4}></Text><Text style={styles.col5}></Text>
-            </View>
-          )}
           
-          {/* ค่าใช้จ่ายเพิ่มเติม - แสดงเฉพาะที่มีข้อมูล */}
-          {order.additional_fees && Array.isArray(order.additional_fees) && order.additional_fees.map((fee: any, index: number) => (
-            <View key={`fee-${index}`} style={styles.tableRow}>
-              <Text style={styles.col1}>{sanitizeText(fee.description || '')}</Text>
-              <Text style={styles.col2}></Text>
-              <Text style={styles.col3}></Text>
-              <Text style={styles.col4}></Text>
-              <Text style={styles.col5}>{fmt(Number(fee.amount || 0))}</Text>
-            </View>
-          ))}
+          {/* แถวสำหรับค่าใช้จ่ายเพิ่มเติม (ล็อค 3 แถวไว้) */}
+          {Array.from({ length: 3 }).map((_, index) => {
+            const fee = order.additional_fees && Array.isArray(order.additional_fees) 
+              ? order.additional_fees[index] 
+              : null;
+            
+            return (
+              <View key={`fee-${index}`} style={styles.tableRow}>
+                <Text style={styles.col1}>
+                  {fee ? sanitizeText(fee.description || '') : ' '}
+                </Text>
+                <Text style={styles.col2}></Text>
+                <Text style={styles.col3}></Text>
+                <Text style={styles.col4}></Text>
+                <Text style={styles.col5}>
+                  {fee ? fmt(Number(fee.amount || 0)) : ' '}
+                </Text>
+              </View>
+            );
+          })}
           
-          {/* แถวว่าง 2 แถว */}
-          {Array.from({ length: emptyNeeded }).map((_, i) => (
+          {/* แถวว่างสำรอง 1 แถว */}
+          {Array.from({ length: 1 }).map((_, i) => (
             <View key={`empty-${i}`} style={styles.emptyRow}>
               <Text style={styles.col1}> </Text>
               <Text style={styles.col2}> </Text>
@@ -229,15 +242,16 @@ const ReceiptPage: React.FC<{
             </View>
           ))}
         </View>
-
-        {/* ของแถม */}
         <View style={styles.giftRow}>
           <Text style={styles.giftLabel}>ของแถม</Text>
           <View style={styles.giftContent}>
             <View style={{ flexDirection: 'row', width: '100%' }}>
+              {/* คอลัมน์ซ้าย - รายการที่ 1-5 */}
               <View style={{ flex: 1, paddingRight: 4 }}>
                 {Array.from({ length: 5 }).map((_, index) => {
-                  const gift = order.gifts && Array.isArray(order.gifts) ? order.gifts[index] : null;
+                  const gift = order.gifts && Array.isArray(order.gifts) 
+                    ? order.gifts[index] 
+                    : null;
                   return (
                     <Text key={`gift-left-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
@@ -247,9 +261,13 @@ const ReceiptPage: React.FC<{
                   );
                 })}
               </View>
+              {/* คอลัมน์ขวา - รายการที่ 6-10 */}
               <View style={{ flex: 1, paddingLeft: 4 }}>
                 {Array.from({ length: 5 }).map((_, index) => {
-                  const gift = order.gifts && Array.isArray(order.gifts) ? order.gifts[index + 5] : null;
+                  const giftIndex = index + 5;
+                  const gift = order.gifts && Array.isArray(order.gifts)
+                    ? order.gifts[giftIndex] 
+                    : null;
                   return (
                     <Text key={`gift-right-${index}`} style={{ fontSize: 8, marginBottom: 1 }}>
                       {gift 
@@ -267,13 +285,18 @@ const ReceiptPage: React.FC<{
       {/* ส่วนล่าง */}
       <View style={styles.bottomSection}>
         <View style={styles.leftPayment}>
+          {/* ✅ ประเภทการซื้อ */}
           <Text style={styles.paymentTitle}>ประเภทการซื้อ</Text>
+
+          {/* เงินสด */}
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
             <Text style={{ width: 10, height: 10, border: '1pt solid #000', fontSize: 7, textAlign: 'center', marginRight: 4 }}>
               {!isFinance ? 'X' : ' '}
             </Text>
             <Text style={styles.checkLabel}>เงินสด</Text>
           </View>
+
+          {/* สินเชื่อ + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
             <Text style={{ width: 10, height: 10, border: '1pt solid #000', fontSize: 7, textAlign: 'center', marginRight: 4 }}>
               {isFinance ? 'X' : ' '}
@@ -281,16 +304,23 @@ const ReceiptPage: React.FC<{
             <Text style={styles.checkLabel}>สินเชื่อ FN:</Text>
           </View>
           <View style={{ marginLeft: 16, marginTop: 1, marginBottom: 4, borderBottom: '1pt solid #000', paddingBottom: 1 }}>
-            <Text style={{ fontSize: 7.5 }}>{isFinance ? sanitizeText(order.finance_provider || '') : ' '}</Text>
+            <Text style={{ fontSize: 7.5 }}>
+              {isFinance ? sanitizeText(order.finance_provider || '') : ' '}
+            </Text>
           </View>
 
+          {/* ✅ รูปแบบชำระ */}
           <Text style={[styles.paymentTitle, { marginTop: 3 }]}>รูปแบบการชำ{ZWJ}ระเงิน</Text>
+
+          {/* เงินสด */}
           <View style={[styles.checkboxRow, { marginBottom: 1 }]}>
             <Text style={{ width: 10, height: 10, border: '1pt solid #000', fontSize: 7, textAlign: 'center', marginRight: 4 }}>
               {isPaymentType("เงินสด") ? 'X' : ' '}
             </Text>
             <Text style={styles.checkLabel}>เงินสด</Text>
           </View>
+
+          {/* เงินโอน + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
             <Text style={{ width: 10, height: 10, border: '1pt solid #000', fontSize: 7, textAlign: 'center', marginRight: 4 }}>
               {isPaymentType("เงินโอน") ? 'X' : ' '}
@@ -298,8 +328,12 @@ const ReceiptPage: React.FC<{
             <Text style={styles.checkLabel}>เงินโอน</Text>
           </View>
           <View style={{ marginLeft: 16, marginTop: 1, marginBottom: 4, borderBottom: '1pt solid #000', paddingBottom: 1 }}>
-            <Text style={{ fontSize: 7.5 }}>{isPaymentType("เงินโอน") ? sanitizeText(order.transfer_bank || '') : ' '}</Text>
+            <Text style={{ fontSize: 7.5 }}>
+              {isPaymentType("เงินโอน") ? sanitizeText(order.transfer_bank || '') : ' '}
+            </Text>
           </View>
+
+          {/* เช็ค + เส้นอยู่ติดกัน */}
           <View style={[styles.checkboxRow, { marginBottom: 0 }]}>
             <Text style={{ width: 10, height: 10, border: '1pt solid #000', fontSize: 7, textAlign: 'center', marginRight: 4 }}>
               {isPaymentType("เช็ค") ? 'X' : ' '}
@@ -307,10 +341,15 @@ const ReceiptPage: React.FC<{
             <Text style={styles.checkLabel}>เช็คเลขที่</Text>
           </View>
           <View style={{ marginLeft: 16, marginTop: 1, marginBottom: 2, borderBottom: '1pt solid #000', paddingBottom: 1 }}>
-            <Text style={{ fontSize: 7.5 }}>{isPaymentType("เช็ค") ? sanitizeText(order.check_number || '') : ' '}</Text>
+            <Text style={{ fontSize: 7.5 }}>
+              {isPaymentType("เช็ค")
+                ? sanitizeText(order.check_number || '')
+                : ' '}
+            </Text>
           </View>
         </View>
 
+        {/* ตัวอักษร */}
         <View style={styles.centerSection}>
           <Text style={styles.thaiLabel}>ตัวอักษร</Text>
           <View style={styles.thaiBox}>
@@ -318,6 +357,7 @@ const ReceiptPage: React.FC<{
           </View>
         </View>
 
+        {/* สรุปยอด */}
         <View style={styles.rightSummary}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>รวมเงิน</Text>
@@ -352,10 +392,12 @@ const ReceiptPage: React.FC<{
         <Text style={styles.noteItem}>3. ใบเสร็จรับเงินที่ถูกต้องจะต้องมีลายเซ็นต์ผู้รับเงินและประทับตราห้างฯ</Text>
       </View>
 
+      {/* ได้รับสินค้า */}
       <View style={{ marginBottom: 3, fontSize: 8.5, textAlign: "center" }}>
         <Text>ได้รับสินค้าตามรายการข้างบนไว้เรียบร้อยแล้ว</Text>
       </View>
 
+      {/* ลายเซ็น */}
       <View style={styles.signatureSection}>
         <View style={styles.sigBox}>
           <Text style={styles.sigTitle}>ผู้รับสินค้า</Text>
@@ -377,6 +419,9 @@ const ReceiptPage: React.FC<{
   );
 };
 
+// ============================
+// Main: 4 Pages ใน 1 Document
+// ============================
 const SaleReceiptTemplate: React.FC<Props> = ({ order, customer: customerData }) => {
   if (!order) {
     return (
@@ -392,15 +437,36 @@ const SaleReceiptTemplate: React.FC<Props> = ({ order, customer: customerData })
 
   const copies = ["ต้นฉบับ", "สำเนา 1", "สำเนา 2", "สำเนา 3"];
 
-  return (
-    <Document>
-      {copies.map((label) => (
-        <Page key={label} size="A4" style={styles.page}>
-          <ReceiptPage order={order} customerData={customerData} badgeLabel={label} />
+  try {
+    return (
+      <Document>
+        {copies.map((label) => (
+          <Page 
+            key={label} 
+            size="A4" 
+            style={styles.page}
+          >
+            <ReceiptPage order={order} customerData={customerData} badgeLabel={label} />
+          </Page>
+        ))}
+      </Document>
+    );
+  } catch (error) {
+    console.error('PDF Generation Error:', error);
+    return (
+      <Document>
+        <Page 
+          size="A4" 
+          style={styles.page}
+        >
+          <View style={{ padding: 20 }}>
+            <Text>เกิดข้อผิดพลาดในการสร้าง PDF</Text>
+            <Text style={{ fontSize: 8, marginTop: 10 }}>กรุณาตรวจสอบข้อมูล Order</Text>
+          </View>
         </Page>
-      ))}
-    </Document>
-  );
+      </Document>
+    );
+  }
 };
 
 export default SaleReceiptTemplate;
