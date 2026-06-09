@@ -294,7 +294,7 @@ export default function DeliveryNoteTemplate({
           </View>
           
           <View style={styles.companyInfo}>
-            <Text style={styles.companyName}>นพดลมอเตอร์กรุ้ป</Text>
+            <Text style={styles.companyName}>นพดลมอเตอร์กรุ้ป{ZWJ}</Text>
             <Text style={styles.companyDetail}>
               359/2 หมู{ZWJ}่ 6 ตำ{ZWJ}าบลร้องเข็ม อำ{ZWJ}าเภอร้องกวาง จั{ZWJ}งหวั{ZWJ}ดแพร่
             </Text>
@@ -362,10 +362,10 @@ export default function DeliveryNoteTemplate({
           {vehicles.map((vehicle, idx) => (
             <View key={idx} style={styles.tableRow}>
               <Text style={styles.col1}>{idx + 1}{ZWJ}</Text>
-              <Text style={styles.col2}>{sanitizeText(vehicle.modelCode)}</Text>
-              <Text style={styles.col3}>{sanitizeText(vehicle.engineNo)}</Text>
-              <Text style={styles.col4}>{sanitizeText(vehicle.frameNo)}</Text>
-              <Text style={styles.col5}>{sanitizeText(vehicle.color)}</Text>
+              <Text style={styles.col2}>{sanitizeText(vehicle.modelCode)}{ZWJ}</Text>
+              <Text style={styles.col3}>{sanitizeText(vehicle.engineNo)}{ZWJ}</Text>
+              <Text style={styles.col4}>{sanitizeText(vehicle.frameNo)}{ZWJ}</Text>
+              <Text style={styles.col5}>{sanitizeText(vehicle.color)}{ZWJ}</Text>
             </View>
           ))}
 
