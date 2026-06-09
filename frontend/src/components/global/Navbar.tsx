@@ -1,159 +1,108 @@
 "use client";
-import {
-  ShoppingCart,
-  UsersRound,
-  Receipt,
-  Warehouse,
-  Contact,
-  LineChart,
-  Gift,
-  Calculator,
-  CreditCard,
-  BookOpen,
-  MessageSquare,
-} from "lucide-react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import React from "react";
+import { LogOut, Menu, X } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import BirthdayNotification from "@/components/BirthdayNotification";
+import NPGNotification from "@/components/Npgnotification";
+import RegistrationExpiryNotification from '@/components/Registrationexpirynotification';
+import { useState } from "react";
 
-const menuPages = [
-  {
-    href: "/sales",
-    gradient: "from-orange-400 to-orange-600",
-    hoverGradient: "hover:from-orange-500 hover:to-orange-700",
-    icon: <Receipt size={"2.5rem"} />,
-    label: "ขาย",
-    description: "สร้างคำสั่งซื้อใหม่",
-  },
-  {
-    href: "/customers",
-    gradient: "from-blue-400 to-blue-600",
-    hoverGradient: "hover:from-blue-500 hover:to-blue-700",
-    icon: <UsersRound size={"2.5rem"} />,
-    label: "ลูกค้า",
-    description: "จัดการข้อมูลลูกค้า",
-  },
-  {
-    href: "/inventory",
-    gradient: "from-emerald-400 to-emerald-600",
-    hoverGradient: "hover:from-emerald-500 hover:to-emerald-700",
-    icon: <ShoppingCart size={"2.5rem"} />,
-    label: "สินค้า",
-    description: "คลังสินค้าทั้งหมด",
-  },
-  {
-    href: "/gifts",
-    gradient: "from-pink-400 to-pink-600",
-    hoverGradient: "hover:from-pink-500 hover:to-pink-700",
-    icon: <Gift size={"2.5rem"} />,
-    label: "ของแถม",
-    description: "จัดการของแถม",
-  },
-  {
-    href: "/npg",
-    gradient: "from-purple-400 to-purple-600",
-    hoverGradient: "hover:from-purple-500 hover:to-purple-700",
-    icon: <CreditCard size={"2.5rem"} />,
-    label: "NPG",
-    description: "ระบบไฟแนนซ์",
-  },
-  {
-    href: "/storage",
-    gradient: "from-amber-400 to-amber-600",
-    hoverGradient: "hover:from-amber-500 hover:to-amber-700",
-    icon: <Warehouse size={"2.5rem"} />,
-    label: "คลัง",
-    description: "สถานที่จัดเก็บ",
-  },
-  {
-    href: "/registration",
-    gradient: "from-cyan-400 to-cyan-600",
-    hoverGradient: "hover:from-cyan-500 hover:to-cyan-700",
-    icon: <BookOpen size={"2.5rem"} />,
-    label: "ทะเบียน",
-    description: "จัดการทะเบียนรถ",
-  },
-  {
-    href: "/installment",
-    gradient: "from-slate-400 to-slate-600",
-    hoverGradient: "hover:from-slate-500 hover:to-slate-700",
-    icon: <Calculator size={"2.5rem"} />,
-    label: "คำนวณ",
-    description: "คำนวณค่างวด",
-  },
-  {
-    href: "/issues",
-    gradient: "from-indigo-400 to-indigo-600",
-    hoverGradient: "hover:from-indigo-500 hover:to-indigo-700",
-    icon: <MessageSquare size={"2.5rem"} />,
-    label: "กระทู้",
-    description: "แจ้งปัญหา/สอบถาม",
-  },
-  {
-    href: "/employees",
-    gradient: "from-teal-400 to-teal-600",
-    hoverGradient: "hover:from-teal-500 hover:to-teal-700",
-    icon: <Contact size={"2.5rem"} />,
-    label: "พนักงาน",
-    description: "จัดการพนักงาน",
-    admin: true,
-  },
-  {
-    href: "/reports",
-    gradient: "from-rose-400 to-rose-600",
-    hoverGradient: "hover:from-rose-500 hover:to-rose-700",
-    icon: <LineChart size={"2.5rem"} />,
-    label: "รายงาน",
-    description: "รายงานและสถิติ",
-    admin: true,
-  },
-];
-
-const MenuItems = () => {
+export const Navbar = () => {
   const { data: session } = useSession();
   const userInfo = session?.user;
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const menuItems = [
+    { href: "/dashboard", label: "หน้าหลัก" },
+    { href: "/sales", label: "ขาย" },
+    { href: "/customers", label: "ลูกค้า" },
+    { href: "/inventory", label: "สินค้า" },
+    { href: "/storage", label: "คลัง" },
+    { href: "/gifts", label: "ของแถม" },
+    { href: "/registration", label: "ทะเบียน" },
+    { href: "/installment", label: "คำนวณ" },
+    { href: "/npg", label: "NPG" },
+    { href: "/issues", label: "กระทู้" },
+    { href: "/employees", label: "พนักงาน", admin: true },
+    { href: "/reports", label: "รายงาน", admin: true },
+  ];
+
+  const visibleItems = menuItems.filter(
+    (item) => !item.admin || userInfo?.role === "adm"
+  );
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6 mt-4 sm:mt-8">
-      {menuPages.map((item) => {
-        // ถ้าเป็น admin menu แต่ user ไม่ใช่ admin ให้ skip
-        if (item.admin && userInfo?.role !== "adm") {
-          return null;
-        }
+    <nav className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 shadow-xl border-b-4 border-orange-500">
+      <div className="px-3 sm:px-8 py-3 sm:py-5">
+        <div className="flex justify-between items-center gap-3">
 
-        return (
-          <a key={item.href} href={item.href} className="block">
-            <div
-              className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.gradient} ${item.hoverGradient} shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer h-28 sm:h-40`}
+          {/* Logo */}
+          <Link
+            href="/dashboard"
+            className="text-xl sm:text-4xl font-black bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent hover:scale-105 transition-transform whitespace-nowrap"
+          >
+            คาราเมโล POS
+          </Link>
+
+          {/* Desktop Menu */}
+          <div className="hidden lg:flex items-center gap-2 flex-1 justify-center">
+            {visibleItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="px-3 py-2 text-base font-bold text-white rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-105 transition-all duration-300 whitespace-nowrap"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
+          {/* Right */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="hidden sm:block text-sm sm:text-lg font-bold text-orange-300">
+              {userInfo?.name ?? userInfo?.username}
+            </span>
+            <BirthdayNotification />
+            <RegistrationExpiryNotification />
+            <NPGNotification />
+            <button
+              onClick={() => signOut()}
+              className="p-2 rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-110 transition-all duration-300"
+              title="ออกจากระบบ"
             >
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute -right-8 -top-8 w-32 h-32 bg-white rounded-full"></div>
-                <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-white rounded-full"></div>
-              </div>
+              <LogOut size={20} strokeWidth={2.5} className="text-white" />
+            </button>
 
-              {/* Content */}
-              <div className="relative h-full flex flex-col justify-between p-3 sm:p-6 text-white">
-                <div className="flex items-start justify-between">
-                  <div className="p-2 sm:p-3 bg-white/20 backdrop-blur-sm rounded-xl group-hover:scale-110 transition-transform duration-300">
-                    {item.icon}
-                  </div>
-                </div>
+            {/* Hamburger - mobile only */}
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="lg:hidden p-2 rounded-xl hover:bg-orange-500 transition-all"
+            >
+              {menuOpen
+                ? <X size={24} className="text-white" />
+                : <Menu size={24} className="text-white" />}
+            </button>
+          </div>
+        </div>
+      </div>
 
-                <div>
-                  <h3 className="text-base sm:text-2xl font-bold mb-1">{item.label}</h3>
-                  <p className="text-xs sm:text-sm text-white/90 hidden sm:block">{item.description}</p>
-                </div>
-              </div>
-
-              {/* Hover Effect */}
-              <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-            </div>
-          </a>
-        );
-      })}
-    </div>
+      {/* Mobile Menu Dropdown */}
+      {menuOpen && (
+        <div className="lg:hidden bg-gray-900 border-t border-gray-700 px-3 pb-3">
+          <div className="grid grid-cols-3 gap-2 pt-3">
+            {visibleItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+                className="text-center px-2 py-3 text-sm font-bold text-white rounded-xl bg-gray-700 hover:bg-orange-500 transition-all duration-200"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </nav>
   );
 };
-
-export default MenuItems;
