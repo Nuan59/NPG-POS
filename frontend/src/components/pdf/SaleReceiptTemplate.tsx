@@ -67,15 +67,15 @@ const ReceiptPage: React.FC<{
   const customerAddress = buildFullAddress(order, customerData);
   const customerPhone = getCustomerField('phone', order, customerData) || "ไม่ระบุเบอร์";
 
-  // ✅ ตรวจสอบว่าเป็นไฟแนนซ์หรือไม่ (รองรับทุก finance provider)
+  // ✅ ตรวจสอบว่าเป็นไฟแนนซ์หรือไม่ (รองรับทุก finance provider อัตโนมัติ)
+  // กติกา: ถ้า payment_method หรือ finance_provider มีค่า และไม่ใช่ "เงินสด" → ถือว่าเป็นไฟแนนซ์
+  // (ไม่ต้อง hardcode รายชื่อไฟแนนซ์ทีละเจ้า เพิ่มเจ้าใหม่ในอนาคตก็ยังทำงานถูกต้อง)
+  const pmTrimmed = String(order.payment_method || "").trim();
+  const fpTrimmed = String(order.finance_provider || "").trim();
   const isFinance = Boolean(
-    order.finance_provider && 
-    order.finance_provider.trim() !== "" && 
-    order.finance_provider !== "เงินสด"
-  ) || 
-  isPaymentMethod("finance", order) || 
-  isPaymentMethod("npg", order) ||
-  ["ทรัพย์สยาม", "Cathay", "NPG", "ไฟแนนซ์"].includes(String(order.payment_method || "").trim());
+    (fpTrimmed !== "" && fpTrimmed !== "เงินสด") ||
+    (pmTrimmed !== "" && pmTrimmed !== "เงินสด")
+  );
   
   // Debug
   console.log('=== Receipt Debug ===');
@@ -305,7 +305,7 @@ const ReceiptPage: React.FC<{
           </View>
           <View style={{ marginLeft: 16, marginTop: 1, marginBottom: 4, borderBottom: '1pt solid #000', paddingBottom: 1 }}>
             <Text style={{ fontSize: 7.5 }}>
-              {isFinance ? sanitizeText(order.finance_provider || '') : ' '}
+              {isFinance ? sanitizeText(order.finance_provider || order.payment_method || '') : ' '}
             </Text>
           </View>
 

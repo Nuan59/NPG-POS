@@ -101,12 +101,15 @@ export const buildFullAddress = (order: any, customerData?: any): string => {
 
 export const isPaymentMethod = (method: string, order: any): boolean => {
   try {
-    const pm = (order.payment_method || "").toLowerCase();
-    const fp = (order.finance_provider || "").toLowerCase();
-    return pm === method ||
+    const pm = (order.payment_method || "").trim().toLowerCase();
+    const fp = (order.finance_provider || "").trim().toLowerCase();
+    return pm === method.toLowerCase() ||
       (method === "cash" && pm === "เงินสด") ||
-      (method === "finance" && (pm === "ไฟแนนซ์" || fp === "cathay" || fp === "ทรัพย์สยาม")) ||
-      (method === "npg" && fp === "npg");
+      // "finance" = มีค่า payment_method หรือ finance_provider และไม่ใช่ "เงินสด"
+      // ครอบคลุมทุกเจ้าไฟแนนซ์อัตโนมัติ ไม่ต้อง hardcode ชื่อทีละเจ้า
+      (method === "finance" &&
+        ((pm !== "" && pm !== "เงินสด") || (fp !== "" && fp !== "เงินสด"))) ||
+      (method === "npg" && (fp === "npg" || pm === "npg"));
   } catch (e) {
     return false;
   }
