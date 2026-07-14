@@ -360,6 +360,11 @@ const ReceiptPage: React.FC<{
           <View style={styles.thaiBox}>
             <Text style={styles.thaiText}>{totalInWords}</Text>
           </View>
+          {customerNote !== "" && (
+            <Text style={{ fontSize: 7.5, marginTop: 3 }}>
+              {sanitizeText(customerNote)}
+            </Text>
+          )}
         </View>
 
         {/* สรุปยอด */}
@@ -391,12 +396,7 @@ const ReceiptPage: React.FC<{
 
       {/* หมายเหตุ */}
       <View style={styles.notes}>
-        <Text style={styles.noteTitle}>หมายเหตุ:</Text>
-        {customerNote !== "" && (
-          <Text style={[styles.noteItem, { fontWeight: 'bold' }]}>
-            • {sanitizeText(customerNote)}
-          </Text>
-        )}
+        <Text style={styles.noteTitle}>เงื่อนไขการซื้อขาย:</Text>
         <Text style={styles.noteItem}>1. กรณีชำระเงินโดยเช็คกรุณาสั่งจ่ายเช็คขีดคร่อมในนาม &quot;ห้างหุ้นส่วนจำกัด นพดลมอเตอร์กรุ้ป&quot; เท่านั้น{ZWJ}</Text>
         <Text style={styles.noteItem}>2. สินค้าตามรายการข้างต้นแม้จะได้ส่งมอบให้แก่ผู้ซื้อแล้วก็ยังคงเป็นทรัพย์สินของผู้ขายจนกว่าผู้ซื้อจะได้ชำระเงินเรียบร้อยแล้ว{ZWJ}</Text>
         <Text style={styles.noteItem}>3. ใบเสร็จรับเงินที่ถูกต้องจะต้องมีลายเซ็นต์ผู้รับเงินและประทับตราห้างฯ</Text>
