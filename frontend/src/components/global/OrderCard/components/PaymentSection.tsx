@@ -86,10 +86,10 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
         </Select>
       </div>
 
-      {/* ถ้าเลือก NPG ให้เลือกรายปี/รายเดือน */}
-      {financeProvider === "NPG" && (
+      {/* เลือกรายปี/รายเดือน - แสดงทุก provider */}
+      {financeProvider && (
         <div className="mt-1 flex justify-between items-center p-1">
-          <label className={labelCls}>ระยะเวลา</label>
+          <label className={labelCls}>ประเภทดอกเบี้ย</label>
           <Select
             value={npgPeriod}
             onValueChange={(val) => setNpgPeriod(val as NpgPeriod)}
@@ -98,8 +98,8 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
               {npgPeriod || "เลือก"}
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="รายปี">รายปี</SelectItem>
               <SelectItem value="รายเดือน">รายเดือน</SelectItem>
+              <SelectItem value="รายปี">รายปี</SelectItem>
             </SelectContent>
           </Select>
         </div>

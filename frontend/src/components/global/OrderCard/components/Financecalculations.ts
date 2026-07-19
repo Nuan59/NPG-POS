@@ -121,23 +121,23 @@ export const useFinanceCalculations = ({
     }
 
     const principal = toNumber(financeAmount);
-    const isNpgYearly = financeProvider === "NPG" && npgPeriod === "รายปี";
+    const isYearly = npgPeriod === "รายปี";
     
     // คำนวณดอกเบี้ยต่อเดือน
     const ratePctPerMonth = toNumber(interest);
     const interestPerMonth = principal * (ratePctPerMonth / 100);
     
-    if (isNpgYearly) {
-      // กรณี NPG รายปี: คิดดอกเบี้ยเป็นเดือน แต่แบ่งชำระเป็นรายปี
+    if (isYearly) {
+      // รายปี: คิดดอกเบี้ยเป็นเดือน แต่แบ่งชำระเป็นรายปี
       const totalMonths = count * 12;
       const totalInterest = interestPerMonth * totalMonths;
       const totalAmount = principal + totalInterest;
-      const perYear = totalAmount / count; // แบ่งตามจำนวนปี
+      const perYear = totalAmount / count;
       
       const roundedPerYear = roundByMethod(perYear, roundingMethod);
       setInstallmentPerPeriod(String(roundedPerYear));
     } else {
-      // กรณีปกติ (รายเดือน): คำนวณต่อเดือน
+      // รายเดือน
       const months = count;
       
       if (months <= 0) {
