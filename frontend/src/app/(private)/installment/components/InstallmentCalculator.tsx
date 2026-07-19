@@ -11,7 +11,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-type FinanceProvider = "Cathay" | "ทรัพย์สยาม" | "NPG" | "";
+type FinanceProvider = "Cathay" | "ทรัพย์สยาม" | "NPG" | "Summit" | "S Leasing" | "CIMB" | "World Lease" | "เงินติดล้อ" | "";
 type NpgPeriod = "รายปี" | "รายเดือน" | "";
 
 const toNumber = (s: string): number => {
@@ -74,8 +74,8 @@ export default function InstallmentCalculator() {
     }
 
     const principal = toNumber(financeAmount);
-    const isNpgYearly = financeProvider === "NPG" && npgPeriod === "รายปี";
-    const months = isNpgYearly ? count * 12 : count;
+    const isYearly = npgPeriod === "รายปี";
+    const months = isYearly ? count * 12 : count;
 
     if (months <= 0) {
       setInstallmentPerPeriod("");
@@ -87,7 +87,7 @@ export default function InstallmentCalculator() {
     const totalInterest = interestPerMonth * months;
 
     const perMonth = (principal + totalInterest) / months;
-    const perPeriod = isNpgYearly ? perMonth * 12 : perMonth;
+    const perPeriod = isYearly ? perMonth * 12 : perMonth;
 
     // ✅ ปัดเศษ: < 0.5 ปัดลง, >= 0.5 ปัดขึ้น
     const rounded = Math.round(perPeriod);
@@ -98,7 +98,7 @@ export default function InstallmentCalculator() {
   }, [financeAmount, installmentCount, interest, financeProvider, npgPeriod]);
 
   useEffect(() => {
-    if (financeProvider !== "NPG") setNpgPeriod("");
+    if (!financeProvider) setNpgPeriod("");
   }, [financeProvider]);
 
   const labelCls = "text-lg";
@@ -148,19 +148,24 @@ export default function InstallmentCalculator() {
               <SelectItem value="Cathay">Cathay</SelectItem>
               <SelectItem value="ทรัพย์สยาม">ทรัพย์สยาม</SelectItem>
               <SelectItem value="NPG">NPG</SelectItem>
+              <SelectItem value="Summit">Summit</SelectItem>
+              <SelectItem value="S Leasing">S Leasing</SelectItem>
+              <SelectItem value="CIMB">CIMB</SelectItem>
+              <SelectItem value="World Lease">World Lease</SelectItem>
+              <SelectItem value="เงินติดล้อ">เงินติดล้อ</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {financeProvider === "NPG" && (
+        {financeProvider && (
           <div className={rowCls}>
-            <label className={labelCls}>เลือก</label>
+            <label className={labelCls}>ประเภทดอกเบี้ย</label>
             <Select
               value={npgPeriod}
               onValueChange={(v) => setNpgPeriod(v as NpgPeriod)}
             >
               <SelectTrigger className={selectTriggerCls}>
-                {npgPeriod || "Select"}
+                {npgPeriod || "เลือก"}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="รายเดือน">รายเดือน</SelectItem>
