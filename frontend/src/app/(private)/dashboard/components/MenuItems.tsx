@@ -11,6 +11,7 @@ import {
   CreditCard,
   BookOpen,
   MessageSquare,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -64,6 +65,14 @@ const menuPages = [
     icon: <Warehouse size={"2.5rem"} />,
     label: "คลัง",
     description: "สถานที่จัดเก็บ",
+  },
+  {
+    href: "/cashflow",
+    gradient: "from-lime-400 to-lime-600",
+    hoverGradient: "hover:from-lime-500 hover:to-lime-700",
+    icon: <Wallet size={"2.5rem"} />,
+    label: "รายรับ-รายจ่าย",
+    description: "บันทึกเงินสด/โอนรายวัน",
   },
   {
     href: "/registration",

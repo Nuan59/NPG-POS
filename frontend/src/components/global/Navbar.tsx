@@ -22,6 +22,7 @@ export const Navbar = () => {
     { href: "/registration", label: "ทะเบียน" },
     { href: "/installment", label: "คำนวณ" },
     { href: "/npg", label: "NPG" },
+    { href: "/cashflow", label: "รายรับ-รายจ่าย" },
     { href: "/issues", label: "กระทู้" },
     { href: "/employees", label: "พนักงาน", admin: true },
     { href: "/reports", label: "รายงาน", admin: true },

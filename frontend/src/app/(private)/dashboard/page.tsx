@@ -4,6 +4,7 @@ import LatestSales from "./components/LatestSales";
 import { getLatestOrders } from "@/services/OrderService";
 import UserGreeting from "./components/UserGreeting";
 import MenuItems from "./components/MenuItems";
+import CashflowTodayCard from "@/components/global/CashflowTodayCard";
 import { Label } from "@/components/ui/label";
 
 const Dashboard = async () => {
@@ -13,6 +14,7 @@ const Dashboard = async () => {
     <div className="h-full overflow-y-auto">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <UserGreeting />
+        <CashflowTodayCard />
         <MenuItems />
 
         <Separator className="my-8" />
