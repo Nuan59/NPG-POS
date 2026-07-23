@@ -138,7 +138,7 @@ function Section({
           type="number"
           value={openingOverride}
           onChange={(e) => setOpeningOverride(e.target.value)}
-          placeholder={fmt(opening) + " (ยอดปิดเมื่อวาน)"}
+          placeholder={fmt(opening)}
           className="w-36 text-right h-8 text-sm"
         />
       </div>
@@ -287,9 +287,11 @@ export default function CashflowPage() {
             <button onClick={() => setDate(shiftDate(date, -1))} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg"><ChevronLeft size={18} /></button>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-white/90 text-gray-800 rounded-lg px-3 py-2 text-sm font-medium" />
             <button onClick={() => setDate(shiftDate(date, 1))} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg"><ChevronRight size={18} /></button>
-            <button onClick={openMonth} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg flex items-center gap-1 text-sm px-3">
-              <CalendarRange size={16} /> สรุปเดือน
-            </button>
+            {isAdmin && (
+              <button onClick={openMonth} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg flex items-center gap-1 text-sm px-3">
+                <CalendarRange size={16} /> สรุปเดือน
+              </button>
+            )}
           </div>
         </div>
 
