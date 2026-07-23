@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Wallet, X, Plus, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 
@@ -93,26 +92,25 @@ function signedAmount(row: UIRow) {
   return row.type === "income" ? amt : -amt;
 }
 
-function netOf(rows: UIRow[], opening: number, override: string) {
-  let running = override !== "" ? Number(override) || 0 : opening;
+function netOf(rows: UIRow[], opening: number) {
+  let running = opening;
   rows.forEach((r) => { running += signedAmount(r); });
   return running;
 }
 
 function Section({
-  title, accent, rows, setRows, opening, openingOverride, setOpeningOverride, currentUserName,
+  title, accent, rows, setRows, opening, currentUserName, isAdmin,
 }: {
   title: string;
   accent: "emerald" | "sky";
   rows: UIRow[];
   setRows: (rows: UIRow[]) => void;
   opening: number;
-  openingOverride: string;
-  setOpeningOverride: (v: string) => void;
   currentUserName: string;
+  isAdmin: boolean;
 }) {
   const style = ACCENT[accent];
-  let running = openingOverride !== "" ? Number(openingOverride) || 0 : opening;
+  let running = opening;
   const totals: Record<RowType, number> = { income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0 };
 
   const computed = rows.map((r) => {
@@ -128,36 +126,41 @@ function Section({
   };
   const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
 
+  // สิทธิ์ต่อแถว:
+  // - admin: แก้ไข+ลบได้ทุกแถว
+  // - แถวที่ยังไม่บันทึก (ไม่มี id): เป็นของคนที่กำลังกรอกอยู่ แก้ไข+ลบได้
+  // - แถวที่บันทึกแล้ว และเป็นคนสร้างเอง: แก้ไขได้ ลบไม่ได้
+  // - แถวที่บันทึกแล้ว ของคนอื่น: แก้ไขไม่ได้ ลบไม่ได้
+  const getPermission = (row: UIRow) => {
+    if (isAdmin) return { canEdit: true, canDelete: true };
+    if (!row.id) return { canEdit: true, canDelete: true };
+    if (row.createdBy === currentUserName) return { canEdit: true, canDelete: false };
+    return { canEdit: false, canDelete: false };
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
       <h3 className={`text-lg font-bold mb-3 ${style.title}`}>{title}</h3>
 
-      <div className={`flex items-center justify-between border rounded-lg px-3 py-2 mb-3 text-sm ${style.box}`}>
-        <span className="text-gray-600">ยอดยกมา</span>
-        <Input
-          type="number"
-          value={openingOverride}
-          onChange={(e) => setOpeningOverride(e.target.value)}
-          placeholder={fmt(opening)}
-          className="w-36 text-right h-8 text-sm"
-        />
-      </div>
-
       <div className="space-y-2">
-        {computed.map((row, idx) => (
-          <div key={idx} className="flex items-start gap-2 border rounded-lg p-2 hover:bg-gray-50">
+        {computed.map((row, idx) => {
+          const { canEdit, canDelete } = getPermission(row);
+          return (
+          <div key={idx} className={`flex items-start gap-2 border rounded-lg p-2 ${canEdit ? "hover:bg-gray-50" : "bg-gray-50/60"}`}>
             <div className="flex-1 min-w-0 space-y-1.5">
               <input
-                className="w-full bg-transparent outline-none text-sm font-medium border-b border-dashed border-gray-200 pb-1"
+                className="w-full bg-transparent outline-none text-sm font-medium border-b border-dashed border-gray-200 pb-1 disabled:text-gray-500"
                 value={row.description}
                 onChange={(e) => updateRow(idx, { description: e.target.value })}
                 placeholder="รายการ เช่น ค่าน้ำมัน, ขายอะไหล่..."
+                disabled={!canEdit}
               />
               <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={row.type}
                   onChange={(e) => updateRow(idx, { type: e.target.value as RowType })}
-                  className={`text-xs font-semibold rounded-md border px-2 py-1 ${TYPE_COLOR[row.type]}`}
+                  className={`text-xs font-semibold rounded-md border px-2 py-1 disabled:opacity-60 ${TYPE_COLOR[row.type]}`}
+                  disabled={!canEdit}
                 >
                   {TYPE_FIELDS.map((t) => (
                     <option key={t} value={t}>{TYPE_LABEL[t]}</option>
@@ -165,10 +168,11 @@ function Section({
                 </select>
                 <input
                   type="number"
-                  className="w-28 text-right text-sm border rounded-md px-2 py-1 border-gray-200 outline-none focus:border-orange-400"
+                  className="w-28 text-right text-sm border rounded-md px-2 py-1 border-gray-200 outline-none focus:border-orange-400 disabled:text-gray-500"
                   value={row.amount || ""}
                   onChange={(e) => updateRow(idx, { amount: Number(e.target.value) })}
                   placeholder="จำนวนเงิน"
+                  disabled={!canEdit}
                 />
                 <span className="text-xs text-gray-400">บาท</span>
                 {row.createdBy && (
@@ -180,11 +184,14 @@ function Section({
               <div className="text-[10px] text-gray-400">คงเหลือ</div>
               <div className="font-semibold text-orange-600 text-sm whitespace-nowrap">{fmt(row.balance)}</div>
             </div>
-            <button onClick={() => removeRow(idx)} className="text-gray-300 hover:text-rose-500 mt-1">
-              <X size={16} />
-            </button>
+            {canDelete && (
+              <button onClick={() => removeRow(idx)} className="text-gray-300 hover:text-rose-500 mt-1">
+                <X size={16} />
+              </button>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="flex justify-between items-center border-t-2 mt-3 pt-2 px-1 text-sm font-bold text-gray-800">
@@ -219,8 +226,6 @@ export default function CashflowPage() {
   const [transferRows, setTransferRows] = useState<UIRow[]>([]);
   const [cashOpening, setCashOpening] = useState(0);
   const [transferOpening, setTransferOpening] = useState(0);
-  const [cashOpeningOverride, setCashOpeningOverride] = useState("");
-  const [transferOpeningOverride, setTransferOpeningOverride] = useState("");
 
   const [monthOpen, setMonthOpen] = useState(false);
   const [monthData, setMonthData] = useState<CashflowMonthData | null>(null);
@@ -233,12 +238,9 @@ export default function CashflowPage() {
       setTransferRows(data.transfer.rows.length ? data.transfer.rows.map((r) => toUIRow(r, currentUserName)) : [blankUIRow(currentUserName)]);
       setCashOpening(data.cash.opening);
       setTransferOpening(data.transfer.opening);
-      setCashOpeningOverride(data.cash.openingOverride != null ? String(data.cash.openingOverride) : "");
-      setTransferOpeningOverride(data.transfer.openingOverride != null ? String(data.transfer.openingOverride) : "");
     } else {
       setCashRows([blankUIRow(currentUserName)]); setTransferRows([blankUIRow(currentUserName)]);
       setCashOpening(0); setTransferOpening(0);
-      setCashOpeningOverride(""); setTransferOpeningOverride("");
     }
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,7 +254,6 @@ export default function CashflowPage() {
       date,
       cashRows: cashRows.filter((r) => r.description || r.amount).map(toApiRow),
       transferRows: transferRows.filter((r) => r.description || r.amount).map(toApiRow),
-      cashOpeningOverride, transferOpeningOverride,
       // ผู้เช็คเงิน = ผู้ใช้ที่ล็อกอินอยู่ตอนกดบันทึก ไม่ต้องพิมพ์เอง
       checkerName: currentUserName,
       checkerDate: date,
@@ -268,8 +269,8 @@ export default function CashflowPage() {
     setMonthData(await getCashflowMonth(date.slice(0, 7)));
   };
 
-  const cashClosing = netOf(cashRows, cashOpening, cashOpeningOverride);
-  const transferClosing = netOf(transferRows, transferOpening, transferOpeningOverride);
+  const cashClosing = netOf(cashRows, cashOpening);
+  const transferClosing = netOf(transferRows, transferOpening);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -301,11 +302,9 @@ export default function CashflowPage() {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <Section title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={setCashRows}
-                opening={cashOpening} openingOverride={cashOpeningOverride} setOpeningOverride={setCashOpeningOverride}
-                currentUserName={currentUserName} />
+                opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
               <Section title="🏦 โอน" accent="sky" rows={transferRows} setRows={setTransferRows}
-                opening={transferOpening} openingOverride={transferOpeningOverride} setOpeningOverride={setTransferOpeningOverride}
-                currentUserName={currentUserName} />
+                opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
             </div>
 
             {/* สรุปยอด — เฉพาะ admin */}
