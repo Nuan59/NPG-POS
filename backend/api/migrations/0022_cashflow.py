@@ -5,7 +5,7 @@ class Migration(migrations.Migration):
 
     # ⚠️ เปลี่ยนเป็นชื่อ migration ล่าสุดจริงในโฟลเดอร์ api/migrations/ แล้วเปลี่ยนชื่อไฟล์นี้เป็นเลขถัดไป
     dependencies = [
-        ("api", "0027_xxxx_เปลี่ยนเป็นชื่อ_migration_ล่าสุดจริง"),
+        ("api", "0021_bike_old_registration_plate"),
     ]
 
     operations = [
