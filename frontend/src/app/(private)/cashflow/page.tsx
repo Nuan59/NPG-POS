@@ -143,6 +143,11 @@ function Section({
       <h3 className={`text-lg font-bold mb-3 ${style.title}`}>{title}</h3>
 
       <div className="space-y-2">
+        {computed.length === 0 && (
+          <div className="text-center text-sm text-gray-400 py-6 border border-dashed rounded-lg">
+            ยังไม่มีรายการ กด &quot;เพิ่มรายการ&quot; ด้านล่างเพื่อเริ่มบันทึก
+          </div>
+        )}
         {computed.map((row, idx) => {
           const { canEdit, canDelete } = getPermission(row);
           return (
@@ -234,12 +239,12 @@ export default function CashflowPage() {
     setLoading(true);
     const data = await getCashflowDay(d);
     if (data) {
-      setCashRows(data.cash.rows.length ? data.cash.rows.map((r) => toUIRow(r, currentUserName)) : [blankUIRow(currentUserName)]);
-      setTransferRows(data.transfer.rows.length ? data.transfer.rows.map((r) => toUIRow(r, currentUserName)) : [blankUIRow(currentUserName)]);
+      setCashRows(data.cash.rows.length ? data.cash.rows.map((r) => toUIRow(r, currentUserName)) : []);
+      setTransferRows(data.transfer.rows.length ? data.transfer.rows.map((r) => toUIRow(r, currentUserName)) : []);
       setCashOpening(data.cash.opening);
       setTransferOpening(data.transfer.opening);
     } else {
-      setCashRows([blankUIRow(currentUserName)]); setTransferRows([blankUIRow(currentUserName)]);
+      setCashRows([]); setTransferRows([]);
       setCashOpening(0); setTransferOpening(0);
     }
     setLoading(false);
