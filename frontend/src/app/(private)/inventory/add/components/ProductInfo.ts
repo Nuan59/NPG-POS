@@ -55,7 +55,7 @@ export const product_info: ProductInfoItem[] = [
   {
     name: "old_registration_plate",
     label: "ทะเบียนเก่า",
-    placeholder: "เช่น กก 999 แพร่,
+    placeholder: "เช่น กก 999 แพร่",
     showOnlyFor: "pre_owned",
   },
   {
