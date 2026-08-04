@@ -162,6 +162,10 @@ const OrderCard = () => {
       finance_provider:
         payment_method === "ไฟแนนซ์" && financeProvider ? financeProvider : "",
 
+      // ✅ รายเดือน/รายปี (สำคัญเฉพาะกรณี NPG) - ถ้าไม่ส่ง backend จะไม่รู้และคำนวณดอกเบี้ยผิด
+      npg_period:
+        payment_method === "ไฟแนนซ์" && financeProvider === "NPG" ? npgPeriod : "",
+
       // ประเภทการซื้อ
       payment_method:
         payment_method === "ไฟแนนซ์" && financeProvider
