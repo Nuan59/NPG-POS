@@ -85,6 +85,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             installment_count = int(request.data.get('installment_count', 0))
             installment_amount = float(request.data.get('installment_amount', 0))
             finance_provider = request.data.get('finance_provider', '')
+            npg_period = request.data.get('npg_period', 'รายเดือน')  # ✅ รับค่ารายเดือน/รายปี จาก frontend
 
             # วิธีการชำระเงิน
             payment_method = request.data.get('payment_method', '')  # ประเภทการซื้อ
@@ -158,10 +159,16 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # สร้าง NPG Account ถ้าเป็นไฟแนนซ์ NPG
                 if finance_provider == 'NPG' and finance_amount > 0:
                     try:
-                        total_with_interest = finance_amount + (
-                            finance_amount * (interest_rate / 100) * installment_count
+                        # ✅ คูณ x12 ถ้าเป็นรายปี (เดิม hardcode รายเดือนตลอด ทำให้ดอกเบี้ยรายปีต่ำกว่าจริง 12 เท่า)
+                        total_months = installment_count * 12 if npg_period == 'รายปี' else installment_count
+                        total_with_interest_raw = finance_amount + (
+                            finance_amount * (interest_rate / 100) * total_months
                         )
-                        
+
+                        # ✅ ใช้ installment_amount (ที่ frontend ปัดเศษเป็นจำนวนเต็มแล้ว) x จำนวนงวด
+                        # แทนยอดดิบที่มีเศษทศนิยม เพื่อให้จ่ายครบทุกงวดแล้วเหลือ 0 พอดี ไม่มีเศษค้าง
+                        remaining_balance_final = installment_amount * installment_count
+
                         NPGAccount.objects.create(
                             order=new_order,
                             status='active',
@@ -169,14 +176,14 @@ class OrderViewSet(viewsets.ModelViewSet):
                             interest_rate=interest_rate,
                             installment_count=installment_count,
                             installment_amount=installment_amount,
-                            period_type='รายเดือน',
+                            period_type=npg_period,  # ✅ ใช้ค่าจริงจาก frontend แทนการ hardcode
                             paid_count=0,
                             total_paid=0,
-                            remaining_balance=total_with_interest,
+                            remaining_balance=remaining_balance_final,
                             start_date=datetime.today().date(),
                             next_payment_date=datetime.today().date() + timedelta(days=30),
                         )
-                        print(f"✅ สร้าง NPG Account สำหรับ Order #{new_order.id}")
+                        print(f"✅ สร้าง NPG Account สำหรับ Order #{new_order.id} (period={npg_period}, remaining={remaining_balance_final}, raw={total_with_interest_raw})")
                     except Exception as e:
                         print(f"❌ ไม่สามารถสร้าง NPG Account: {str(e)}")
 
