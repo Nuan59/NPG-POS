@@ -14,6 +14,33 @@ from api.serializers.NPGSerializer import (
 )
 
 
+def _build_receipt(payment, account, items, total):
+    """
+    สร้างข้อมูลใบเสร็จรับเงินชั่วคราว สำหรับส่งกลับให้ frontend ไปเรนเดอร์เป็น PDF
+    เลขที่ใบเสร็จอิง id ของ NPGPayment (เรียงตามลำดับการสร้างจริงเสมอ ไม่ซ้ำ) รูปแบบ MO-00001
+    """
+    customer = getattr(account.order, "customer", None)
+
+    address_parts = []
+    if customer:
+        for attr in ["address", "subdistrict", "district", "province", "postal_code"]:
+            val = getattr(customer, attr, None)
+            if val:
+                address_parts.append(str(val))
+
+    th_date = payment.payment_date.strftime("%d/%m/") + str(payment.payment_date.year + 543)
+
+    return {
+        "receiptNumber": f"MO-{payment.id:05d}",
+        "date": th_date,
+        "customerName": customer.name if customer else "",
+        "customerPhone": getattr(customer, "phone", "") if customer else "",
+        "customerAddress": " ".join(address_parts),
+        "items": items,
+        "total": total,
+    }
+
+
 class NPGAccountViewSet(viewsets.ModelViewSet):
     """ViewSet สำหรับจัดการบัญชี NPG"""
     serializer_class = NPGAccountSerializer
@@ -137,13 +164,27 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         
         # อัพเดทวันชำระถัดไป
         account.update_next_payment_date()
-        
+
+        # ✅ สร้างข้อมูลใบเสร็จรับเงินชั่วคราว
+        bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
+        bike_desc = f" ({bike.model_name})" if bike else ""
+        receipt = _build_receipt(
+            payment=payment,
+            account=account,
+            items=[{
+                "description": f"ชำระค่างวดที่ {payment.installment_number}/{account.installment_count}{bike_desc}",
+                "amount": amount_paid,
+            }],
+            total=amount_paid,
+        )
+
         # ส่งข้อมูลกลับ
         serializer = self.get_serializer(account)
         return Response({
             'message': 'บันทึกการชำระเงินสำเร็จ',
             'payment_id': payment.id,
-            'account': serializer.data
+            'account': serializer.data,
+            'receipt': receipt,
         })
     
     @action(detail=True, methods=['post'])
@@ -194,6 +235,19 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         account.close_amount = close_amount
         account.remaining_balance = 0
         account.save()
+
+        # ✅ สร้างข้อมูลใบเสร็จรับเงินชั่วคราว
+        bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
+        bike_desc = f" ({bike.model_name})" if bike else ""
+        receipt = _build_receipt(
+            payment=payment,
+            account=account,
+            items=[{
+                "description": f"ปิดบัญชี{bike_desc} (ส่วนลดดอกเบี้ย {close_calculation['discount']:,.2f} บาท)",
+                "amount": close_amount,
+            }],
+            total=close_amount,
+        )
         
         # ส่งข้อมูลกลับ
         serializer = self.get_serializer(account)
@@ -201,7 +255,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             'message': 'ปิดบัญชีสำเร็จ',
             'payment_id': payment.id,
             'close_calculation': close_calculation,
-            'account': serializer.data
+            'account': serializer.data,
+            'receipt': receipt,
         })
 
 
@@ -235,3 +290,28 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
             )
         
         return queryset.order_by('-payment_date', '-created_at')
+
+    @action(detail=True, methods=['get'])
+    def receipt(self, request, pk=None):
+        """
+        ข้อมูลใบเสร็จรับเงินชั่วคราวของการชำระเงินรายการนี้
+        GET /npg/payments/{id}/receipt/
+        """
+        payment = self.get_object()
+        account = payment.account
+
+        bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
+        bike_desc = f" ({bike.model_name})" if bike else ""
+
+        if (payment.note or "").startswith("ปิดบัญชี"):
+            description = f"ปิดบัญชี{bike_desc}"
+        else:
+            description = f"ชำระค่างวดที่ {payment.installment_number}/{account.installment_count}{bike_desc}"
+
+        receipt = _build_receipt(
+            payment=payment,
+            account=account,
+            items=[{"description": description, "amount": float(payment.amount_paid)}],
+            total=float(payment.amount_paid),
+        )
+        return Response(receipt)
