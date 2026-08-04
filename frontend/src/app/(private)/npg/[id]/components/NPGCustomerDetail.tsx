@@ -172,11 +172,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       });
 
       if (response.ok) {
+        const data = await response.json();
         toast.success("บันทึกการชำระเงินสำเร็จ");
         setIsPaymentDialogOpen(false);
         setPaymentAmount("");
         setPaymentNote("");
-        fetchAccountDetail();
+        // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
+        router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
       } else {
         const error = await response.json();
         toast.error(error.error || "เกิดข้อผิดพลาด");
@@ -204,9 +206,11 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       });
 
       if (response.ok) {
+        const data = await response.json();
         toast.success("ปิดบัญชีสำเร็จ");
         setIsCloseAccountDialogOpen(false);
-        router.push("/npg");
+        // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
+        router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
       } else {
         const error = await response.json();
         toast.error(error.error || "เกิดข้อผิดพลาด");
