@@ -28,6 +28,7 @@ export const product_info: ProductInfoItem[] = [
       { label: "RYUKA", value: "RYUKA" },
       { label: "Lambretta", value: "Lambretta" },
       { label: "Vespa", value: "Vespa" },
+      { label: "Kawasaki", value: "Kawasaki" }
     ],
   },
   {
@@ -54,13 +55,13 @@ export const product_info: ProductInfoItem[] = [
   {
     name: "old_registration_plate",
     label: "ทะเบียนเก่า",
-    placeholder: "เช่น 2กน 7385 เชียงใหม่",
+    placeholder: "เช่น กก 999 แพร่,
     showOnlyFor: "pre_owned",
   },
   {
     name: "registration_plate",
     label: "ทะเบียนใหม่",
-    placeholder: "เช่น 1กฐ 5535 แพร่",
+    placeholder: "เช่น กก 999 แพร่",
     showOnlyFor: "pre_owned",
   },
   {
