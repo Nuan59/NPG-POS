@@ -29,8 +29,8 @@ class CashflowEntry(models.Model):
     class Meta:
         db_table = "cashflow_entry"
         ordering = ["date", "section", "seq"]
-        indexes = [models.Index(fields=["date", "section"], name="cashflow_entry_date_section_idx")]
-
+        indexes = [models.Index(fields=["date", "section"], name="cashflow_date_section_idx")]
+        
     def __str__(self):
         return f"{self.date} [{self.section}] {self.description}"
 
