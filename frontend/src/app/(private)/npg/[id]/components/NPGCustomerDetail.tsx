@@ -296,7 +296,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     }
   };
 
-
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <p>กำลังโหลด...</p>
