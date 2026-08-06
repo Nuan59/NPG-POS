@@ -1,117 +1,178 @@
-import React from "react";
-import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
-import { registerFonts, sanitizeText, fmt } from "./Salereceiptutils";
+"use client";
 
-registerFonts();
+import { Document, Page, Text, View, Image, StyleSheet, Font } from "@react-pdf/renderer";
+import { sanitizeText, fmt } from "./Salereceiptutils";
+
+Font.register({
+  family: "Sarabun",
+  fonts: [
+    { src: "/fonts/Sarabun-Regular.ttf", fontWeight: "normal" },
+    { src: "/fonts/Sarabun-Bold.ttf", fontWeight: "bold" },
+  ],
+});
+Font.registerHyphenationCallback((word: string) => [word]);
+
+const COLOR_ORANGE = "#F36B21";
+const COLOR_LIGHT_ORANGE = "#FDB99B";
+const COLOR_BORDER = "#8B4513";
+const ZWJ = "\u200D";
 
 const styles = StyleSheet.create({
   page: {
-    padding: 24,
+    paddingTop: 15,
+    paddingBottom: 15,
+    paddingHorizontal: 25,
     fontFamily: "Sarabun",
     fontSize: 10,
   },
   header: {
-    alignItems: "center",
-    marginBottom: 8,
+    flexDirection: "row",
+    marginBottom: 4,
+    alignItems: "flex-start",
+  },
+  logoContainer: {
+    width: 60,
+    height: 60,
+    marginRight: 8,
+  },
+  logo: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
+  companyInfo: {
+    flex: 1,
+    textAlign: "center",
+    paddingTop: 4,
   },
   companyName: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 11,
+    marginBottom: 1,
   },
   companyDetail: {
-    fontSize: 8.5,
-    marginTop: 2,
+    fontSize: 7.5,
+    marginBottom: 0.5,
   },
-  title: {
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 6,
-    marginBottom: 10,
-    fontWeight: "bold",
-  },
-  topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  fieldRow: {
-    flexDirection: "row",
-    marginBottom: 4,
-  },
-  fieldLabel: {
+  badgeContainer: {
     width: 55,
   },
-  fieldValue: {
+  badge: {
+    border: `2pt solid ${COLOR_ORANGE}`,
+    borderRadius: 2,
+    padding: 3,
+  },
+  badgeText: {
+    fontSize: 9,
+    color: COLOR_ORANGE,
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  titleBox: {
+    border: `2pt solid ${COLOR_BORDER}`,
+    borderRadius: 2,
+    padding: 4,
+    textAlign: "center",
+    marginBottom: 5,
+    alignSelf: "center",
+  },
+  title: {
+    fontSize: 12,
+  },
+
+  customerSection: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+  leftInfo: {
+    width: "55%",
+    paddingRight: 8,
+  },
+  rightInfo: {
+    width: "45%",
+    paddingLeft: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    marginBottom: 2,
+    fontSize: 9,
+    alignItems: "flex-start",
+  },
+  infoLabel: {
+    width: 60,
+  },
+  infoValue: {
     flex: 1,
-    borderBottom: "0.7pt dotted #000",
-    paddingBottom: 1,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  rightInfoRow: {
+    flexDirection: "row",
+    marginBottom: 2,
+    fontSize: 9,
+  },
+  rightInfoLabel: {
+    width: 65,
+  },
+  rightInfoValue: {
+    flex: 1,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
   },
 
   table: {
-    marginTop: 10,
-    border: "0.8pt solid #000",
+    border: `1.5pt solid #000`,
+    marginBottom: 5,
+    marginTop: 4,
   },
-  tableHeaderRow: {
+  tableHeader: {
     flexDirection: "row",
-    borderBottom: "0.8pt solid #000",
-    backgroundColor: "#f2f2f2",
+    backgroundColor: COLOR_LIGHT_ORANGE,
+    padding: 3,
+    borderBottom: `1.5pt solid #000`,
+  },
+  headerText: {
+    fontSize: 8.5,
   },
   tableRow: {
     flexDirection: "row",
-    borderBottom: "0.5pt solid #ccc",
+    paddingVertical: 2.5,
+    paddingHorizontal: 4,
+    borderBottom: `0.5pt solid #eee`,
+    fontSize: 8.5,
     minHeight: 18,
   },
-  colDesc: {
-    flex: 1,
-    padding: 4,
-    borderRight: "0.8pt solid #000",
-  },
-  colAmount: {
-    width: 90,
-    padding: 4,
-    textAlign: "right",
-  },
-  tableHeaderText: {
-    fontSize: 9.5,
-    fontWeight: "bold",
-    textAlign: "center",
-    padding: 4,
-  },
+  colDesc: { width: "78%" },
+  colAmount: { width: "22%", textAlign: "right" },
+
   totalRow: {
     flexDirection: "row",
-    borderTop: "0.8pt solid #000",
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    borderTop: `1.5pt solid #000`,
+    fontSize: 9.5,
   },
-  totalLabel: {
-    flex: 1,
-    padding: 4,
-    textAlign: "right",
-    fontWeight: "bold",
-    borderRight: "0.8pt solid #000",
-  },
-  totalValue: {
-    width: 90,
-    padding: 4,
-    textAlign: "right",
-    fontWeight: "bold",
-  },
+  totalLabel: { width: "78%", textAlign: "right", fontWeight: "bold" },
+  totalValue: { width: "22%", textAlign: "right", fontWeight: "bold" },
 
   signSection: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 30,
+    justifyContent: "space-around",
+    marginTop: 20,
   },
   signBox: {
-    width: "23%",
-    alignItems: "center",
+    width: "22%",
+    textAlign: "center",
   },
-  signLine: {
-    borderBottom: "0.7pt dotted #000",
-    width: "100%",
-    marginBottom: 4,
-    height: 14,
-  },
-  signLabel: {
+  signatureLine: {
+    marginTop: 28,
+    paddingTop: 3,
+    borderTop: `1pt solid #000`,
     fontSize: 9,
+  },
+  signatureLabel: {
+    fontSize: 8,
+    color: "#666",
+    marginTop: 2,
   },
 });
 
@@ -121,71 +182,103 @@ export interface TempReceiptItem {
 }
 
 interface TempReceiptTemplateProps {
-  receiptNumber: string; // e.g. "MO-00001"
-  date: string; // e.g. "23/07/2569"
+  receiptNumber: string;
+  date: string;
   customerName: string;
   customerAddress?: string;
   customerPhone?: string;
+  chassisNumber?: string;
+  paymentMethodLabel?: string;
   items: TempReceiptItem[];
   total: number;
 }
 
 const COMPANY_NAME = "นพดลมอเตอร์กรุ้ป";
-const COMPANY_ADDRESS = "359/2 หมู่ 6 ตำบลร้องเข็ม อำเภอร้องกวาง จังหวัดแพร่  โทร. 099-376-8889";
+const COMPANY_ADDRESS = "359/2 หมู่ 6 ตำบลร้องเข็ม อำเภอร้องกวาง จังหวัดแพร่";
+const COMPANY_PHONE = "โทร. 099-376-8889";
 
-const TempReceiptTemplate = ({
+export default function TempReceiptTemplate({
   receiptNumber,
   date,
   customerName,
   customerAddress,
   customerPhone,
+  chassisNumber,
+  paymentMethodLabel,
   items,
   total,
-}: TempReceiptTemplateProps) => {
-  // เติมแถวว่างให้ตารางดูสมส่วน (อย่างน้อย 5 แถว เหมือนฟอร์มต้นแบบ)
+}: TempReceiptTemplateProps) {
   const rows = [...(items || [])];
-  while (rows.length < 5) rows.push({ description: "", amount: 0 });
+  while (rows.length < 3) rows.push({ description: "", amount: 0 });
 
   return (
     <Document>
-      <Page size="A5" style={styles.page}>
+      <Page size="A5" orientation="landscape" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.companyName}>{COMPANY_NAME}</Text>
-          <Text style={styles.companyDetail}>{COMPANY_ADDRESS}</Text>
+          <View style={styles.logoContainer}>
+            <Image src="/logo.png" style={styles.logo} />
+          </View>
+
+          <View style={styles.companyInfo}>
+            <Text style={styles.companyName}>{COMPANY_NAME}{ZWJ}</Text>
+            <Text style={styles.companyDetail}>{COMPANY_ADDRESS}{ZWJ}</Text>
+            <Text style={styles.companyDetail}>{COMPANY_PHONE}</Text>
+          </View>
+
+          <View style={styles.badgeContainer}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>ชั่วคราว</Text>
+            </View>
+          </View>
         </View>
 
-        <Text style={styles.title}>ใบเสร็จรับเงินชั่วคราว</Text>
+        <View style={styles.titleBox}>
+          <Text style={styles.title}>ใบเสร็{ZWJ}จรั{ZWJ}บเงิ{ZWJ}นชั่{ZWJ}วคราว</Text>
+        </View>
 
         {/* เลขที่ / วันที่ */}
-        <View style={styles.topRow}>
-          <Text>เลขที่ {receiptNumber}</Text>
-          <Text>วันที่ {date}</Text>
-        </View>
+        <View style={styles.customerSection}>
+          <View style={styles.leftInfo}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>เลขที่{ZWJ}</Text>
+              <View style={styles.infoValue}><Text>{receiptNumber}</Text></View>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>ชื่{ZWJ}อ</Text>
+              <View style={styles.infoValue}><Text>{sanitizeText(customerName)}</Text></View>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>ที่{ZWJ}อยู่{ZWJ}</Text>
+              <View style={styles.infoValue}><Text>{sanitizeText(customerAddress || "")}</Text></View>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>โทรศั{ZWJ}พท์{ZWJ}</Text>
+              <View style={styles.infoValue}><Text>{sanitizeText(customerPhone || "")}</Text></View>
+            </View>
+          </View>
 
-        {/* ชื่อ */}
-        <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>ชื่อ</Text>
-          <Text style={styles.fieldValue}>{sanitizeText(customerName)}</Text>
-        </View>
-
-        {/* ที่อยู่ */}
-        <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>ที่อยู่</Text>
-          <Text style={styles.fieldValue}>{sanitizeText(customerAddress || "")}</Text>
-        </View>
-
-        {/* โทรศัพท์ */}
-        <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>โทรศัพท์</Text>
-          <Text style={styles.fieldValue}>{sanitizeText(customerPhone || "")}</Text>
+          <View style={styles.rightInfo}>
+            <View style={styles.rightInfoRow}>
+              <Text style={styles.rightInfoLabel}>วั{ZWJ}นที่{ZWJ}</Text>
+              <View style={styles.rightInfoValue}><Text>{date}</Text></View>
+            </View>
+            <View style={styles.rightInfoRow}>
+              <Text style={styles.rightInfoLabel}>เลขตั{ZWJ}วถั{ZWJ}ง</Text>
+              <View style={styles.rightInfoValue}><Text>{sanitizeText(chassisNumber || "-")}</Text></View>
+            </View>
+            <View style={styles.rightInfoRow}>
+              <Text style={styles.rightInfoLabel}>ชำ{ZWJ}าระโดย</Text>
+              <View style={styles.rightInfoValue}><Text>{sanitizeText(paymentMethodLabel || "-")}</Text></View>
+            </View>
+          </View>
         </View>
 
         {/* ตารางรายการ */}
         <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.colDesc, styles.tableHeaderText]}>รายการ</Text>
-            <Text style={[styles.colAmount, styles.tableHeaderText]}>จำนวนเงิน</Text>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.headerText, styles.colDesc]}>รายการ</Text>
+            <Text style={[styles.headerText, styles.colAmount]}>จำ{ZWJ}นวนเงิ{ZWJ}น</Text>
           </View>
           {rows.map((row, idx) => (
             <View key={idx} style={styles.tableRow}>
@@ -202,25 +295,19 @@ const TempReceiptTemplate = ({
         {/* ลายเซ็น */}
         <View style={styles.signSection}>
           <View style={styles.signBox}>
-            <View style={styles.signLine} />
-            <Text style={styles.signLabel}>ลูกค้า</Text>
+            <Text style={styles.signatureLine}>ลู{ZWJ}กค้{ZWJ}า</Text>
           </View>
           <View style={styles.signBox}>
-            <View style={styles.signLine} />
-            <Text style={styles.signLabel}>ผู้ออกบิล</Text>
+            <Text style={styles.signatureLine}>ผู้{ZWJ}ออกบิ{ZWJ}ล</Text>
           </View>
           <View style={styles.signBox}>
-            <View style={styles.signLine} />
-            <Text style={styles.signLabel}>ผู้รับเงิน</Text>
+            <Text style={styles.signatureLine}>ผู้{ZWJ}รั{ZWJ}บเงิ{ZWJ}น</Text>
           </View>
           <View style={styles.signBox}>
-            <View style={styles.signLine} />
-            <Text style={styles.signLabel}>ผู้อนุมัติ</Text>
+            <Text style={styles.signatureLine}>ผู้{ZWJ}อนุ{ZWJ}มั{ZWJ}ติ{ZWJ}</Text>
           </View>
         </View>
       </Page>
     </Document>
   );
-};
-
-export default TempReceiptTemplate;
+}

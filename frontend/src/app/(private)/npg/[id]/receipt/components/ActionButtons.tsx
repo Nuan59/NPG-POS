@@ -14,6 +14,8 @@ interface ReceiptData {
   customerName: string;
   customerAddress?: string;
   customerPhone?: string;
+  chassisNumber?: string;
+  paymentMethodLabel?: string;
   items: TempReceiptItem[];
   total: number;
 }
@@ -46,6 +48,8 @@ const ActionButtons = ({ data, backHref = "/npg" }: ActionButtonsProps) => {
             customerName={data.customerName}
             customerAddress={data.customerAddress}
             customerPhone={data.customerPhone}
+            chassisNumber={data.chassisNumber}
+            paymentMethodLabel={data.paymentMethodLabel}
             items={data.items}
             total={data.total}
           />

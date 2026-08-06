@@ -16,6 +16,8 @@ interface ReceiptData {
   customerName: string;
   customerAddress?: string;
   customerPhone?: string;
+  chassisNumber?: string;
+  paymentMethodLabel?: string;
   items: TempReceiptItem[];
   total: number;
 }

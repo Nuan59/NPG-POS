@@ -70,6 +70,9 @@ interface Payment {
   installment_number: number;
   amount_paid: number;
   remaining_balance_after: number;
+  payment_method?: string;
+  transfer_bank?: string;
+  check_number?: string;
   note: string;
 }
 
@@ -80,9 +83,23 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [loading, setLoading] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<string>("");
   const [paymentNote, setPaymentNote] = useState<string>("");
+  const [paymentMethodType, setPaymentMethodType] = useState<string>("เงินสด");
+  const [transferBank, setTransferBank] = useState<string>("");
+  const [checkNumber, setCheckNumber] = useState<string>("");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isCloseAccountDialogOpen, setIsCloseAccountDialogOpen] = useState(false);
   const [closeAccountAmount, setCloseAccountAmount] = useState<number>(0);
+
+  // ✅ แก้ไขรายการชำระเงินที่บันทึกไปแล้ว (adm เท่านั้น)
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [editAmount, setEditAmount] = useState<string>("");
+  const [editNote, setEditNote] = useState<string>("");
+  const [editMethod, setEditMethod] = useState<string>("เงินสด");
+  const [editBank, setEditBank] = useState<string>("");
+  const [editCheckNumber, setEditCheckNumber] = useState<string>("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const isAdmin = String(session?.user?.role ?? "").toLowerCase() === "adm";
 
   useEffect(() => {
     fetchAccountDetail();
@@ -168,6 +185,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         body: JSON.stringify({
           amount_paid: amount,
           note: paymentNote,
+          payment_method: paymentMethodType,
+          transfer_bank: paymentMethodType === "เงินโอน" ? transferBank : "",
+          check_number: paymentMethodType === "เช็ค" ? checkNumber : "",
         }),
       });
 
@@ -177,6 +197,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         setIsPaymentDialogOpen(false);
         setPaymentAmount("");
         setPaymentNote("");
+        setPaymentMethodType("เงินสด");
+        setTransferBank("");
+        setCheckNumber("");
         // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
         router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
       } else {
@@ -221,7 +244,59 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     }
   };
 
-  if (loading) {
+  const openEditDialog = (payment: Payment) => {
+    setEditingPayment(payment);
+    setEditAmount(String(payment.amount_paid));
+    setEditNote(payment.note || "");
+    setEditMethod(payment.payment_method || "เงินสด");
+    setEditBank(payment.transfer_bank || "");
+    setEditCheckNumber(payment.check_number || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPayment || !session?.user?.accessToken) return;
+
+    const amount = parseFloat(editAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("กรุณากรอกจำนวนเงินที่ถูกต้อง");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${baseUrl}/npg/payments/${editingPayment.id}/edit/`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${session.user.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount_paid: amount,
+          note: editNote,
+          payment_method: editMethod,
+          transfer_bank: editMethod === "เงินโอน" ? editBank : "",
+          check_number: editMethod === "เช็ค" ? editCheckNumber : "",
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("แก้ไขรายการชำระเงินสำเร็จ");
+        setEditingPayment(null);
+        fetchAccountDetail();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      console.error("Edit payment error:", error);
+      toast.error("ไม่สามารถแก้ไขรายการได้");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+
     return (
       <div className="flex items-center justify-center h-96">
         <p>กำลังโหลด...</p>
@@ -409,6 +484,54 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
               </p>
             </div>
             <div>
+              <Label>วิธีการชำระ</Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPaymentMethodType(m)}
+                    className={`text-sm py-2 px-3 rounded border transition-colors ${
+                      paymentMethodType === m
+                        ? "bg-slate-800 text-white border-slate-800"
+                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+
+              {paymentMethodType === "เงินโอน" && (
+                <div className="flex gap-2 mt-2">
+                  {["KBank", "BBL"].map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setTransferBank(transferBank === b ? "" : b)}
+                      className={`flex-1 text-sm py-2 px-3 rounded border transition-colors ${
+                        transferBank === b
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {paymentMethodType === "เช็ค" && (
+                <Input
+                  type="text"
+                  placeholder="เลขที่เช็ค"
+                  value={checkNumber}
+                  onChange={(e) => setCheckNumber(e.target.value)}
+                  className="mt-2"
+                />
+              )}
+            </div>
+            <div>
               <Label>หมายเหตุ (ถ้ามี)</Label>
               <Textarea
                 placeholder="เช่น ชำระล่าช้า, ชำระล่วงหน้า"
@@ -472,6 +595,95 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Payment Dialog (adm เท่านั้น) */}
+      <Dialog open={!!editingPayment} onOpenChange={(open) => !open && setEditingPayment(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>แก้ไขรายการชำระเงิน</DialogTitle>
+            <DialogDescription>
+              แก้ไขรายการงวดที่ {editingPayment?.installment_number} ของลูกค้า {account.customer_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>จำนวนเงิน (฿)</Label>
+              <Input
+                type="number"
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label>วิธีการชำระ</Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setEditMethod(m)}
+                    className={`text-sm py-2 px-3 rounded border transition-colors ${
+                      editMethod === m
+                        ? "bg-slate-800 text-white border-slate-800"
+                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {editMethod === "เงินโอน" && (
+                <div className="flex gap-2 mt-2">
+                  {["KBank", "BBL"].map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setEditBank(editBank === b ? "" : b)}
+                      className={`flex-1 text-sm py-2 px-3 rounded border transition-colors ${
+                        editBank === b
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {editMethod === "เช็ค" && (
+                <Input
+                  type="text"
+                  placeholder="เลขที่เช็ค"
+                  value={editCheckNumber}
+                  onChange={(e) => setEditCheckNumber(e.target.value)}
+                  className="mt-2"
+                />
+              )}
+            </div>
+
+            <div>
+              <Label>หมายเหตุ</Label>
+              <Textarea
+                value={editNote}
+                onChange={(e) => setEditNote(e.target.value)}
+              />
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
+              ⚠️ การแก้ไขจำนวนเงินจะคำนวณยอดคงเหลือของบัญชีทั้งหมดใหม่ทันที
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPayment(null)} disabled={isSavingEdit}>
+              ยกเลิก
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+              {isSavingEdit ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Payment History */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b">
@@ -487,13 +699,15 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
               <TableHead>งวดที่</TableHead>
               <TableHead className="text-right">จำนวนเงิน</TableHead>
               <TableHead className="text-right">คงเหลือหลังชำระ</TableHead>
+              <TableHead>วิธีชำระ</TableHead>
               <TableHead>หมายเหตุ</TableHead>
+              {isAdmin && <TableHead className="text-center">จัดการ</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {!account.payments || account.payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-gray-500">
                   ยังไม่มีประวัติการชำระเงิน
                 </TableCell>
               </TableRow>
@@ -514,7 +728,19 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   <TableCell className="text-right">
                     {payment.remaining_balance_after.toLocaleString()} ฿
                   </TableCell>
+                  <TableCell className="text-gray-600">
+                    {payment.payment_method || "-"}
+                    {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
+                    {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
+                  </TableCell>
                   <TableCell className="text-gray-600">{payment.note || "-"}</TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-center">
+                      <Button variant="outline" size="sm" onClick={() => openEditDialog(payment)}>
+                        แก้ไข
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
