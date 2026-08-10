@@ -166,48 +166,59 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
         endDate: dateFilter?.to,
       };
 
-      // fetch ตาม date range จาก API เท่านั้น
-      const result = await getFilteredOrders(params);
+      try {
+        // fetch ตาม date range จาก API เท่านั้น
+        const result = await getFilteredOrders(params);
 
-      let filtered = result;
+        // ✅ กัน error เงียบๆ ถ้า result ไม่ใช่ array (เช่น token หมดอายุ, backend error, response ผิดรูปแบบ)
+        if (!Array.isArray(result)) {
+          console.error("❌ getFilteredOrders ไม่คืนค่าเป็น array:", result);
+          return; // ไม่ทับ ordersDisplay เดิม ดีกว่าล้างจนว่างเปล่า
+        }
 
-      // ค้นหาทุก field
-      if (searchTerm) {
-        const q = searchTerm.toLowerCase();
-        filtered = filtered.filter((o) =>
-          o.customer?.toLowerCase().includes(q) ||
-          o.bikes?.[0]?.model_name?.toLowerCase().includes(q) ||
-          o.bikes?.[0]?.model_code?.toLowerCase().includes(q) ||
-          o.bikes?.[0]?.chassi?.toLowerCase().includes(q) ||
-          o.bikes?.[0]?.engine?.toLowerCase().includes(q) ||
-          o.bikes?.[0]?.registration_plate?.toLowerCase().includes(q) ||
-          o.payment_method?.toLowerCase().includes(q)
-        );
-      }
+        let filtered = result;
 
-      if (customerFilter !== "__ALL__") {
-        filtered = filtered.filter((o) => o.customer === customerFilter);
-      }
-
-      if (modelFilter !== "__ALL__") {
-        filtered = filtered.filter(
-          (o) => o.bikes?.[0]?.model_name === modelFilter
-        );
-      }
-
-      if (paymentFilter !== "__ALL__") {
-        if (paymentFilter === "ไฟแนนซ์") {
-          filtered = filtered.filter(
-            (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing" || o.payment_method === "CIMB" || o.payment_method === "World Lease" || o.payment_method === "เงินติดล้อ"
-          );
-        } else {
-          filtered = filtered.filter(
-            (o) => o.payment_method === paymentFilter
+        // ค้นหาทุก field
+        if (searchTerm) {
+          const q = searchTerm.toLowerCase();
+          filtered = filtered.filter((o) =>
+            o.customer?.toLowerCase().includes(q) ||
+            o.bikes?.[0]?.model_name?.toLowerCase().includes(q) ||
+            o.bikes?.[0]?.model_code?.toLowerCase().includes(q) ||
+            o.bikes?.[0]?.chassi?.toLowerCase().includes(q) ||
+            o.bikes?.[0]?.engine?.toLowerCase().includes(q) ||
+            o.bikes?.[0]?.registration_plate?.toLowerCase().includes(q) ||
+            o.payment_method?.toLowerCase().includes(q)
           );
         }
-      }
 
-      setOrdersDisplay(filtered);
+        if (customerFilter !== "__ALL__") {
+          filtered = filtered.filter((o) => o.customer === customerFilter);
+        }
+
+        if (modelFilter !== "__ALL__") {
+          filtered = filtered.filter(
+            (o) => o.bikes?.[0]?.model_name === modelFilter
+          );
+        }
+
+        if (paymentFilter !== "__ALL__") {
+          if (paymentFilter === "ไฟแนนซ์") {
+            filtered = filtered.filter(
+              (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing" || o.payment_method === "CIMB" || o.payment_method === "World Lease" || o.payment_method === "เงินติดล้อ"
+            );
+          } else {
+            filtered = filtered.filter(
+              (o) => o.payment_method === paymentFilter
+            );
+          }
+        }
+
+        setOrdersDisplay(filtered);
+      } catch (err) {
+        // ✅ log ให้เห็นชัดเจนแทนที่จะเงียบหาย
+        console.error("❌ เกิดข้อผิดพลาดตอนค้นหา/กรองรายการขาย:", err);
+      }
     };
 
     run();
