@@ -125,6 +125,7 @@ function FilterSelect({
 
 const OrdersView = ({ orders }: OrdersViewProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [ordersDisplay, setOrdersDisplay] = useState<IOrder[]>(orders);
 
   const [customerFilter, setCustomerFilter] = useState<string>("__ALL__");
@@ -159,7 +160,15 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
     { value: "NPG", label: "NPG" },
   ];
 
+  // ✅ หน่วงเวลา 300ms ก่อนใช้คำค้นหาจริง (debounce) - พิมพ์ในกล่องยังลื่นเหมือนเดิม
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let cancelled = false; // ✅ กัน response เก่า (ที่มาช้า) มาทับผลลัพธ์ใหม่กว่า
+
     const run = async () => {
       const params = {
         startDate: dateFilter?.from,
@@ -170,17 +179,19 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
         // fetch ตาม date range จาก API เท่านั้น
         const result = await getFilteredOrders(params);
 
+        if (cancelled) return; // ✅ effect นี้ถูกแทนที่ไปแล้ว (มีการพิมพ์/เปลี่ยนตัวกรองต่อ) ทิ้งผลนี้
+
         // ✅ กัน error เงียบๆ ถ้า result ไม่ใช่ array (เช่น token หมดอายุ, backend error, response ผิดรูปแบบ)
         if (!Array.isArray(result)) {
           console.error("❌ getFilteredOrders ไม่คืนค่าเป็น array:", result);
-          return; // ไม่ทับ ordersDisplay เดิม ดีกว่าล้างจนว่างเปล่า
+          return;
         }
 
         let filtered = result;
 
         // ค้นหาทุก field
-        if (searchTerm) {
-          const q = searchTerm.toLowerCase();
+        if (debouncedSearchTerm) {
+          const q = debouncedSearchTerm.toLowerCase();
           filtered = filtered.filter((o) =>
             o.customer?.toLowerCase().includes(q) ||
             o.bikes?.[0]?.model_name?.toLowerCase().includes(q) ||
@@ -216,16 +227,22 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
 
         setOrdersDisplay(filtered);
       } catch (err) {
-        // ✅ log ให้เห็นชัดเจนแทนที่จะเงียบหาย
-        console.error("❌ เกิดข้อผิดพลาดตอนค้นหา/กรองรายการขาย:", err);
+        if (!cancelled) {
+          console.error("❌ เกิดข้อผิดพลาดตอนค้นหา/กรองรายการขาย:", err);
+        }
       }
     };
 
     run();
-  }, [searchTerm, customerFilter, modelFilter, paymentFilter, dateFilter]);
+
+    return () => {
+      cancelled = true; // ✅ effect ถัดไปกำลังจะรัน ยกเลิกอันนี้
+    };
+  }, [debouncedSearchTerm, customerFilter, modelFilter, paymentFilter, dateFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
+    setDebouncedSearchTerm("");
     setCustomerFilter("__ALL__");
     setModelFilter("__ALL__");
     setPaymentFilter("__ALL__");
