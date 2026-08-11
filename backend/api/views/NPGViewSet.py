@@ -387,3 +387,25 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
             'payment': NPGPaymentSerializer(payment).data,
             'account': NPGAccountSerializer(account).data,
         })
+
+    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
+    def delete_payment(self, request, pk=None):
+        """
+        ลบรายการชำระเงินที่บันทึกไปแล้ว (เฉพาะ role adm เท่านั้น)
+        DELETE /npg/payments/{id}/delete_payment/
+        """
+        if not _is_admin(request):
+            return Response({'error': 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบรายการชำระเงินได้'}, status=status.HTTP_403_FORBIDDEN)
+
+        payment = self.get_object()
+        account = payment.account
+        payment.delete()
+
+        # คำนวณยอดบัญชีใหม่ทั้งหมดจากทุก payment ที่เหลืออยู่จริง
+        _recalc_account(account)
+        account.refresh_from_db()
+
+        return Response({
+            'message': 'ลบรายการชำระเงินสำเร็จ',
+            'account': NPGAccountSerializer(account).data,
+        })
