@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import PaymentRowButtons from "./PaymentRowButtons";
+
+interface NPGCustomerDetailProps {
   customerId: string;
 }
 
