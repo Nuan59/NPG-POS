@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";  // ✅ เพิ่มบรรทัดนี้
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -16,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 interface Issue {
@@ -53,43 +53,51 @@ interface Issue {
   reference_id?: string;
 }
 
+type TabKey = "open" | "closed";
+
 const IssuesPage = () => {
   const router = useRouter();
   const { data: session } = useSession();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<TabKey>("open");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
   useEffect(() => {
     fetchIssues();
-  }, [statusFilter, priorityFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchIssues = async () => {
     try {
-      let url = "/api/issues/";
-      const params = [];
-      
-      if (statusFilter !== "all") {
-        params.push(`status=${statusFilter}`);
-      }
-      if (priorityFilter !== "all") {
-        params.push(`priority=${priorityFilter}`);
-      }
-      
-      if (params.length > 0) {
-        url += "?" + params.join("&");
-      }
-
-      const response = await fetch(url);
+      setLoading(true);
+      // ✅ ดึงมาทั้งหมดครั้งเดียว แล้วแยกแท็บ/กรองในเครื่อง (เร็วกว่า ไม่ต้องยิง API ซ้ำตอนสลับแท็บ)
+      const response = await fetch("/api/issues/");
       const data = await response.json();
-      setIssues(data);
+      setIssues(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching issues:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  // ✅ แยกกระทู้ "เปิดอยู่" (open + in_progress) กับ "ปิดแล้ว" (resolved)
+  const openIssues = useMemo(
+    () => issues.filter((i) => i.status !== "resolved"),
+    [issues]
+  );
+  const closedIssues = useMemo(
+    () => issues.filter((i) => i.status === "resolved"),
+    [issues]
+  );
+
+  const baseList = activeTab === "open" ? openIssues : closedIssues;
+
+  const displayedIssues = useMemo(() => {
+    if (priorityFilter === "all") return baseList;
+    return baseList.filter((i) => i.priority === priorityFilter);
+  }, [baseList, priorityFilter]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -153,20 +161,34 @@ const IssuesPage = () => {
         </Link>
       </div>
 
+      {/* ✅ แท็บ เปิดอยู่ / ปิดแล้ว */}
+      <div className="flex gap-2 mb-4 border-b">
+        <button
+          onClick={() => setActiveTab("open")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === "open"
+              ? "border-orange-600 text-orange-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          )}
+        >
+          เปิดอยู่ ({openIssues.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("closed")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === "closed"
+              ? "border-orange-600 text-orange-600"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          )}
+        >
+          ปิดแล้ว ({closedIssues.length})
+        </button>
+      </div>
+
       {/* Filters */}
       <div className="flex gap-4 mb-6">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="กรองตามสถานะ" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">ทั้งหมด</SelectItem>
-            <SelectItem value="open">เปิด</SelectItem>
-            <SelectItem value="in_progress">กำลังดำเนินการ</SelectItem>
-            <SelectItem value="resolved">แก้ไขแล้ว</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="กรองตามความสำคัญ" />
@@ -182,19 +204,22 @@ const IssuesPage = () => {
       </div>
 
       {/* Issues List */}
-      <ScrollArea className="h-[calc(100vh-300px)]">
+      <ScrollArea className="h-[calc(100vh-360px)]">
         <div className="space-y-4">
-          {issues.length === 0 ? (
+          {displayedIssues.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
-                ไม่พบกระทู้/ปัญหา
+                {activeTab === "open" ? "ไม่มีกระทู้ที่เปิดอยู่" : "ไม่มีกระทู้ที่ปิดแล้ว"}
               </CardContent>
             </Card>
           ) : (
-            issues.map((issue) => (
+            displayedIssues.map((issue) => (
               <Card
                 key={issue.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer"
+                className={cn(
+                  "hover:shadow-lg transition-shadow cursor-pointer",
+                  activeTab === "closed" && "opacity-80"
+                )}
                 onClick={() => handleCardClick(issue.id)}
               >
                 <CardHeader>
@@ -224,8 +249,8 @@ const IssuesPage = () => {
                   <p className="text-gray-700 mb-4 line-clamp-2">
                     {issue.description}
                   </p>
-                  
-                  <div className="flex gap-4 text-sm text-gray-600">
+
+                  <div className="flex gap-4 text-sm text-gray-600 flex-wrap">
                     {issue.customer_name && (
                       <div>
                         <span className="font-semibold">ลูกค้า:</span> {issue.customer_name}
@@ -246,6 +271,7 @@ const IssuesPage = () => {
                       <div>
                         <span className="font-semibold">แก้ไขโดย:</span>{" "}
                         {issue.resolved_by.first_name || issue.resolved_by.username}
+                        {issue.resolved_at && ` (${formatDate(issue.resolved_at)})`}
                       </div>
                     )}
                   </div>
