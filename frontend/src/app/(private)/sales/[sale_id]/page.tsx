@@ -104,6 +104,12 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
   const FINANCE_PROVIDERS = ["Cathay", "ทรัพย์สยาม", "NPG", "Summit", "S Leasing", "CIMB", "World Lease", "เงินติดล้อ"];
   const isFinance = FINANCE_PROVIDERS.includes(order.payment_method);
 
+  // ✅ label ดอกเบี้ย - ถ้าเป็น NPG ใช้ npg_period จริง (รายเดือน/รายปี) ผู้ให้บริการอื่นยังคงเป็นรายเดือนตามเดิม
+  const interestPeriodLabel =
+    order.payment_method === "NPG" && order.npg_period
+      ? order.npg_period
+      : "รายเดือน";
+
   // ✅ คำนวณยอดชำระรวมทั้งหมด
   let calculatedTotal = 0;
   
@@ -235,6 +241,7 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
                     <TableCell className="font-medium">เงื่อนไขการชำระ</TableCell>
                     <TableCell className="font-medium text-right">
                       {order.payment_method}
+                      {order.payment_method === "NPG" && order.npg_period ? ` (${order.npg_period})` : ""}
                     </TableCell>
                   </TableRow>
 
@@ -281,10 +288,10 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
                         </TableCell>
                       </TableRow>
 
-                      {/* ดอกเบี้ย (รายเดือน) */}
+                      {/* ดอกเบี้ย (รายเดือน/รายปี ตามจริง) */}
                       {interestRate > 0 && (
                         <TableRow>
-                          <TableCell className="font-medium">ดอกเบี้ย (รายเดือน)</TableCell>
+                          <TableCell className="font-medium">ดอกเบี้ย ({interestPeriodLabel})</TableCell>
                           <TableCell className="font-medium text-right">
                             {interestRate}%
                           </TableCell>
