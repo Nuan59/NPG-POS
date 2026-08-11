@@ -32,6 +32,35 @@ class BikeViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def retrieve(self, request, *args, **kwargs):
+        """
+        ดูสินค้าชิ้นเดียว - ถ้าขายแล้ว แนบข้อมูลการขายเบื้องต้น (sale_info) มาด้วย
+        """
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+
+        if instance.sold:
+            # ✅ bike.order_set มาจาก Order.bikes = ManyToManyField(Bike) ที่ไม่ได้ตั้ง related_name
+            order = (
+                instance.order_set
+                .select_related('customer', 'seller')
+                .order_by('-id')
+                .first()
+            )
+            if order:
+                data['sale_info'] = {
+                    'order_id': order.id,
+                    'customer_name': order.customer.name if order.customer else None,
+                    'customer_phone': order.customer.phone if order.customer else None,
+                    'sale_date': order.sale_date,
+                    'salesperson': order.seller.name if order.seller else None,
+                    'payment_method': order.payment_method,
+                    'total': order.total,
+                }
+
+        return Response(data)
+
     def create(self, request, *args, **kwargs):
         """Override create to handle duplicate chassi gracefully"""
         chassi = request.data.get('chassi') or request.data.get('chassis', '')
