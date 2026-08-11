@@ -27,6 +27,7 @@ export interface IOrder {
   installment_count?: number;  // จำนวนงวด
   installment_amount?: number;  // ค่างวด
   finance_provider?: string;  // บริษัทไฟแนนซ์ (Cathay, ทรัพย์สยาม, NPG)
+  npg_period?: string | null;  // ✅ รายเดือน/รายปี (เฉพาะบัญชี NPG)
   
   commission?: number;
   total?: number;
