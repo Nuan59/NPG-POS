@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { authorizedFetch } from "@/util/AuthorizedFetch";
 import { Button } from "@/components/ui/button";
+import { Receipt } from "lucide-react";
 
 type PageProps = {
   params: { bike_id: string };
@@ -70,7 +71,7 @@ export default async function InventoryViewPage({ params }: PageProps) {
   // ✅ ถ้าเป็นรถมือสอง เพิ่มฟิลด์ทะเบียนและวันหมดอายุ
   if (isPreOwned) {
     rows.push({ label: "ทะเบียนรถ", value: bike.registration_plate || "-" });
-    
+
     if (bike.registration_expiry_date) {
       rows.push({
         label: "วันหมดอายุทะเบียน",
@@ -89,6 +90,18 @@ export default async function InventoryViewPage({ params }: PageProps) {
     { label: "หมายเหตุ", value: bike.notes || "-" },
     { label: "สถานะขาย", value: bike.sold ? "ขายแล้ว" : "ยังไม่ขาย" }
   );
+
+  const saleInfo = bike.sale_info as
+    | {
+        order_id: number;
+        customer_name: string | null;
+        customer_phone: string | null;
+        sale_date: string;
+        salesperson: string | null;
+        payment_method: string | null;
+        total: number | null;
+      }
+    | undefined;
 
   return (
     <div style={{ padding: 24 }}>
@@ -124,6 +137,78 @@ export default async function InventoryViewPage({ params }: PageProps) {
           </tbody>
         </table>
       </div>
+
+      {/* ✅ ข้อมูลการขาย - แสดงเฉพาะสินค้าที่ขายแล้ว */}
+      {bike.sold && (
+        <div
+          style={{
+            marginTop: 16,
+            border: "1px solid #fca5a5",
+            backgroundColor: "#fef2f2",
+            borderRadius: 8,
+            padding: 16,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: "#991b1b" }}>
+              ข้อมูลการขาย
+            </h3>
+            {saleInfo && (
+              <Link href={`/sales/${saleInfo.order_id}`}>
+                <Button size="sm" className="flex items-center gap-2">
+                  <Receipt size={16} />
+                  ดูรายละเอียดการขาย
+                </Button>
+              </Link>
+            )}
+          </div>
+
+          {!saleInfo ? (
+            <p style={{ color: "#7f1d1d", fontSize: 14 }}>
+              สินค้านี้ถูกทำเครื่องหมายว่า "ขายแล้ว" แต่ไม่พบรายการขายที่ผูกอยู่
+            </p>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: "4px 0", fontWeight: 600, width: 160, color: "#7f1d1d" }}>ผู้ซื้อ</td>
+                  <td style={{ padding: "4px 0", color: "#7f1d1d" }}>{saleInfo.customer_name || "-"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "4px 0", fontWeight: 600, color: "#7f1d1d" }}>เบอร์โทร</td>
+                  <td style={{ padding: "4px 0", color: "#7f1d1d" }}>{saleInfo.customer_phone || "-"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "4px 0", fontWeight: 600, color: "#7f1d1d" }}>วันที่ขาย</td>
+                  <td style={{ padding: "4px 0", color: "#7f1d1d" }}>
+                    {saleInfo.sale_date
+                      ? new Date(saleInfo.sale_date).toLocaleDateString("th-TH", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      : "-"}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "4px 0", fontWeight: 600, color: "#7f1d1d" }}>ผู้ขาย</td>
+                  <td style={{ padding: "4px 0", color: "#7f1d1d" }}>{saleInfo.salesperson || "-"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "4px 0", fontWeight: 600, color: "#7f1d1d" }}>วิธีการชำระ</td>
+                  <td style={{ padding: "4px 0", color: "#7f1d1d" }}>{saleInfo.payment_method || "-"}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: "4px 0", fontWeight: 600, color: "#7f1d1d" }}>ยอดสุทธิ</td>
+                  <td style={{ padding: "4px 0", color: "#7f1d1d" }}>
+                    {saleInfo.total ? `${Number(saleInfo.total).toLocaleString()} บาท` : "-"}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }
