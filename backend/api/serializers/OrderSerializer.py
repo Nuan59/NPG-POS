@@ -39,6 +39,13 @@ class OrderSerializer(serializers.ModelSerializer):
     additional_fees = AdditionalFeeSerializer(many=True, read_only=True)
     gifts = OrderGiftSerializer(many=True, read_only=True)
 
+    # ✅ รายเดือน/รายปี ของบัญชี NPG (ถ้ามี) — ดึงจาก NPGAccount ที่ผูกกับ order นี้
+    npg_period = serializers.SerializerMethodField()
+
+    def get_npg_period(self, obj):
+        npg_account = getattr(obj, 'npg_account', None)
+        return npg_account.period_type if npg_account else None
+
     class Meta:
         model = Order
         fields = [
@@ -78,6 +85,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'installment_count',    # จำนวนงวด
             'installment_amount',   # ค่างวด
             'finance_provider',     # บริษัทไฟแนนซ์
+            'npg_period',           # ✅ รายเดือน/รายปี (เฉพาะบัญชี NPG)
             'commission',           # คอมมิชชั่น
             
             # วิธีการชำระเงิน
