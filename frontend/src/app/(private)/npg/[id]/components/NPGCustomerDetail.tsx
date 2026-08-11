@@ -29,11 +29,10 @@ import {
   FileText, 
   CheckCircle, 
   AlertCircle,
-  ArrowLeft 
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
-
-interface NPGCustomerDetailProps {
+import PaymentRowButtons from "./PaymentRowButtons";
   customerId: string;
 }
 
@@ -701,13 +700,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
               <TableHead className="text-right">คงเหลือหลังชำระ</TableHead>
               <TableHead>วิธีชำระ</TableHead>
               <TableHead>หมายเหตุ</TableHead>
-              {isAdmin && <TableHead className="text-center">จัดการ</TableHead>}
+              <TableHead className="text-center">จัดการ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {!account.payments || account.payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                   ยังไม่มีประวัติการชำระเงิน
                 </TableCell>
               </TableRow>
@@ -734,13 +733,15 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                     {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
                   </TableCell>
                   <TableCell className="text-gray-600">{payment.note || "-"}</TableCell>
-                  {isAdmin && (
-                    <TableCell className="text-center">
-                      <Button variant="outline" size="sm" onClick={() => openEditDialog(payment)}>
-                        แก้ไข
-                      </Button>
-                    </TableCell>
-                  )}
+                  <TableCell className="text-center">
+                    <PaymentRowButtons
+                      payment={payment}
+                      accountId={customerId}
+                      isAdmin={isAdmin}
+                      onEdit={openEditDialog}
+                      onDeleted={fetchAccountDetail}
+                    />
+                  </TableCell>
                 </TableRow>
               ))
             )}
