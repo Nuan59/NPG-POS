@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import { DataTable } from "@/components/ui/data-table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -26,7 +26,6 @@ import {
 import { cn } from "@/lib/utils";
 import { IOrder } from "@/types/Order";
 import { OrderColumns } from "../components/OrderColumns";
-import { getFilteredOrders } from "@/services/OrderService";
 
 import { Check, ChevronsUpDown, X } from "lucide-react";
 import { DateRangePicker } from "@/components/global/DateRangePicker";
@@ -125,8 +124,6 @@ function FilterSelect({
 
 const OrdersView = ({ orders }: OrdersViewProps) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-  const [ordersDisplay, setOrdersDisplay] = useState<IOrder[]>(orders);
 
   const [customerFilter, setCustomerFilter] = useState<string>("__ALL__");
   const [modelFilter, setModelFilter] = useState<string>("__ALL__");
@@ -160,89 +157,73 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
     { value: "NPG", label: "NPG" },
   ];
 
-  // ✅ หน่วงเวลา 300ms ก่อนใช้คำค้นหาจริง (debounce) - พิมพ์ในกล่องยังลื่นเหมือนเดิม
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
-    return () => clearTimeout(t);
-  }, [searchTerm]);
+  // ✅ กรองทั้งหมดในเครื่อง (client-side) — ไม่ยิง API ซ้ำทุกครั้งที่พิมพ์/เปลี่ยนตัวกรองแล้ว
+  // ข้อมูล orders ทั้งหมดถูกโหลดมาครั้งเดียวจาก page.tsx (เหมือนหน้าสินค้า) เร็วกว่าเดิมมาก
+  const ordersDisplay = useMemo(() => {
+    let filtered = orders;
 
-  useEffect(() => {
-    let cancelled = false; // ✅ กัน response เก่า (ที่มาช้า) มาทับผลลัพธ์ใหม่กว่า
+    // ค้นหาทุก field
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      filtered = filtered.filter((o) =>
+        o.customer?.toLowerCase().includes(q) ||
+        o.bikes?.[0]?.model_name?.toLowerCase().includes(q) ||
+        o.bikes?.[0]?.model_code?.toLowerCase().includes(q) ||
+        o.bikes?.[0]?.chassi?.toLowerCase().includes(q) ||
+        o.bikes?.[0]?.engine?.toLowerCase().includes(q) ||
+        o.bikes?.[0]?.registration_plate?.toLowerCase().includes(q) ||
+        o.payment_method?.toLowerCase().includes(q)
+      );
+    }
 
-    const run = async () => {
-      const params = {
-        startDate: dateFilter?.from,
-        endDate: dateFilter?.to,
-      };
+    if (customerFilter !== "__ALL__") {
+      filtered = filtered.filter((o) => o.customer === customerFilter);
+    }
 
-      try {
-        // fetch ตาม date range จาก API เท่านั้น
-        const result = await getFilteredOrders(params);
+    if (modelFilter !== "__ALL__") {
+      filtered = filtered.filter(
+        (o) => o.bikes?.[0]?.model_name === modelFilter
+      );
+    }
 
-        if (cancelled) return; // ✅ effect นี้ถูกแทนที่ไปแล้ว (มีการพิมพ์/เปลี่ยนตัวกรองต่อ) ทิ้งผลนี้
-
-        // ✅ กัน error เงียบๆ ถ้า result ไม่ใช่ array (เช่น token หมดอายุ, backend error, response ผิดรูปแบบ)
-        if (!Array.isArray(result)) {
-          console.error("❌ getFilteredOrders ไม่คืนค่าเป็น array:", result);
-          return;
-        }
-
-        let filtered = result;
-
-        // ค้นหาทุก field
-        if (debouncedSearchTerm) {
-          const q = debouncedSearchTerm.toLowerCase();
-          filtered = filtered.filter((o) =>
-            o.customer?.toLowerCase().includes(q) ||
-            o.bikes?.[0]?.model_name?.toLowerCase().includes(q) ||
-            o.bikes?.[0]?.model_code?.toLowerCase().includes(q) ||
-            o.bikes?.[0]?.chassi?.toLowerCase().includes(q) ||
-            o.bikes?.[0]?.engine?.toLowerCase().includes(q) ||
-            o.bikes?.[0]?.registration_plate?.toLowerCase().includes(q) ||
-            o.payment_method?.toLowerCase().includes(q)
-          );
-        }
-
-        if (customerFilter !== "__ALL__") {
-          filtered = filtered.filter((o) => o.customer === customerFilter);
-        }
-
-        if (modelFilter !== "__ALL__") {
-          filtered = filtered.filter(
-            (o) => o.bikes?.[0]?.model_name === modelFilter
-          );
-        }
-
-        if (paymentFilter !== "__ALL__") {
-          if (paymentFilter === "ไฟแนนซ์") {
-            filtered = filtered.filter(
-              (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing" || o.payment_method === "CIMB" || o.payment_method === "World Lease" || o.payment_method === "เงินติดล้อ"
-            );
-          } else {
-            filtered = filtered.filter(
-              (o) => o.payment_method === paymentFilter
-            );
-          }
-        }
-
-        setOrdersDisplay(filtered);
-      } catch (err) {
-        if (!cancelled) {
-          console.error("❌ เกิดข้อผิดพลาดตอนค้นหา/กรองรายการขาย:", err);
-        }
+    if (paymentFilter !== "__ALL__") {
+      if (paymentFilter === "ไฟแนนซ์") {
+        filtered = filtered.filter(
+          (o) => o.payment_method === "Cathay" || o.payment_method === "ทรัพย์สยาม" || o.payment_method === "NPG" || o.payment_method === "Summit" || o.payment_method === "S Leasing" || o.payment_method === "CIMB" || o.payment_method === "World Lease" || o.payment_method === "เงินติดล้อ"
+        );
+      } else {
+        filtered = filtered.filter(
+          (o) => o.payment_method === paymentFilter
+        );
       }
-    };
+    }
 
-    run();
+    // ✅ กรองช่วงวันที่ในเครื่องด้วย (เดิมให้ backend กรอง ตอนนี้กรองเองจาก orders ที่โหลดมาแล้ว)
+    if (dateFilter?.from || dateFilter?.to) {
+      filtered = filtered.filter((o) => {
+        if (!o.sale_date) return false;
+        const saleDate = new Date(o.sale_date);
+        saleDate.setHours(0, 0, 0, 0);
 
-    return () => {
-      cancelled = true; // ✅ effect ถัดไปกำลังจะรัน ยกเลิกอันนี้
-    };
-  }, [debouncedSearchTerm, customerFilter, modelFilter, paymentFilter, dateFilter]);
+        if (dateFilter.from) {
+          const from = new Date(dateFilter.from);
+          from.setHours(0, 0, 0, 0);
+          if (saleDate < from) return false;
+        }
+        if (dateFilter.to) {
+          const to = new Date(dateFilter.to);
+          to.setHours(23, 59, 59, 999);
+          if (saleDate > to) return false;
+        }
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [orders, searchTerm, customerFilter, modelFilter, paymentFilter, dateFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
-    setDebouncedSearchTerm("");
     setCustomerFilter("__ALL__");
     setModelFilter("__ALL__");
     setPaymentFilter("__ALL__");
