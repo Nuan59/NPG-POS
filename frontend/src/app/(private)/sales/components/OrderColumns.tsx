@@ -36,7 +36,6 @@ export const OrderColumns: ColumnDef<IOrder>[] = [
 		header: "วิธีการชำระเงิน",
 		cell: ({ row }) => {
 			const method = row.original.payment_method;
-			const npgPeriod = row.original.npg_period;
 
 			// ✅ สีตามโลโก้แต่ละบริษัท
 			const colorClass = 
@@ -54,7 +53,6 @@ export const OrderColumns: ColumnDef<IOrder>[] = [
 			return (
 				<span className={`px-2 py-1 rounded text-xs font-semibold ${colorClass}`}>
 					{method ?? "-"}
-					{method === "NPG" && npgPeriod ? ` (${npgPeriod})` : ""}
 				</span>
 			);
 		},
