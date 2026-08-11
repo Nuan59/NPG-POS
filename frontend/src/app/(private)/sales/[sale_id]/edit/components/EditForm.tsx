@@ -59,6 +59,11 @@ const EditForm = ({ order }: EditFormProps) => {
 
 	const detectNpgPeriod = (): string => {
 		if (order.payment_method !== "NPG") return "";
+		// ✅ ใช้ค่าจริงจาก backend (NPGAccount.period_type) ก่อนเสมอ
+		if (order.npg_period === "รายปี" || order.npg_period === "รายเดือน") {
+			return order.npg_period;
+		}
+		// fallback: เดาจากจำนวนงวด เฉพาะกรณีไม่มีข้อมูลจริงส่งมา (ออเดอร์เก่ามากๆ)
 		if (order.installment_count && order.installment_count <= 10) return "รายปี";
 		return "รายเดือน";
 	};
