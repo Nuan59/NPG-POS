@@ -186,8 +186,8 @@ class NPGAccount(models.Model):
         # ดอกเบี้ยที่เหลือ = หนี้คงเหลือ - ต้นเงินที่เหลือ
         remaining_interest = float(self.remaining_balance) - remaining_principal
         
-        # ส่วนลด = ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ
-        discount = interest_per_month * remaining_months
+        # ส่วนลด = (ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ) / 2
+        discount = (interest_per_month * remaining_months) / 2
         
         # ยอดปิดบัญชี = หนี้คงเหลือ - ส่วนลด
         close_amount = float(self.remaining_balance) - discount
