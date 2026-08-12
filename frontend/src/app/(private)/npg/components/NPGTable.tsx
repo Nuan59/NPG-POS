@@ -25,6 +25,8 @@ interface NPGTableProps {
   periodFilter: string;
   onPeriodFilterChange: (value: string) => void;
   onRefresh: () => void;
+  hideStatusFilter?: boolean; // ✅ ซ่อน dropdown สถานะ (ใช้กับตารางบัญชีที่ปิดแล้วซึ่ง status ตายตัวอยู่แล้ว)
+  title?: string; // ✅ หัวข้อการ์ด (ค่า default: "รายการลูกค้า NPG")
 }
 
 export default function NPGTable({
@@ -36,6 +38,8 @@ export default function NPGTable({
   periodFilter,
   onPeriodFilterChange,
   onRefresh,
+  hideStatusFilter = false,
+  title = "รายการลูกค้า NPG",
 }: NPGTableProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -90,7 +94,7 @@ export default function NPGTable({
     <Card>
       <CardHeader>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <CardTitle>รายการลูกค้า NPG</CardTitle>
+          <CardTitle>{title}</CardTitle>
 
           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
             {/* Search */}
@@ -117,19 +121,20 @@ export default function NPGTable({
               </SelectContent>
             </Select>
 
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-              <SelectTrigger className="w-full md:w-36">
-                <SelectValue placeholder="สถานะ" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="active">กำลังชำระ</SelectItem>
-                <SelectItem value="completed">ชำระครบ</SelectItem>
-                <SelectItem value="closed">ปิดบัญชี</SelectItem>
-                <SelectItem value="overdue">เกินกำหนด</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Status Filter - ซ่อนในตารางบัญชีที่ปิดแล้ว (status ตายตัวอยู่แล้ว) */}
+            {!hideStatusFilter && (
+              <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+                <SelectTrigger className="w-full md:w-36">
+                  <SelectValue placeholder="สถานะ" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทั้งหมด</SelectItem>
+                  <SelectItem value="active">กำลังชำระ</SelectItem>
+                  <SelectItem value="completed">ชำระครบ</SelectItem>
+                  <SelectItem value="overdue">เกินกำหนด</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Refresh Button */}
             <Button

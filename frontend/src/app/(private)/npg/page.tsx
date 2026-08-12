@@ -7,6 +7,7 @@ import NPGSummary from "./components/NPGSummary";
 import NPGTable from "./components/NPGTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronUp, Archive } from "lucide-react";
 
 export interface NPGAccount {
   id: number;
@@ -59,6 +60,7 @@ export default function NPGPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [showClosed, setShowClosed] = useState<boolean>(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -137,19 +139,32 @@ export default function NPGPage() {
     }
   };
 
-  const filteredAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
+  // ✅ filter ร่วม (search + period) ใช้กับทั้ง 2 ตาราง
+  const matchesSearchAndPeriod = (account: NPGAccount) => {
     const matchesSearch =
       account.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       account.bike_info?.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       account.bike_info?.brand?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "all" || account.status === statusFilter;
-
     const matchesPeriod =
       periodFilter === "all" || (account.order_npg_period || account.period_type) === periodFilter;
 
-    return matchesSearch && matchesStatus && matchesPeriod;
+    return matchesSearch && matchesPeriod;
+  };
+
+  // ✅ ตารางหลัก - เฉพาะบัญชีที่ยังไม่ปิด (active/completed/overdue) + กรองตาม statusFilter ที่เลือก
+  const filteredAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
+    if (account.status === "closed") return false; // แยกไปตารางปิดบัญชีเสมอ
+
+    const matchesStatus =
+      statusFilter === "all" || account.status === statusFilter;
+
+    return matchesSearchAndPeriod(account) && matchesStatus;
+  }) : [];
+
+  // ✅ ตารางแยก - เฉพาะบัญชีที่ปิดแล้วเท่านั้น (ไม่สนใจ statusFilter เพราะแยกออกมาแล้ว)
+  const closedAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
+    return account.status === "closed" && matchesSearchAndPeriod(account);
   }) : [];
 
   if (status === "loading" || loading) {
@@ -206,6 +221,43 @@ export default function NPGPage() {
         onPeriodFilterChange={setPeriodFilter}
         onRefresh={fetchData}
       />
+
+      {/* ✅ บัญชีที่ปิดแล้ว - แยกออกมาต่างหาก พับเก็บไว้เป็นค่าเริ่มต้น */}
+      {closedAccounts.length > 0 && (
+        <div className="border rounded-lg">
+          <button
+            onClick={() => setShowClosed((v) => !v)}
+            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2 text-gray-700 font-medium">
+              <Archive className="h-4 w-4" />
+              บัญชีที่ปิดแล้ว ({closedAccounts.length})
+            </div>
+            {showClosed ? (
+              <ChevronUp className="h-4 w-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-gray-500" />
+            )}
+          </button>
+
+          {showClosed && (
+            <div className="p-4 pt-0">
+              <NPGTable
+                accounts={closedAccounts}
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                statusFilter="closed"
+                onStatusFilterChange={() => {}}
+                periodFilter={periodFilter}
+                onPeriodFilterChange={setPeriodFilter}
+                onRefresh={fetchData}
+                hideStatusFilter
+                title="บัญชีที่ปิดแล้ว"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
