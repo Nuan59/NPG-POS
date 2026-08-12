@@ -98,6 +98,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [editMethod, setEditMethod] = useState<string>("เงินสด");
   const [editBank, setEditBank] = useState<string>("");
   const [editCheckNumber, setEditCheckNumber] = useState<string>("");
+  const [editPaymentDate, setEditPaymentDate] = useState<string>("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const isAdmin = String(session?.user?.role ?? "").toLowerCase() === "adm";
@@ -252,6 +253,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setEditMethod(payment.payment_method || "เงินสด");
     setEditBank(payment.transfer_bank || "");
     setEditCheckNumber(payment.check_number || "");
+    // ✅ แปลงเป็น yyyy-mm-dd สำหรับ input type="date"
+    setEditPaymentDate(payment.payment_date ? payment.payment_date.slice(0, 10) : "");
   };
 
   const handleSaveEdit = async () => {
@@ -278,6 +281,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           payment_method: editMethod,
           transfer_bank: editMethod === "เงินโอน" ? editBank : "",
           check_number: editMethod === "เช็ค" ? editCheckNumber : "",
+          payment_date: editPaymentDate || undefined,
         }),
       });
 
@@ -607,6 +611,15 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
+              <Label>วันที่ชำระ</Label>
+              <Input
+                type="date"
+                value={editPaymentDate}
+                onChange={(e) => setEditPaymentDate(e.target.value)}
+              />
+            </div>
+
+            <div>
               <Label>จำนวนเงิน (฿)</Label>
               <Input
                 type="number"
@@ -671,7 +684,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             </div>
 
             <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
-              ⚠️ การแก้ไขจำนวนเงินจะคำนวณยอดคงเหลือของบัญชีทั้งหมดใหม่ทันที
+              ⚠️ การแก้ไขจำนวนเงินหรือวันที่ชำระ จะคำนวณยอดคงเหลือและลำดับงวดของบัญชีทั้งหมดใหม่ทันที (เรียงตามวันที่ชำระ)
             </div>
           </div>
           <DialogFooter>
