@@ -49,6 +49,30 @@ class NPGAccountSerializer(serializers.ModelSerializer):
 
     # ประวัติการชำระ
     payments = NPGPaymentSerializer(many=True, read_only=True)
+
+    # ✅ คำนวณยอดคงเหลือ/ยอดชำระแล้ว/งวดที่ชำระ "สดใหม่" ทุกครั้งจากประวัติการชำระจริง
+    # แทนที่จะเชื่อค่าที่บันทึกไว้ในคอลัมน์ (ซึ่งอาจผิดได้ถ้าตอนสร้างบัญชีคำนวณผิด เช่นบั๊ก period_type เดิม)
+    # สูตร: ยอดคงเหลือ = (ค่างวด x จำนวนงวดทั้งหมด) - ผลรวมเงินที่จ่ายจริงตามประวัติ
+    remaining_balance = serializers.SerializerMethodField()
+    total_paid = serializers.SerializerMethodField()
+    paid_count = serializers.SerializerMethodField()
+
+    def _full_total(self, obj):
+        """ยอดหนี้เต็มจำนวนที่ถูกต้อง = ค่างวด (ปัดเศษแล้ว) x จำนวนงวดทั้งหมด"""
+        return float(obj.installment_amount) * obj.installment_count
+
+    def _total_paid_real(self, obj):
+        return sum(float(p.amount_paid) for p in obj.payments.all())
+
+    def get_remaining_balance(self, obj):
+        remaining = self._full_total(obj) - self._total_paid_real(obj)
+        return round(max(remaining, 0), 2)
+
+    def get_total_paid(self, obj):
+        return round(self._total_paid_real(obj), 2)
+
+    def get_paid_count(self, obj):
+        return obj.payments.count()
     
     # ข้อมูลที่คำนวณ
     progress_percentage = serializers.SerializerMethodField()
