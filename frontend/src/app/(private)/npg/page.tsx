@@ -26,6 +26,7 @@ export interface NPGAccount {
   installment_count: number;
   installment_amount: number;
   period_type: "รายเดือน" | "รายปี";
+  order_npg_period?: "รายเดือน" | "รายปี" | null;  // ✅ ค่าจริงจาก Order.npg_period (แม่นกว่า period_type เดิม)
   paid_count: number;
   total_paid: number;
   remaining_balance: number;
@@ -146,7 +147,7 @@ export default function NPGPage() {
       statusFilter === "all" || account.status === statusFilter;
 
     const matchesPeriod =
-      periodFilter === "all" || account.period_type === periodFilter;
+      periodFilter === "all" || (account.order_npg_period || account.period_type) === periodFilter;
 
     return matchesSearch && matchesStatus && matchesPeriod;
   }) : [];

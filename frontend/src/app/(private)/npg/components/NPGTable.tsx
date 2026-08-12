@@ -70,7 +70,9 @@ export default function NPGTable({
     );
   };
 
-  const getPeriodBadge = (period: string) => {
+  const getPeriodBadge = (account: NPGAccount) => {
+    // ✅ ใช้ค่าจริงจาก Order.npg_period ก่อนเสมอถ้ามี (แม่นกว่า) ไม่มีค่อย fallback ไป period_type เดิม
+    const period = account.order_npg_period || account.period_type;
     return (
       <Badge
         className={
@@ -243,7 +245,7 @@ export default function NPGTable({
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      {getPeriodBadge(account.period_type)}
+                      {getPeriodBadge(account)}
                     </td>
                     <td className="p-3 text-center">
                       {getStatusBadge(account.status)}
