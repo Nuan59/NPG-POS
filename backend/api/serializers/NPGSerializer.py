@@ -43,7 +43,10 @@ class NPGAccountSerializer(serializers.ModelSerializer):
     
     # ข้อมูลรถ
     bike_info = serializers.SerializerMethodField()
-    
+
+    # ✅ รอบชำระที่แท้จริงจาก Order.npg_period (แม่นกว่า period_type เดิมที่อาจบันทึกผิดในอดีต)
+    order_npg_period = serializers.CharField(source='order.npg_period', read_only=True, default=None)
+
     # ประวัติการชำระ
     payments = NPGPaymentSerializer(many=True, read_only=True)
     
@@ -70,6 +73,7 @@ class NPGAccountSerializer(serializers.ModelSerializer):
             'installment_count',
             'installment_amount',
             'period_type',
+            'order_npg_period',  # ✅ ค่าจริงจาก Order (ใช้แทน period_type เมื่อมีค่า)
             'paid_count',
             'total_paid',
             'remaining_balance',
