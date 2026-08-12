@@ -113,6 +113,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                     installment_count=installment_count,
                     installment_amount=installment_amount,
                     finance_provider=finance_provider,
+                    # ✅ เก็บรอบชำระเป็นของ Order เอง (ไม่ต้องพึ่ง NPGAccount อีกต่อไป)
+                    npg_period=npg_period if finance_provider == 'NPG' else None,
 
                     # วิธีการชำระเงิน
                     payment_method=payment_method,  # ประเภทการซื้อ
@@ -239,6 +241,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             order_to_edit.installment_count = request.data.get('installment_count', order_to_edit.installment_count)
             order_to_edit.installment_amount = request.data.get('installment_amount', order_to_edit.installment_amount)
             order_to_edit.finance_provider = request.data.get('finance_provider', order_to_edit.finance_provider)
+            # ✅ แก้ไขรอบชำระ NPG (ถ้ามีส่งมา)
+            if 'npgPeriod' in request.data:
+                order_to_edit.npg_period = request.data.get('npgPeriod') or None
+            elif 'npg_period' in request.data:
+                order_to_edit.npg_period = request.data.get('npg_period') or None
 
             # แก้ไขราคารถ
             bike_to_edit = order_to_edit.bikes.all()[0]

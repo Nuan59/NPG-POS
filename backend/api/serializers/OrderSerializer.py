@@ -40,11 +40,15 @@ class OrderSerializer(serializers.ModelSerializer):
     gifts = OrderGiftSerializer(many=True, read_only=True)
 
     # ✅ รายเดือน/รายปี ของบัญชี NPG (ถ้ามี) — ดึงจาก NPGAccount ที่ผูกกับ order นี้
-    npg_period = serializers.SerializerMethodField()
-
+    # ✅ รายเดือน/รายปี ของบัญชี NPG - อ่านจาก field ของ Order เอง (ค่าจริงที่บันทึกตอนสร้าง/แก้ไข)
+    # fallback ไปที่ NPGAccount.period_type เฉพาะออเดอร์เก่าที่ยังไม่มีค่าใน Order.npg_period
     def get_npg_period(self, obj):
+        if obj.npg_period:
+            return obj.npg_period
         npg_account = getattr(obj, 'npg_account', None)
         return npg_account.period_type if npg_account else None
+
+    npg_period = serializers.SerializerMethodField()
 
     class Meta:
         model = Order

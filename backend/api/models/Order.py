@@ -82,6 +82,21 @@ class Order(models.Model):
     installment_amount = models.FloatField(default=0, null=True, blank=True)  # ค่างวด
     finance_provider = models.CharField(max_length=50, null=True, blank=True)  # บริษัทไฟแนนซ์
     commission = models.FloatField(default=0, null=True, blank=True)
+
+    # ✅ รายเดือน/รายปี ของออเดอร์ NPG - เก็บเป็นของ Order เอง ไม่ต้องพึ่ง NPGAccount
+    # (ก่อนหน้านี้ค่านี้อ่านต่อจาก NPGAccount.period_type ผ่าน serializer เท่านั้น
+    #  ทำให้ถ้า NPGAccount ผิดพลาด ค่านี้จะผิดตามไปด้วย - ตอนนี้ Order เก็บของตัวเองแยกต่างหาก)
+    NPG_PERIOD_CHOICES = [
+        ('รายเดือน', 'รายเดือน'),
+        ('รายปี', 'รายปี'),
+    ]
+    npg_period = models.CharField(
+        max_length=20,
+        choices=NPG_PERIOD_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name='รอบชำระ NPG (รายเดือน/รายปี)'
+    )
     
     total = models.FloatField(default=0, null=True)
     
