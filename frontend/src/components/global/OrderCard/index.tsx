@@ -1,49 +1,46 @@
 "use client";
+
 import React, { useContext, useEffect, useMemo, useState } from "react";
-import { Separator } from "../../ui/separator";
-import OrderCustomer from "./components/OrderCustomer";
-import { OrderContext } from "@/context/OrderContext";
+import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import { Plus, ShoppingCart } from "lucide-react";
 import { IBike } from "@/types/Bike";
 import { getBike } from "@/services/InventoryService";
-import OrderBike from "./components/OrderBike";
-import AdditionalFeeDialog from "./components/AdditionalFeeDialog";
-import OrderFee from "./components/OrderFee";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import OrderGiftDialog from "./components/OrderGiftDialog";
-import OrderGift from "./components/OrderGift";
-import { toast } from "sonner";
-import { IOrder } from "@/types/Order";
-import { createOrder } from "@/services/OrderService";
-import { useRouter } from "next/navigation";
+import { OrderContext } from "@/context/OrderContext";
 
-// Import จาก 2 ไฟล์ที่แยกออกมา
+// ✅ shared/ - ใช้ร่วมกันทุกประเภทธุรกรรม
+import OrderCustomer from "./shared/OrderCustomer";
+import OrderBike from "./shared/OrderBike";
+import AdditionalFeeDialog from "./shared/AdditionalFeeDialog";
+import OrderFee from "./shared/OrderFee";
+import OrderGiftDialog from "./shared/OrderGiftDialog";
+import OrderGift from "./shared/OrderGift";
+import TransactionTypeTabs from "./shared/TransactionTypeTabs";
 import {
   FinanceProvider,
   NpgPeriod,
   useFinanceCalculations,
-  numberToInput,
-  toNumber,
-  parseSellPrice,
   calculateTotalAdditionalFees,
   calculateCashTotal,
   calculateTotalPayment,
-} from "./components/Financecalculations";
-
+} from "./shared/Financecalculations";
 import {
   PaymentType,
   TransferBank,
-  FinanceSection,
   PaymentTypeSection,
   OrderSummaryFooter,
-} from "./components/PaymentSection";
+} from "./shared/PaymentSection";
+
+// ✅ sale/ - เฉพาะประเภท "ขาย"
+import SaleOrderForm from "./sale/SaleOrderForm";
+import { useSaleOrderCheckout } from "./sale/useSaleOrderCheckout";
+
+// ✅ service/ - เฉพาะประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
+import ServiceOrderForm from "./service/ServiceOrderForm";
+import ServiceOrderFooter from "./service/ServiceOrderFooter";
+import { useServiceOrderCheckout } from "./service/useServiceOrderCheckout";
+
+import { TransactionType } from "./types";
 
 const OrderCard = () => {
   const {
@@ -64,8 +61,15 @@ const OrderCard = () => {
     removeBikeFromOrder,
   } = useContext(OrderContext);
 
-  const router = useRouter();
   const [bikeDisplay, setBikeDisplay] = useState<IBike | null>(orderBike);
+
+  // ✅ ประเภทธุรกรรม - ขาย / ซ่อม / ต่อภาษี+พรบ / อื่นๆ
+  const [transactionType, setTransactionType] = useState<TransactionType>("ขาย");
+  const [otherTransactionDetail, setOtherTransactionDetail] = useState<string>("");
+
+  // ✅ ฟอร์มแบบง่ายสำหรับ ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่มีไฟแนนซ์)
+  const [serviceAmount, setServiceAmount] = useState<string>("");
+  const [serviceDetail, setServiceDetail] = useState<string>("");
 
   // ขาย = ราคาตั้ง
   const [sellPrice, setSellPrice] = useState<string>("");
@@ -74,19 +78,17 @@ const OrderCard = () => {
   const [deposit, setDeposit] = useState<number>(0);
   const [depositReceiptNo, setDepositReceiptNo] = useState<string>("");
 
-  // วิธีการชำระเงิน
+  // วิธีการชำระเงิน (ใช้ร่วมกันทั้งขาย/ซ่อม/ต่อภาษี+พรบ/อื่นๆ)
   const [paymentType, setPaymentType] = useState<PaymentType>("");
   const [transferBank, setTransferBank] = useState<TransferBank>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
 
-  // Finance controls
+  // Finance controls (เฉพาะ "ขาย")
   const [financeProvider, setFinanceProvider] = useState<FinanceProvider>("");
   const [npgPeriod, setNpgPeriod] = useState<NpgPeriod>("");
 
-  // ใช้ custom hook สำหรับคำนวณไฟแนนซ์
   const {
     financeAmount,
-    setFinanceAmount,
     interest,
     setInterest,
     installmentCount,
@@ -99,21 +101,19 @@ const OrderCard = () => {
     down_payment: down_payment || 0,
     financeProvider,
     npgPeriod,
-    roundingMethod: "standard", // ใช้ปัดเศษมาตรฐานเสมอ
+    roundingMethod: "standard",
   });
 
-  const fetchData = async () => {
-    if (orderBike) {
-      const bike = await getBike(orderBike.id);
-      setBikeDisplay(bike);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      if (orderBike) {
+        const bike = await getBike(orderBike.id);
+        setBikeDisplay(bike);
+      }
+    };
     fetchData();
   }, [orderBike, totalPrice]);
 
-  // คำนวณค่าต่างๆ
   const totalAdditionalFees = useMemo(
     () => calculateTotalAdditionalFees(orderAdditionalFees),
     [orderAdditionalFees]
@@ -129,85 +129,60 @@ const OrderCard = () => {
     [down_payment, totalAdditionalFees, discount, deposit]
   );
 
-  // ✅ ฟังก์ชัน checkout ที่แก้ไขแล้ว
-  const handleOrderCheckout = async () => {
-    if (!orderCustomer) {
-      toast.info("Select customer before checkout");
-      return;
-    }
+  // ✅ logic checkout แยกไฟล์ตามประเภทธุรกรรม (sale/, service/)
+  const { handleOrderCheckout } = useSaleOrderCheckout({
+    orderCustomer,
+    orderBike,
+    orderAdditionalFees,
+    orderGifts,
+    notes,
+    resetOrder,
+    sellPrice,
+    deposit,
+    discount,
+    down_payment,
+    depositReceiptNo,
+    paymentMethod: payment_method,
+    financeProvider,
+    npgPeriod,
+    financeAmount,
+    interest,
+    installmentCount,
+    installmentPerPeriod,
+    paymentType,
+    transferBank,
+    checkNumber,
+    totalPayment,
+    cashTotal,
+  });
 
-    const sell = parseSellPrice(sellPrice);
-    if (sell <= 0) {
-      toast.info("กรุณากรอกราคาขายก่อนชำระเงิน");
-      return;
-    }
-
-    const payload = {
-      customer: orderCustomer.id,
-      bikes: [orderBike],
-      additional_fees: orderAdditionalFees.map((fee) => fee),
-      gifts: orderGifts.map((gift) => gift),
-
-      // ข้อมูลการขาย
-      sale_price: sell,
-      deposit: deposit || 0,
-      discount,
-      down_payment,
-
-      // ข้อมูลไฟแนนซ์
-      finance_amount: payment_method === "ไฟแนนซ์" ? toNumber(financeAmount) : 0,
-      interest_rate: payment_method === "ไฟแนนซ์" ? toNumber(interest) : 0,
-      installment_count: payment_method === "ไฟแนนซ์" ? toNumber(installmentCount) : 0,
-      installment_amount: payment_method === "ไฟแนนซ์" ? toNumber(installmentPerPeriod) : 0,
-      finance_provider:
-        payment_method === "ไฟแนนซ์" && financeProvider ? financeProvider : "",
-
-      // ✅ รายเดือน/รายปี (สำคัญเฉพาะกรณี NPG) - ถ้าไม่ส่ง backend จะไม่รู้และคำนวณดอกเบี้ยผิด
-      npg_period:
-        payment_method === "ไฟแนนซ์" && financeProvider === "NPG" ? npgPeriod : "",
-
-      // ประเภทการซื้อ
-      payment_method:
-        payment_method === "ไฟแนนซ์" && financeProvider
-          ? financeProvider
-          : payment_method,
-
-      // รูปแบบการชำระ
-      payment_type: paymentType,
-      transfer_bank: paymentType === "เงินโอน" ? transferBank : "",
-      check_number: paymentType === "เช็ค" ? checkNumber : "",
-
-      notes: depositReceiptNo
-        ? `DEPOSIT_RECEIPT:${depositReceiptNo}${notes ? `\n${notes}` : ''}`
-        : notes,
-      total: payment_method === "ไฟแนนซ์" ? totalPayment : cashTotal,
-    } as IOrder;
-
-    const checkout = await createOrder(payload);
-    if (checkout.status === "success") {
-      const data = await checkout.data;
-      const orderId = data.data;
-      
-      toast.success("ชำระเงินสำเร็จ!");
-      
-      // Reset order และไปหน้าเลือกเอกสาร
-      resetOrder();
-      router.push(`/sales/${orderId}/documents`);
-    } else {
-      const error = await checkout.data;
-      Object.keys(error).map((key) => {
-        toast.error(`${key}: ${error[key][0]}`);
-      });
-    }
-  };
-
-  const labelCls = "text-sm font-medium min-w-[100px]";
-  const inputCls = "w-40 text-right p-2 text-sm";
+  const { handleServiceCheckout } = useServiceOrderCheckout({
+    orderCustomer,
+    orderBike,
+    orderAdditionalFees,
+    orderGifts,
+    notes,
+    resetOrder,
+    transactionType,
+    otherTransactionDetail,
+    serviceAmount,
+    serviceDetail,
+    paymentType,
+    transferBank,
+    checkNumber,
+  });
 
   return (
     <div className="w-full h-full flex flex-col bg-slate-50 shadow-lg overflow-y-auto">
       <div className="flex-1 overflow-y-auto p-4">
         <h1 className="text-2xl font-extrabold mb-5 text-center">รายการสั่งซื้อ</h1>
+
+        <TransactionTypeTabs
+          value={transactionType}
+          onChange={setTransactionType}
+          otherDetail={otherTransactionDetail}
+          onOtherDetailChange={setOtherTransactionDetail}
+        />
 
         <OrderCustomer />
 
@@ -264,115 +239,47 @@ const OrderCard = () => {
           </AdditionalFeeDialog>
         </div>
 
-        {/* ส่วนของการคำนวณราคา */}
-        {orderBike && bikeDisplay && (
-          <>
-            <Separator className="my-4" />
+        {/* ส่วนของการคำนวณราคา - เฉพาะ "ขาย" (ไม่เปลี่ยนแปลงจากเดิม) */}
+        {transactionType === "ขาย" && orderBike && bikeDisplay && (
+          <SaleOrderForm
+            sellPrice={sellPrice}
+            setSellPrice={setSellPrice}
+            paymentMethod={payment_method}
+            setPaymentMethod={setPayment_method}
+            deposit={deposit}
+            setDeposit={setDeposit}
+            depositReceiptNo={depositReceiptNo}
+            setDepositReceiptNo={setDepositReceiptNo}
+            discount={discount || 0}
+            setDiscount={setDiscount}
+            financeProvider={financeProvider}
+            setFinanceProvider={setFinanceProvider}
+            npgPeriod={npgPeriod}
+            setNpgPeriod={setNpgPeriod}
+            downPayment={down_payment || 0}
+            setDownPayment={setDown_payment}
+            financeAmount={financeAmount}
+            interest={interest}
+            setInterest={setInterest}
+            installmentCount={installmentCount}
+            setInstallmentCount={setInstallmentCount}
+          />
+        )}
 
-            {/* ราคาขาย */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-2">
-                <label className={labelCls}>ขาย</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={sellPrice}
-                  onChange={(e) => setSellPrice(e.target.value)}
-                  className={inputCls}
-                  placeholder="0"
-                />
-              </div>
-
-              {/* ประเภทการซื้อ */}
-              <div className="flex justify-between items-center p-2">
-                <label className={labelCls}>ประเภทการซื้อ</label>
-                <Select value={payment_method} onValueChange={setPayment_method}>
-                  <SelectTrigger className="w-40 text-sm p-2">
-                    {payment_method || "เลือก"}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="เงินสด">เงินสด</SelectItem>
-                    <SelectItem value="ไฟแนนซ์">ไฟแนนซ์</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* ถ้าเลือกเงินสด */}
-              {payment_method === "เงินสด" && (
-                <>
-                  <div className="mt-2 flex justify-between items-center p-2">
-                    <label className={labelCls}>มัดจำ</label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={numberToInput(deposit || 0)}
-                      onChange={(e) =>
-                        setDeposit(
-                          e.target.value.trim() === "" ? 0 : Number(e.target.value)
-                        )
-                      }
-                      className={inputCls}
-                    />
-                  </div>
-
-                  {/* ช่องเลขใบมัดจำ - แสดงเมื่อมัดจำ > 0 */}
-                  {deposit > 0 && (
-                    <div className="mt-1 flex justify-between items-center p-2">
-                      <label className={labelCls}>เลขใบมัดจำ</label>
-                      <Input
-                        type="text"
-                        value={depositReceiptNo}
-                        onChange={(e) => setDepositReceiptNo(e.target.value)}
-                        className={inputCls}
-                        placeholder="MD-XXXX"
-                      />
-                    </div>
-                  )}
-
-                  <div className="mt-2 flex justify-between items-center p-2">
-                    <label className={labelCls}>ส่วนลด</label>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={numberToInput(discount || 0)}
-                      onChange={(e) =>
-                        setDiscount(
-                          e.target.value.trim() === "" ? 0 : Number(e.target.value)
-                        )
-                      }
-                      className={inputCls}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* ถ้าเลือกไฟแนนซ์ */}
-              {payment_method === "ไฟแนนซ์" && (
-                <FinanceSection
-                  financeProvider={financeProvider}
-                  setFinanceProvider={setFinanceProvider}
-                  npgPeriod={npgPeriod}
-                  setNpgPeriod={setNpgPeriod}
-                  deposit={deposit}
-                  setDeposit={setDeposit}
-                  discount={discount || 0}
-                  setDiscount={setDiscount}
-                  down_payment={down_payment || 0}
-                  setDown_payment={setDown_payment}
-                  financeAmount={financeAmount}
-                  interest={interest}
-                  setInterest={setInterest}
-                  installmentCount={installmentCount}
-                  setInstallmentCount={setInstallmentCount}
-                />
-              )}
-            </div>
-          </>
+        {/* ส่วนของการคำนวณราคา - ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่บังคับต้องเลือกรถ) */}
+        {transactionType !== "ขาย" && (
+          <ServiceOrderForm
+            transactionType={transactionType}
+            amount={serviceAmount}
+            setAmount={setServiceAmount}
+            detail={serviceDetail}
+            setDetail={setServiceDetail}
+          />
         )}
       </div>
 
-      {/* Footer สรุปยอด */}
-      {orderBike && (
+      {/* Footer สรุปยอด - "ขาย" (ไม่เปลี่ยนแปลงจากเดิม ต้องเลือกรถก่อน) */}
+      {transactionType === "ขาย" && orderBike && (
         <>
           <PaymentTypeSection
             paymentType={paymentType}
@@ -392,6 +299,20 @@ const OrderCard = () => {
             handleOrderCheckout={handleOrderCheckout}
           />
         </>
+      )}
+
+      {/* Footer สรุปยอด - ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่บังคับต้องเลือกรถ) */}
+      {transactionType !== "ขาย" && (
+        <ServiceOrderFooter
+          amount={serviceAmount}
+          paymentType={paymentType}
+          setPaymentType={setPaymentType}
+          transferBank={transferBank}
+          setTransferBank={setTransferBank}
+          checkNumber={checkNumber}
+          setCheckNumber={setCheckNumber}
+          onSubmit={handleServiceCheckout}
+        />
       )}
     </div>
   );
