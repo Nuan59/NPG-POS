@@ -192,10 +192,16 @@ export default function NPGTable({
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((account) => (
+                {accounts.map((account) => {
+                  const isOverdue = account.status === "overdue";
+                  return (
                   <tr
                     key={account.id}
-                    className="border-b hover:bg-gray-50 transition-colors"
+                    className={`border-b transition-colors ${
+                      isOverdue
+                        ? "bg-red-50 hover:bg-red-100"
+                        : "hover:bg-gray-50"
+                    }`}
                   >
                     <td className="p-3">
                       <span className="text-sm font-mono text-gray-600">
@@ -235,7 +241,7 @@ export default function NPGTable({
                       </span>
                     </td>
                     <td className="p-3 text-right">
-                      <span className="text-orange-600 font-semibold">
+                      <span className={isOverdue ? "text-red-600 font-bold" : "text-orange-600 font-semibold"}>
                         ฿{formatCurrency(account.remaining_balance)}
                       </span>
                     </td>
@@ -264,7 +270,8 @@ export default function NPGTable({
                       </Link>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
