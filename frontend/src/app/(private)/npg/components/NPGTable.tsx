@@ -160,9 +160,6 @@ export default function NPGTable({
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-3 font-semibold text-gray-600">
-                    Order ID
-                  </th>
-                  <th className="text-left p-3 font-semibold text-gray-600">
                     ลูกค้า
                   </th>
                   <th className="text-left p-3 font-semibold text-gray-600">
@@ -179,6 +176,9 @@ export default function NPGTable({
                   </th>
                   <th className="text-center p-3 font-semibold text-gray-600">
                     งวด
+                  </th>
+                  <th className="text-center p-3 font-semibold text-gray-600">
+                    วันครบชำระ
                   </th>
                   <th className="text-center p-3 font-semibold text-gray-600">
                     ประเภท
@@ -203,11 +203,6 @@ export default function NPGTable({
                         : "hover:bg-gray-50"
                     }`}
                   >
-                    <td className="p-3">
-                      <span className="text-sm font-mono text-gray-600">
-                        #{account.order_id}
-                      </span>
-                    </td>
                     <td className="p-3">
                       <div>
                         <div className="font-semibold">
@@ -254,6 +249,11 @@ export default function NPGTable({
                           {account.progress_percentage.toFixed(0)}%
                         </div>
                       </div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className={`text-sm ${isOverdue ? "text-red-600 font-semibold" : "text-gray-700"}`}>
+                        {account.next_payment_date ? formatDate(account.next_payment_date) : "-"}
+                      </span>
                     </td>
                     <td className="p-3 text-center">
                       {getPeriodBadge(account)}
