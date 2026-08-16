@@ -193,7 +193,9 @@ export default function NPGTable({
               </thead>
               <tbody>
                 {accounts.map((account) => {
-                  const isOverdue = account.status === "overdue";
+                  // ✅ ใช้ is_overdue (คำนวณสดจากวันที่จริงฝั่ง backend) แทนการเชื่อ status
+                  // ที่อาจยังไม่ถูกอัปเดตเป็น "overdue" ในฐานข้อมูล
+                  const isOverdue = account.status === "overdue" || account.is_overdue === true;
                   return (
                   <tr
                     key={account.id}
@@ -259,7 +261,7 @@ export default function NPGTable({
                       {getPeriodBadge(account)}
                     </td>
                     <td className="p-3 text-center">
-                      {getStatusBadge(account.status)}
+                      {getStatusBadge(isOverdue ? "overdue" : account.status)}
                     </td>
                     <td className="p-3 text-center">
                       <Link href={`/npg/${account.id}`}>

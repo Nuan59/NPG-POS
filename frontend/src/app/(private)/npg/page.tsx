@@ -156,8 +156,10 @@ export default function NPGPage() {
   const filteredAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
     if (account.status === "closed") return false; // แยกไปตารางปิดบัญชีเสมอ
 
+    const isOverdue = account.status === "overdue" || account.is_overdue === true;
     const matchesStatus =
-      statusFilter === "all" || account.status === statusFilter;
+      statusFilter === "all" ||
+      (statusFilter === "overdue" ? isOverdue : account.status === statusFilter);
 
     return matchesSearchAndPeriod(account) && matchesStatus;
   }) : [];
@@ -209,7 +211,18 @@ export default function NPGPage() {
         </div>
       </div>
 
-      {summary && <NPGSummary summary={summary} userRole={session?.user?.role} />}
+      {summary && (
+        <NPGSummary
+          summary={{
+            ...summary,
+            // ✅ นับจำนวนเกินกำหนดจริงจากรายการบัญชี (is_overdue คำนวณสด) แทนค่าจาก backend ที่อาจยังไม่อัปเดต
+            overdue_accounts: Array.isArray(accounts)
+              ? accounts.filter((a) => a.status === "overdue" || a.is_overdue === true).length
+              : summary.overdue_accounts,
+          }}
+          userRole={session?.user?.role}
+        />
+      )}
 
       <NPGTable
         accounts={filteredAccounts}
