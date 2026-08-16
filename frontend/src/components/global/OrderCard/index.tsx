@@ -39,6 +39,7 @@ import { useSaleOrderCheckout } from "./sale/useSaleOrderCheckout";
 import ServiceOrderForm from "./service/ServiceOrderForm";
 import ServiceOrderFooter from "./service/ServiceOrderFooter";
 import { useServiceOrderCheckout } from "./service/useServiceOrderCheckout";
+import type { ServiceItem } from "./service/ServiceItems";
 
 import { TransactionType } from "./types";
 
@@ -68,7 +69,7 @@ const OrderCard = () => {
   const [otherTransactionDetail, setOtherTransactionDetail] = useState<string>("");
 
   // ✅ ฟอร์มแบบง่ายสำหรับ ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่มีไฟแนนซ์)
-  const [serviceAmount, setServiceAmount] = useState<string>("");
+  const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
   const [serviceDetail, setServiceDetail] = useState<string>("");
 
   // ขาย = ราคาตั้ง
@@ -165,7 +166,7 @@ const OrderCard = () => {
     resetOrder,
     transactionType,
     otherTransactionDetail,
-    serviceAmount,
+    serviceItems,
     serviceDetail,
     paymentType,
     transferBank,
@@ -270,8 +271,8 @@ const OrderCard = () => {
         {transactionType !== "ขาย" && (
           <ServiceOrderForm
             transactionType={transactionType}
-            amount={serviceAmount}
-            setAmount={setServiceAmount}
+            items={serviceItems}
+            setItems={setServiceItems}
             detail={serviceDetail}
             setDetail={setServiceDetail}
           />
@@ -304,7 +305,7 @@ const OrderCard = () => {
       {/* Footer สรุปยอด - ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่บังคับต้องเลือกรถ) */}
       {transactionType !== "ขาย" && (
         <ServiceOrderFooter
-          amount={serviceAmount}
+          items={serviceItems}
           paymentType={paymentType}
           setPaymentType={setPaymentType}
           transferBank={transferBank}

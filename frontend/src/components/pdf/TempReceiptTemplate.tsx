@@ -187,7 +187,8 @@ interface TempReceiptTemplateProps {
   customerName: string;
   customerAddress?: string;
   customerPhone?: string;
-  chassisNumber?: string;
+  modelCode?: string;       // ✅ รุ่นรถ (รหัสโมเดล) - แสดงเป็นรายการแรกในตารางแทนช่องแยก
+  chassisNumber?: string;   // ✅ เลขตัวถัง - แสดงเป็นรายการในตารางแทนช่องแยก
   paymentMethodLabel?: string;
   items: TempReceiptItem[];
   total: number;
@@ -203,12 +204,22 @@ export default function TempReceiptTemplate({
   customerName,
   customerAddress,
   customerPhone,
+  modelCode,
   chassisNumber,
   paymentMethodLabel,
   items,
   total,
 }: TempReceiptTemplateProps) {
-  const rows = [...(items || [])];
+  // ✅ ย้ายรุ่นรถ(รหัสโมเดล)/เลขตัวถัง มาเป็นรายการแรกๆ ในตาราง แทนการโชว์เป็นช่องแยกด้านบน
+  const vehicleInfoRows: TempReceiptItem[] = [];
+  if (modelCode) {
+    vehicleInfoRows.push({ description: `รุ่นรถ (รหัสรุ่น): ${modelCode}`, amount: 0 });
+  }
+  if (chassisNumber) {
+    vehicleInfoRows.push({ description: `เลขตัวถัง: ${chassisNumber}`, amount: 0 });
+  }
+
+  const rows = [...vehicleInfoRows, ...(items || [])];
   while (rows.length < 3) rows.push({ description: "", amount: 0 });
 
   return (
@@ -262,10 +273,6 @@ export default function TempReceiptTemplate({
             <View style={styles.rightInfoRow}>
               <Text style={styles.rightInfoLabel}>วั{ZWJ}นที่{ZWJ}</Text>
               <View style={styles.rightInfoValue}><Text>{date}</Text></View>
-            </View>
-            <View style={styles.rightInfoRow}>
-              <Text style={styles.rightInfoLabel}>เลขตั{ZWJ}วถั{ZWJ}ง</Text>
-              <View style={styles.rightInfoValue}><Text>{sanitizeText(chassisNumber || "-")}</Text></View>
             </View>
             <View style={styles.rightInfoRow}>
               <Text style={styles.rightInfoLabel}>ชำ{ZWJ}าระโดย</Text>

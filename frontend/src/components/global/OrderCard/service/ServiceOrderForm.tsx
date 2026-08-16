@@ -1,29 +1,28 @@
 "use client";
 
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TransactionType } from "../types";
+import ServiceItems, { ServiceItem } from "./ServiceItems";
 
 const labelCls = "text-sm font-medium min-w-[100px]";
-const inputCls = "w-40 text-right p-2 text-sm";
 
 interface ServiceOrderFormProps {
   transactionType: TransactionType;
-  amount: string;
-  setAmount: (value: string) => void;
+  items: ServiceItem[];
+  setItems: (items: ServiceItem[]) => void;
   detail: string;
   setDetail: (value: string) => void;
 }
 
 /**
- * ฟอร์มแบบง่ายสำหรับประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
- * ไม่มีไฟแนนซ์ - แค่ราคา/ค่าใช้จ่าย + รายละเอียดงาน
+ * ฟอร์มสำหรับประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
+ * ไม่มีไฟแนนซ์ - เพิ่มรายการย่อยได้หลายรายการ (คำอธิบาย + ราคา) พร้อมยอดรวมอัตโนมัติ
  */
 const ServiceOrderForm = ({
   transactionType,
-  amount,
-  setAmount,
+  items,
+  setItems,
   detail,
   setDetail,
 }: ServiceOrderFormProps) => {
@@ -31,24 +30,14 @@ const ServiceOrderForm = ({
     <>
       <Separator className="my-4" />
       <div className="space-y-3">
-        <div className="flex justify-between items-center p-2">
-          <label className={labelCls}>ราคา / ค่าใช้จ่าย</label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className={inputCls}
-            placeholder="0"
-          />
-        </div>
+        <ServiceItems items={items} setItems={setItems} />
 
         <div className="p-2">
-          <label className={labelCls}>รายละเอียดงาน</label>
+          <label className={labelCls}>หมายเหตุเพิ่มเติม</label>
           <Textarea
             value={detail}
             onChange={(e) => setDetail(e.target.value)}
-            placeholder={`รายละเอียด${transactionType}...`}
+            placeholder={`หมายเหตุ${transactionType}...`}
             className="mt-1 text-sm"
           />
         </div>

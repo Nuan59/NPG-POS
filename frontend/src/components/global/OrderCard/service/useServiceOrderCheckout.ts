@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { IOrder } from "@/types/Order";
 import { createOrder } from "@/services/OrderService";
-import { parseSellPrice } from "../shared/Financecalculations";
 import { PaymentType, TransferBank } from "../shared/PaymentSection";
 import { TransactionType } from "../types";
+import { ServiceItem, calculateServiceItemsTotal } from "./ServiceItems";
 
 interface UseServiceOrderCheckoutParams {
   orderCustomer: any;
@@ -18,7 +18,7 @@ interface UseServiceOrderCheckoutParams {
 
   transactionType: TransactionType;
   otherTransactionDetail: string;
-  serviceAmount: string;
+  serviceItems: ServiceItem[];
   serviceDetail: string;
 
   paymentType: PaymentType;
@@ -28,7 +28,7 @@ interface UseServiceOrderCheckoutParams {
 
 /**
  * Logic การสร้างออเดอร์ประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
- * (ฟอร์มแบบง่าย ไม่มีไฟแนนซ์ รถเป็นตัวเลือก ไม่บังคับ)
+ * (ฟอร์มแบบง่าย ไม่มีไฟแนนซ์ รถเป็นตัวเลือก ไม่บังคับ รองรับหลายรายการต่อบิล)
  */
 export const useServiceOrderCheckout = ({
   orderCustomer,
@@ -39,7 +39,7 @@ export const useServiceOrderCheckout = ({
   resetOrder,
   transactionType,
   otherTransactionDetail,
-  serviceAmount,
+  serviceItems,
   serviceDetail,
   paymentType,
   transferBank,
@@ -53,9 +53,12 @@ export const useServiceOrderCheckout = ({
       return;
     }
 
-    const amount = parseSellPrice(serviceAmount);
-    if (amount <= 0) {
-      toast.info("กรุณากรอกราคา/ค่าใช้จ่ายก่อนชำระเงิน");
+    const validItems = serviceItems.filter(
+      (item) => item.description.trim() !== "" && item.amount > 0
+    );
+
+    if (validItems.length === 0) {
+      toast.info("กรุณาเพิ่มอย่างน้อย 1 รายการ พร้อมระบุราคา");
       return;
     }
 
@@ -64,6 +67,13 @@ export const useServiceOrderCheckout = ({
       return;
     }
 
+    const total = calculateServiceItemsTotal(validItems);
+
+    // ✅ รวมรายการเป็นข้อความไว้ใน notes ก่อน (ระหว่างรอ backend รองรับตารางรายการจริง)
+    const itemsDescription = validItems
+      .map((item) => `- ${item.description}: ${item.amount.toLocaleString()} บาท`)
+      .join("\n");
+
     const payload = {
       customer: orderCustomer.id,
       // ✅ รถเป็นตัวเลือก ไม่บังคับ สำหรับประเภทนี้
@@ -71,7 +81,7 @@ export const useServiceOrderCheckout = ({
       additional_fees: orderAdditionalFees.map((fee) => fee),
       gifts: orderGifts.map((gift) => gift),
 
-      sale_price: amount,
+      sale_price: total,
       deposit: 0,
       discount: 0,
       down_payment: 0,
@@ -97,8 +107,14 @@ export const useServiceOrderCheckout = ({
       transaction_type_detail:
         transactionType === "อื่นๆ" ? otherTransactionDetail : "",
 
-      notes: serviceDetail || notes,
-      total: amount,
+      // ✅ เตรียมไว้ให้ backend ใช้ทีหลัง (ตอนนี้ backend ยังไม่มีตารางรองรับ จะถูกเพิกเฉย)
+      service_items: validItems.map(({ description, amount }) => ({
+        description,
+        amount,
+      })),
+
+      notes: [serviceDetail, itemsDescription].filter(Boolean).join("\n\n") || notes,
+      total,
     } as IOrder;
 
     const checkout = await createOrder(payload);

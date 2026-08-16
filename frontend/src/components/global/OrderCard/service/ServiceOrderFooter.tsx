@@ -1,10 +1,10 @@
 "use client";
 
 import { PaymentType, TransferBank, PaymentTypeSection } from "../shared/PaymentSection";
-import { parseSellPrice } from "../shared/Financecalculations";
+import { ServiceItem, calculateServiceItemsTotal } from "./ServiceItems";
 
 interface ServiceOrderFooterProps {
-  amount: string;
+  items: ServiceItem[];
 
   paymentType: PaymentType;
   setPaymentType: (value: PaymentType) => void;
@@ -18,10 +18,10 @@ interface ServiceOrderFooterProps {
 
 /**
  * Footer สำหรับประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
- * แสดงยอดรวม + ปุ่ม "บันทึกรายการ" (ไม่มีค่างวด/ไฟแนนซ์เหมือนฟอร์มขาย)
+ * แสดงยอดรวม (คำนวณจากผลรวมของทุกรายการ) + ปุ่ม "บันทึกรายการ"
  */
 const ServiceOrderFooter = ({
-  amount,
+  items,
   paymentType,
   setPaymentType,
   transferBank,
@@ -30,6 +30,8 @@ const ServiceOrderFooter = ({
   setCheckNumber,
   onSubmit,
 }: ServiceOrderFooterProps) => {
+  const total = calculateServiceItemsTotal(items);
+
   return (
     <>
       <PaymentTypeSection
@@ -45,7 +47,7 @@ const ServiceOrderFooter = ({
         <div className="w-full border-slate-700 border-b mt-2"></div>
         <div className="flex justify-between p-2 text-lg">
           <span>ยอดรวม</span>
-          <span>฿ {parseSellPrice(amount).toLocaleString()}</span>
+          <span>฿ {total.toLocaleString()}</span>
         </div>
         <button
           onClick={onSubmit}
