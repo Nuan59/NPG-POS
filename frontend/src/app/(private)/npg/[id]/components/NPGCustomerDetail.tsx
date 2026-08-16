@@ -29,6 +29,7 @@ import {
   FileText, 
   CheckCircle, 
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ interface AccountDetail {
   next_payment_date: string;
   last_payment_date: string | null;
   progress_percentage: number;
+  is_overdue?: boolean; // ✅ คำนวณสดจาก backend (status active + วันครบกำหนดผ่านมาแล้ว)
   payments: Payment[];
 }
 
@@ -319,6 +321,14 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
   const progressPercentage = account.progress_percentage || 0;
 
+  // ✅ ใช้ is_overdue จาก backend ก่อนเสมอ (คำนวณสดจากวันที่จริง) มี fallback เทียบวันที่เองเผื่อ field ไม่มา
+  const isOverdue =
+    account.status === "overdue" ||
+    account.is_overdue === true ||
+    (account.status === "active" &&
+      !!account.next_payment_date &&
+      new Date(account.next_payment_date) < new Date());
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -329,6 +339,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         <h1 className="text-3xl font-bold">
           รายละเอียดบัญชี NPG #{account.id}
         </h1>
+        {isOverdue && (
+          <span className="flex items-center gap-1.5 bg-red-100 text-red-700 text-sm font-semibold px-3 py-1.5 rounded-full">
+            <AlertTriangle className="h-4 w-4" />
+            เกินกำหนดชำระ
+          </span>
+        )}
       </div>
 
       {/* Customer Info */}
@@ -405,8 +421,17 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       </div>
 
       {/* Payment Progress */}
-      <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">สถานะการชำระเงิน</h2>
+      <div
+        className={`text-white p-6 rounded-lg shadow bg-gradient-to-br ${
+          isOverdue
+            ? "from-red-500 to-red-600"
+            : "from-blue-500 to-blue-600"
+        }`}
+      >
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          {isOverdue && <AlertTriangle size={20} />}
+          สถานะการชำระเงิน
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div>
             <p className="text-sm opacity-90">ชำระแล้ว</p>
@@ -423,8 +448,10 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             </p>
           </div>
           <div>
-            <p className="text-sm opacity-90">วันชำระถัดไป</p>
-            <p className="text-lg font-bold">
+            <p className="text-sm opacity-90">
+              {isOverdue ? "วันครบกำหนด (เกินแล้ว)" : "วันชำระถัดไป"}
+            </p>
+            <p className={`text-lg font-bold ${isOverdue ? "text-yellow-200" : ""}`}>
               {new Date(account.next_payment_date).toLocaleDateString("th-TH", {
                 day: "numeric",
                 month: "short",
@@ -435,12 +462,14 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         </div>
         
         {/* Progress Bar */}
-        <div className="w-full bg-blue-400 rounded-full h-4">
+        <div className={`w-full rounded-full h-4 ${isOverdue ? "bg-red-400" : "bg-blue-400"}`}>
           <div
             className="bg-white h-4 rounded-full transition-all duration-300 flex items-center justify-end pr-2"
             style={{ width: `${progressPercentage}%` }}
           >
-            <span className="text-blue-600 text-xs font-bold">{progressPercentage.toFixed(0)}%</span>
+            <span className={`text-xs font-bold ${isOverdue ? "text-red-600" : "text-blue-600"}`}>
+              {progressPercentage.toFixed(0)}%
+            </span>
           </div>
         </div>
       </div>
