@@ -27,21 +27,7 @@ import { IEmployee } from "@/types/IEmployee";
 import { createEmployee, editEmployee } from "@/services/EmployeeService";
 import { getDate } from "@/util/GetDateString";
 import { asOptionalField } from "@/util/ZodOptionalField";
-
-const PERMISSION_LIST = [
-	{ key: "sale",         label: "ขาย" },
-	{ key: "customer",     label: "ลูกค้า" },
-	{ key: "inventory",    label: "สินค้า" },
-	{ key: "storage",      label: "คลัง" },
-	{ key: "gifts",        label: "ของแถม" },
-	{ key: "registration", label: "ทะเบียน" },
-	{ key: "calculator",   label: "คำนวณ" },
-	{ key: "npg",          label: "NPG" },
-	{ key: "cashflow",     label: "รายรับ-รายจ่าย" },
-	{ key: "board",        label: "กระทู้" },
-	{ key: "employees",    label: "พนักงาน" },
-	{ key: "reports",      label: "รายงาน" },
-];
+import { PERMISSION_LIST, defaultPermissions } from "../../components/permissions";
 
 const EditFormSchema = z
 	.object({
@@ -82,21 +68,6 @@ type FormDataType = {
 	repeat_password?: string;
 	role: "adm" | "emp";
 	permissions?: Record<string, boolean>;
-};
-
-const defaultPermissions = {
-	sale: false,
-	customer: false,
-	inventory: false,
-	storage: false,
-	gifts: false,
-	registration: false,
-	calculator: false,
-	npg: false,
-	cashflow: false,
-	board: false,
-	employees: false,
-	reports: false,
 };
 
 const EmployeeForm = ({ employee }: EmployeeFormProps) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,12 +9,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, Trash2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { IEmployee } from "@/types/IEmployee";
 import { Badge } from "@/components/ui/badge";
 import { getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import PermissionsDialog from "./PermissionsDialog";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -42,6 +44,7 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
     cell: ({ row }) => {
       const employee = row.original;
       const router = useRouter();
+      const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
 
       const handleDelete = async () => {
         const ok = window.confirm(
@@ -83,39 +86,59 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
       };
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
 
-          <DropdownMenuContent align="end">
-            <Link href={`/employees/${employee.id}`}>
-              <DropdownMenuItem className="flex justify-between">
-                <Eye className="opacity-60" />
-                ดู
+            <DropdownMenuContent align="end">
+              <Link href={`/employees/${employee.id}`}>
+                <DropdownMenuItem className="flex justify-between">
+                  <Eye className="opacity-60" />
+                  ดู
+                </DropdownMenuItem>
+              </Link>
+
+              <Link href={`/employees/${employee.id}/edit`}>
+                <DropdownMenuItem className="flex justify-between">
+                  <Pencil className="opacity-60" />
+                  แก้ไข
+                </DropdownMenuItem>
+              </Link>
+
+              {/* ✅ กำหนดสิทธิ์แบบด่วน - เฉพาะพนักงาน (ผู้จัดการเข้าได้ทุกหน้าอยู่แล้ว) */}
+              {employee.role !== "adm" && (
+                <DropdownMenuItem
+                  onClick={() => setPermissionsDialogOpen(true)}
+                  className="flex justify-between"
+                >
+                  <ShieldCheck className="opacity-60" />
+                  กำหนดสิทธิ์
+                </DropdownMenuItem>
+              )}
+
+              {/* ✅ ลบ (เฉพาะผู้จัดการ) */}
+              <DropdownMenuItem
+                onClick={handleDelete}
+                className="flex justify-between text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="opacity-60" />
+                ลบ
               </DropdownMenuItem>
-            </Link>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-            <Link href={`/employees/${employee.id}/edit`}>
-              <DropdownMenuItem className="flex justify-between">
-                <Pencil className="opacity-60" />
-                แก้ไข
-              </DropdownMenuItem>
-            </Link>
-
-            {/* ✅ ลบ (เฉพาะผู้จัดการ) */}
-            <DropdownMenuItem
-              onClick={handleDelete}
-              className="flex justify-between text-red-600 focus:text-red-600"
-            >
-              <Trash2 className="opacity-60" />
-              ลบ
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <PermissionsDialog
+            employee={employee}
+            open={permissionsDialogOpen}
+            onOpenChange={setPermissionsDialogOpen}
+            onSaved={() => router.refresh()}
+          />
+        </>
       );
     },
   },
