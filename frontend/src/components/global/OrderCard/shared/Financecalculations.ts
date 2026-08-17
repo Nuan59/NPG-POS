@@ -194,7 +194,9 @@ export const calculateCashTotal = (
 };
 
 /**
- * คำนวณยอดชำระรวม (ไฟแนนซ์) = เงินดาวน์ + ค่าธรรมเนียม - ส่วนลด - มัดจำ
+ * คำนวณยอดชำระรวม (ไฟแนนซ์) = เงินดาวน์ + ค่าธรรมเนียม - มัดจำ
+ * ✅ ไม่หัก discount ซ้ำที่นี่ เพราะส่วนลดถูกหักไปแล้วครั้งเดียวตอนคำนวณ "ยอดจัด"
+ * (เดิมหักซ้ำ 2 ครั้ง ทำให้ยอดชำระรวมน้อยเกินจริงไป = ส่วนลด)
  */
 export const calculateTotalPayment = (
   down_payment: number,
@@ -202,5 +204,5 @@ export const calculateTotalPayment = (
   discount: number,
   deposit: number
 ): number => {
-  return (down_payment || 0) + totalAdditionalFees - (discount || 0) - (deposit || 0);
+  return (down_payment || 0) + totalAdditionalFees - (deposit || 0);
 };
