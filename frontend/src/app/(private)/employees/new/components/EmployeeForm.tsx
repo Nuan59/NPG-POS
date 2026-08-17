@@ -30,11 +30,17 @@ import { asOptionalField } from "@/util/ZodOptionalField";
 
 const PERMISSION_LIST = [
 	{ key: "sale",         label: "ขาย" },
-	{ key: "inventory",    label: "สินค้า/คลัง" },
 	{ key: "customer",     label: "ลูกค้า" },
+	{ key: "inventory",    label: "สินค้า" },
+	{ key: "storage",      label: "คลัง" },
+	{ key: "gifts",        label: "ของแถม" },
 	{ key: "registration", label: "ทะเบียน" },
+	{ key: "calculator",   label: "คำนวณ" },
 	{ key: "npg",          label: "NPG" },
+	{ key: "cashflow",     label: "รายรับ-รายจ่าย" },
 	{ key: "board",        label: "กระทู้" },
+	{ key: "employees",    label: "พนักงาน" },
+	{ key: "reports",      label: "รายงาน" },
 ];
 
 const EditFormSchema = z
@@ -80,11 +86,17 @@ type FormDataType = {
 
 const defaultPermissions = {
 	sale: false,
-	inventory: false,
 	customer: false,
+	inventory: false,
+	storage: false,
+	gifts: false,
 	registration: false,
+	calculator: false,
 	npg: false,
+	cashflow: false,
 	board: false,
+	employees: false,
+	reports: false,
 };
 
 const EmployeeForm = ({ employee }: EmployeeFormProps) => {
@@ -206,7 +218,7 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 						{watchedRole === "emp" && (
 							<div className="mt-4 p-4 border rounded-lg bg-slate-50">
 								<p className="text-sm font-semibold mb-3">สิทธิ์การเข้าถึง</p>
-								<div className="grid grid-cols-2 gap-3">
+								<div className="grid grid-cols-3 gap-3">
 									{PERMISSION_LIST.map((perm) => (
 										<FormField
 											key={perm.key}
