@@ -52,7 +52,7 @@ const LatestSales = ({ sales }: LatestSalesProps) => {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ลูกค้า</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">สินค้า</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">วันที่ขาย</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">ยอดเงิน</th>
+              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ประเภท</th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">ใบเสร็จ</th>
             </tr>
           </thead>
@@ -97,10 +97,27 @@ const LatestSales = ({ sales }: LatestSalesProps) => {
                     {sale.sale_date ? getDate(sale.sale_date) : '-'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
-                  <span className="font-bold text-lg text-orange-600">
-                    ฿{sale.total ? sale.total.toLocaleString() : '0'}
-                  </span>
+                <td className="px-6 py-4 text-center">
+                  {(() => {
+                    const method = sale.payment_method;
+                    const colorClass =
+                      method === "เงินสด" ? "bg-yellow-50 text-black" :
+                      method === "Cathay" ? "bg-green-100 text-green-800" :
+                      method === "ทรัพย์สยาม" ? "bg-blue-100 text-blue-800" :
+                      method === "NPG" ? "bg-orange-500 text-white" :
+                      method === "Summit" ? "bg-purple-100 text-purple-800" :
+                      method === "S Leasing" ? "bg-cyan-100 text-cyan-800" :
+                      method === "CIMB" ? "bg-red-100 text-red-800" :
+                      method === "World Lease" ? "bg-indigo-100 text-indigo-800" :
+                      method === "เงินติดล้อ" ? "bg-lime-100 text-lime-800" :
+                      "bg-gray-100 text-gray-800";
+
+                    return (
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${colorClass}`}>
+                        {method ?? "-"}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="px-6 py-4 text-right">
                   <Link href={`/sales/${sale.id}/receipt`}>
