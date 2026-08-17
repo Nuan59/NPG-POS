@@ -94,18 +94,24 @@ const PermissionsDialog = ({
 				</DialogHeader>
 
 				<div className="grid grid-cols-3 gap-3 py-2">
-					{PERMISSION_LIST.map((perm) => (
-						<label
-							key={perm.key}
-							className="flex items-center gap-2 cursor-pointer"
-						>
-							<Checkbox
-								checked={!!permissions[perm.key]}
-								onCheckedChange={() => togglePermission(perm.key)}
-							/>
-							<span className="text-sm">{perm.label}</span>
-						</label>
-					))}
+					{PERMISSION_LIST.map((perm) => {
+						const isChecked = !!permissions[perm.key];
+						return (
+							<label
+								key={perm.key}
+								className="flex items-center gap-2 cursor-pointer"
+							>
+								<Checkbox
+									checked={isChecked}
+									onCheckedChange={() => togglePermission(perm.key)}
+									className={isChecked ? "border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" : ""}
+								/>
+								<span className={`text-sm ${isChecked ? "text-red-600 font-semibold" : ""}`}>
+									{perm.label}
+								</span>
+							</label>
+						);
+					})}
 				</div>
 
 				<DialogFooter>
