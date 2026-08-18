@@ -99,7 +99,16 @@ const ReceiptPage: React.FC<{
   const deposit = Number(order.deposit || 0);
   const discount = Number(order.discount || 0);
   const afterDeposit = Math.max(0, totalAmount - deposit);
-  const netTotal = Math.max(0, totalAmount - discount);  // รวมเงิน - ส่วนลด เท่านั้น
+
+  // ✅ ยอดเงินสุทธิ - ใช้ order.total เป็นหลักเสมอ (ค่าที่คำนวณถูกต้องไว้แล้วตอน checkout
+  // ผ่านสูตรเดียวกับที่ OrderCard ใช้จริง ไม่ใช่คำนวณซ้ำที่นี่ซึ่งเคยมีบั๊กหักส่วนลดผิดจุด
+  // สำหรับกรณีไฟแนนซ์) มี fallback ไว้เผื่อออเดอร์เก่ามากๆ ที่ order.total อาจว่าง/เป็น 0
+  const netTotalFallback = isFinance
+    ? Math.max(0, afterDeposit) // ไฟแนนซ์: ส่วนลดถูกหักไปแล้วตอนคำนวณยอดจัด ไม่หักซ้ำที่นี่
+    : Math.max(0, afterDeposit - discount); // เงินสด: หักส่วนลดตรงนี้ได้ตามปกติ
+  const netTotal =
+    Number(order.total) > 0 ? Number(order.total) : netTotalFallback;
+
   const totalInWords = numberToThaiText(netTotal);
   const isPayment = (method: string) => isPaymentMethod(method, order);
   
