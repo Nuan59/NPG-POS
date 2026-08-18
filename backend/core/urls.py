@@ -36,6 +36,18 @@ def run_migrate(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: รันแค่ migrate อย่างเดียว (ไม่รัน makemigrations) กันไปกระทบ state ของโมเดลอื่น
+# ใช้จุดนี้แทน run_migrate ปกติ เมื่อ makemigrations ไปสร้าง migration ผิดๆ จากตารางอื่นที่ไม่เกี่ยว
+def run_migrate_only(request):
+    from django.core.management import call_command
+    from io import StringIO
+    out = StringIO()
+    try:
+        call_command('migrate', stdout=out)
+        return JsonResponse({'status': 'ok', 'output': out.getvalue()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: fake migration 0019 แล้ว migrate ต่อ
 def fake_migrate_0019(request):
     from django.core.management import call_command
@@ -111,6 +123,7 @@ urlpatterns = [
 
     # ✅ Temp endpoint
     path('dev/migrate/', run_migrate),
+    path('dev/migrate-only/', run_migrate_only),
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/create-workhours/', create_workhours_table),
