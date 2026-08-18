@@ -392,7 +392,7 @@ const ReceiptPage: React.FC<{
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>ส่วนลด</Text>
-            <Text style={styles.summaryValue}>{fmt(discount)}</Text>
+            <Text style={styles.summaryValue}>{fmt(isFinance ? 0 : discount)}</Text>
           </View>
           <View style={{ borderTop: '1pt solid #000', marginTop: 2, paddingTop: 3 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
