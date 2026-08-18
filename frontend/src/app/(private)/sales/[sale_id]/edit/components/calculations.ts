@@ -1,6 +1,23 @@
 // calculations.ts
 // วางไฟล์นี้ใน: src/app/(private)/sales/[sale_id]/edit/components/
 
+// ✅ รายชื่อไฟแนนซ์ทั้งหมด (ต้องตรงกับ dropdown ที่เลือกได้จริงในระบบ)
+// แก้ที่นี่ที่เดียว ทุกฟังก์ชันในไฟล์นี้ใช้ร่วมกัน กันปัญหาลืมเพิ่มเจ้าใหม่บางจุดแบบที่เคยเกิดมาก่อน
+const FINANCE_PROVIDERS = [
+  "Cathay",
+  "ทรัพย์สยาม",
+  "NPG",
+  "Summit",
+  "S Leasing",
+  "CIMB",
+  "World Lease",
+  "เงินติดล้อ",
+  "ไฟแนนซ์",
+];
+
+const checkIsFinance = (paymentMethod: string): boolean =>
+  FINANCE_PROVIDERS.includes(paymentMethod);
+
 /**
  * แปลงค่าเป็นตัวเลข
  */
@@ -31,18 +48,13 @@ export const calculateTotal = (
     feesTotal += Number(fee.amount || 0);
   });
 
-  const isFinance =
-    paymentMethod === "Cathay" ||
-    paymentMethod === "ทรัพย์สยาม" ||
-    paymentMethod === "NPG" ||
-    paymentMethod === "Summit" ||
-    paymentMethod === "S Leasing" ||
-    paymentMethod === "ไฟแนนซ์";
+  const isFinance = checkIsFinance(paymentMethod);
 
   let calculatedTotal = 0;
 
   if (isFinance) {
-    calculatedTotal = downPayment + feesTotal - deposit - discount;
+    // ✅ ไม่หัก discount ซ้ำ เพราะถูกหักไปแล้วครั้งเดียวตอนคำนวณ "ยอดจัด" (financeAmount)
+    calculatedTotal = downPayment + feesTotal - deposit;
   } else {
     calculatedTotal = salePrice + feesTotal - deposit - discount;
   }
@@ -55,13 +67,7 @@ export const calculateTotal = (
  */
 export const calculateFinanceAmount = (getValues: any, setValue: any) => {
   const paymentMethod = getValues("paymentMethod");
-  const isFinance =
-    paymentMethod === "Cathay" ||
-    paymentMethod === "ทรัพย์สยาม" ||
-    paymentMethod === "NPG" ||
-    paymentMethod === "Summit" ||
-    paymentMethod === "S Leasing" ||
-    paymentMethod === "ไฟแนนซ์";
+  const isFinance = checkIsFinance(paymentMethod);
 
   if (!isFinance) return;
 
@@ -81,13 +87,7 @@ export const calculateFinanceAmount = (getValues: any, setValue: any) => {
  */
 export const calculateInstallmentAmount = (getValues: any, setValue: any) => {
   const paymentMethod = getValues("paymentMethod");
-  const isFinance =
-    paymentMethod === "Cathay" ||
-    paymentMethod === "ทรัพย์สยาม" ||
-    paymentMethod === "NPG" ||
-    paymentMethod === "Summit" ||
-    paymentMethod === "S Leasing" ||
-    paymentMethod === "ไฟแนนซ์";
+  const isFinance = checkIsFinance(paymentMethod);
 
   if (!isFinance) return;
 
@@ -120,12 +120,5 @@ export const calculateInstallmentAmount = (getValues: any, setValue: any) => {
  * ตรวจสอบว่าเป็นไฟแนนซ์หรือไม่
  */
 export const isFinanceMethod = (paymentMethod: string): boolean => {
-  return (
-    paymentMethod === "Cathay" ||
-    paymentMethod === "ทรัพย์สยาม" ||
-    paymentMethod === "NPG" ||
-    paymentMethod === "Summit" ||
-    paymentMethod === "S Leasing" ||
-    paymentMethod === "ไฟแนนซ์"
-  );
+  return checkIsFinance(paymentMethod);
 };
