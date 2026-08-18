@@ -100,14 +100,12 @@ const ReceiptPage: React.FC<{
   const discount = Number(order.discount || 0);
   const afterDeposit = Math.max(0, totalAmount - deposit);
 
-  // ✅ ยอดเงินสุทธิ - ใช้ order.total เป็นหลักเสมอ (ค่าที่คำนวณถูกต้องไว้แล้วตอน checkout
-  // ผ่านสูตรเดียวกับที่ OrderCard ใช้จริง ไม่ใช่คำนวณซ้ำที่นี่ซึ่งเคยมีบั๊กหักส่วนลดผิดจุด
-  // สำหรับกรณีไฟแนนซ์) มี fallback ไว้เผื่อออเดอร์เก่ามากๆ ที่ order.total อาจว่าง/เป็น 0
-  const netTotalFallback = isFinance
+  // ✅ ยอดเงินสุทธิ - คำนวณสดทุกครั้งจากฟิลด์ดิบ (ไม่พึ่ง order.total ที่บันทึกไว้
+  // เพราะออเดอร์เก่าที่สร้างก่อนแก้บั๊กหักส่วนลดซ้ำ จะมีค่า order.total ผิดค้างอยู่ถาวร
+  // สูตรนี้ตรงกับหน้ารายละเอียดออเดอร์ (sales/[sale_id]/page.tsx) ที่คำนวณสดเช่นกัน)
+  const netTotal = isFinance
     ? Math.max(0, afterDeposit) // ไฟแนนซ์: ส่วนลดถูกหักไปแล้วตอนคำนวณยอดจัด ไม่หักซ้ำที่นี่
     : Math.max(0, afterDeposit - discount); // เงินสด: หักส่วนลดตรงนี้ได้ตามปกติ
-  const netTotal =
-    Number(order.total) > 0 ? Number(order.total) : netTotalFallback;
 
   const totalInWords = numberToThaiText(netTotal);
   const isPayment = (method: string) => isPaymentMethod(method, order);
@@ -163,7 +161,7 @@ const ReceiptPage: React.FC<{
         <View style={styles.leftInfo}>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>นามลูกค้า</Text>
-            <View style={styles.infoValue}><Text>{customerName}</Text></View>
+            <View style={styles.infoValue}><Text>{sanitizeText(customerName)}{ZWJ}</Text></View>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>ที่อยู่</Text>
