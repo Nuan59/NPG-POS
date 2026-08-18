@@ -6,7 +6,7 @@ import BirthdayNotification from "@/components/BirthdayNotification";
 import NPGNotification from "@/components/Npgnotification";
 import RegistrationExpiryNotification from '@/components/Registrationexpirynotification';
 import { useState } from "react";
-import { useEmployeePermissions } from "@/hooks/useEmployeePermissions";
+import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
 import { getRequiredPermission } from "@/util/RoutePermissions";
 
 export const Navbar = () => {

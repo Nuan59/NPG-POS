@@ -16,7 +16,7 @@ import {
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import React from "react";
-import { useEmployeePermissions } from "@/hooks/useEmployeePermissions";
+import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
 import { getRequiredPermission } from "@/util/RoutePermissions";
 
 const menuPages = [
