@@ -46,6 +46,8 @@ const PermissionsDialog = ({
 				name: employee.name,
 				username: employee.username,
 				role: employee.role,
+				password: "",
+				repeat_password: "",
 				permissions,
 			} as any);
 
