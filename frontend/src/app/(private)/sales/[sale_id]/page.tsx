@@ -112,10 +112,11 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
 
   // ✅ คำนวณยอดชำระรวมทั้งหมด
   let calculatedTotal = 0;
-  
+
   if (isFinance) {
-    // กรณีไฟแนนซ์: เงินดาวน์ + ค่าใช้จ่ายเพิ่มเติม - มัดจำ - ส่วนลด
-    calculatedTotal = downPayment + additionalFeesTotal - deposit - discount;
+    // ✅ กรณีไฟแนนซ์: เงินดาวน์ + ค่าใช้จ่ายเพิ่มเติม - มัดจำ (ไม่หัก discount ซ้ำ
+    // เพราะส่วนลดถูกหักไปแล้วครั้งเดียวตอนคำนวณ "ยอดจัด" ที่ backend/OrderCard)
+    calculatedTotal = downPayment + additionalFeesTotal - deposit;
   } else {
     // กรณีเงินสด: ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติม - มัดจำ - ส่วนลด
     calculatedTotal = salePrice + additionalFeesTotal - deposit - discount;
@@ -261,11 +262,13 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
                     </TableCell>
                   </TableRow>
 
-                  {/* ส่วนลด */}
+                  {/* ส่วนลด - โชว์ 0 ถ้าเป็นไฟแนนซ์ เพราะถูกหักที่ยอดจัดไปแล้ว ไม่ได้หักตรงนี้ */}
                   <TableRow>
                     <TableCell className="font-medium">ส่วนลด</TableCell>
                     <TableCell className="font-medium text-right">
-                      {discount.toLocaleString()} บาท
+                      {isFinance
+                        ? "0 บาท (หักที่ยอดจัดแล้ว)"
+                        : `${discount.toLocaleString()} บาท`}
                     </TableCell>
                   </TableRow>
 
