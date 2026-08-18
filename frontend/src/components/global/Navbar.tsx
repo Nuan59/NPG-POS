@@ -6,11 +6,14 @@ import BirthdayNotification from "@/components/BirthdayNotification";
 import NPGNotification from "@/components/Npgnotification";
 import RegistrationExpiryNotification from '@/components/Registrationexpirynotification';
 import { useState } from "react";
+import { useEmployeePermissions } from "@/hooks/useEmployeePermissions";
+import { getRequiredPermission } from "@/util/RoutePermissions";
 
 export const Navbar = () => {
   const { data: session } = useSession();
   const userInfo = session?.user;
   const [menuOpen, setMenuOpen] = useState(false);
+  const { loaded, canAccess } = useEmployeePermissions();
 
   const menuItems = [
     { href: "/dashboard", label: "หน้าหลัก" },
@@ -24,13 +27,18 @@ export const Navbar = () => {
     { href: "/npg", label: "NPG" },
     { href: "/cashflow", label: "รายรับ-รายจ่าย" },
     { href: "/issues", label: "กระทู้" },
-    { href: "/employees", label: "พนักงาน", admin: true },
-    { href: "/reports", label: "รายงาน", admin: true },
+    { href: "/employees", label: "พนักงาน" },
+    { href: "/reports", label: "รายงาน" },
   ];
 
-  const visibleItems = menuItems.filter(
-    (item) => !item.admin || userInfo?.role === "adm"
-  );
+  // ✅ ซ่อนเมนูตามสิทธิ์จริง (permissions ที่ตั้งไว้ในหน้าจัดการพนักงาน)
+  // ระหว่างที่ยังโหลดสิทธิ์ไม่เสร็จ ไม่แสดงเมนูที่ต้องเช็คสิทธิ์ไปก่อน กันเมนู flash ขึ้นมาแล้วหายไป
+  const visibleItems = menuItems.filter((item) => {
+    const requiredPermission = getRequiredPermission(item.href);
+    if (!requiredPermission) return true; // หน้าหลัก เข้าได้เสมอ
+    if (!loaded) return false;
+    return canAccess(requiredPermission);
+  });
 
   return (
     <nav className="w-full bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 shadow-xl border-b-4 border-orange-500">
