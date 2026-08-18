@@ -16,8 +16,6 @@ import {
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import React from "react";
-import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
-import { getRequiredPermission } from "@/util/RoutePermissions";
 
 const menuPages = [
   {
@@ -107,6 +105,7 @@ const menuPages = [
     icon: <Contact size={"2.5rem"} />,
     label: "พนักงาน",
     description: "จัดการพนักงาน",
+    admin: true,
   },
   {
     href: "/reports",
@@ -115,22 +114,20 @@ const menuPages = [
     icon: <LineChart size={"2.5rem"} />,
     label: "รายงาน",
     description: "รายงานและสถิติ",
+    admin: true,
   },
 ];
 
 const MenuItems = () => {
   const { data: session } = useSession();
   const userInfo = session?.user;
-  const { loaded, canAccess } = useEmployeePermissions();
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6 mt-4 sm:mt-8">
       {menuPages.map((item) => {
-        // ✅ ซ่อนการ์ดตามสิทธิ์จริง แทนการเช็คแค่ admin flag เดิม
-        const requiredPermission = getRequiredPermission(item.href);
-        if (requiredPermission) {
-          if (!loaded) return null; // รอโหลดสิทธิ์ก่อน กันการ์ด flash
-          if (!canAccess(requiredPermission)) return null;
+        // ถ้าเป็น admin menu แต่ user ไม่ใช่ admin ให้ skip
+        if (item.admin && userInfo?.role !== "adm") {
+          return null;
         }
 
         return (
