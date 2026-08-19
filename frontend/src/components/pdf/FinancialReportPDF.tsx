@@ -274,8 +274,7 @@ export default function FinancialReportPDF({
             <Text style={styles.summaryValue}>{fmt(safeOverview.total_cost)}</Text>
           </View>
           <View style={[styles.summaryCell, { borderRight: "none" }]}>
-            <Text style={styles.summaryLabel}>ต้นทุนของแถม{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(safeOverview.total_additional_fees)}</Text>
+            {/* ✅ เอาต้นทุนของแถมออกจากสรุปภาพรวมตามที่ขอ - เว้นว่างไว้ (คงตำแหน่ง grid เดิม) */}
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>กำไรขั้นต้น{ZWJ}</Text>
@@ -301,35 +300,39 @@ export default function FinancialReportPDF({
           {chunkArray(monthlyData, ROWS_PER_HEADER_REPEAT).map((chunk, chunkIdx) => (
             <View key={chunkIdx}>
               <View style={styles.tableHeaderRow} wrap={false}>
-                <Text style={[styles.th, { width: "20%" }]}>เดือน{ZWJ}</Text>
-                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
-                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
-                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนของแถม{ZWJ}</Text>
-                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>กำไรสุทธิ{ZWJ}</Text>
+                <Text style={[styles.th, { width: "10%" }]}>ปี{ZWJ}</Text>
+                <Text style={[styles.th, { width: "18%" }]}>เดือน{ZWJ}</Text>
+                <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
+                <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
+                <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>ต้นทุนของแถม{ZWJ}</Text>
+                <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>กำไรสุทธิ{ZWJ}</Text>
               </View>
               {chunk.map((row, idx) => (
                 <View key={idx} style={styles.tableRow} wrap={false}>
-                  <Text style={[styles.td, { width: "20%" }]}>{sanitizeText(row.month)}{ZWJ}</Text>
-                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.revenue)}</Text>
-                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.cost)}</Text>
-                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.additional_fees)}</Text>
-                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.net_profit)}</Text>
+                  <Text style={[styles.td, { width: "10%" }]}>
+                    {row.year ? Number(row.year) + 543 : ""}
+                  </Text>
+                  <Text style={[styles.td, { width: "18%" }]}>{sanitizeText(row.month)}{ZWJ}</Text>
+                  <Text style={[styles.td, { width: "18%", textAlign: "right" }]}>{fmt(row.revenue)}</Text>
+                  <Text style={[styles.td, { width: "18%", textAlign: "right" }]}>{fmt(row.cost)}</Text>
+                  <Text style={[styles.td, { width: "18%", textAlign: "right" }]}>{fmt(row.additional_fees)}</Text>
+                  <Text style={[styles.td, { width: "18%", textAlign: "right" }]}>{fmt(row.net_profit)}</Text>
                 </View>
               ))}
             </View>
           ))}
           <View style={styles.tableRowTotal} wrap={false}>
-            <Text style={[styles.th, { width: "20%" }]}>รวม{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>
+            <Text style={[styles.th, { width: "28%" }]}>รวม{ZWJ}</Text>
+            <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>
               {fmt(monthlyData.reduce((s, r) => s + (r.revenue || 0), 0))}
             </Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>
+            <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>
               {fmt(monthlyData.reduce((s, r) => s + (r.cost || 0), 0))}
             </Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>
+            <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>
               {fmt(monthlyData.reduce((s, r) => s + (r.additional_fees || 0), 0))}
             </Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>
+            <Text style={[styles.th, { width: "18%", textAlign: "right" }]}>
               {fmt(monthlyData.reduce((s, r) => s + (r.net_profit || 0), 0))}
             </Text>
           </View>

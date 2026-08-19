@@ -58,6 +58,7 @@ const FinancialReportPrintPage = async ({
           year: y,
           month: `ปี ${parseInt(y) + 543}`,
           revenue: 0,
+          additional_fee_revenue: 0,
           cost: 0,
           additional_fees: 0,
           gross_profit: 0,
@@ -67,6 +68,7 @@ const FinancialReportPrintPage = async ({
       }
       const acc = map.get(y);
       acc.revenue += d.revenue || 0;
+      acc.additional_fee_revenue += d.additional_fee_revenue || 0;
       acc.cost += d.cost || 0;
       acc.additional_fees += d.additional_fees || 0;
       acc.order_count += d.order_count || 0;
@@ -91,6 +93,7 @@ const FinancialReportPrintPage = async ({
   const overview = monthlyData.reduce(
     (acc: any, d: any) => {
       acc.total_revenue += d.revenue || 0;
+      acc.total_additional_fee_revenue += d.additional_fee_revenue || 0;
       acc.total_cost += d.cost || 0;
       acc.total_additional_fees += d.additional_fees || 0;
       acc.total_orders += d.order_count || 0;
@@ -98,6 +101,7 @@ const FinancialReportPrintPage = async ({
     },
     {
       total_revenue: 0,
+      total_additional_fee_revenue: 0,
       total_cost: 0,
       total_additional_fees: 0,
       gross_profit: 0,
