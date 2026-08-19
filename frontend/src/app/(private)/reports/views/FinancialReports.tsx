@@ -275,6 +275,7 @@ const FinancialReports = () => {
           </div>
 
           <button
+            type="button"
             onClick={() => setShowPreview(true)}
             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
@@ -506,7 +507,7 @@ const FinancialReports = () => {
           </div>
 
           <div className="flex justify-between items-center pt-2 border-t">
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
+            <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
               ปิด
             </Button>
             <PDFDownloadLink
