@@ -321,6 +321,7 @@ def financial_summary(request):
                 "year": year,
                 "month": month_name,
                 "revenue": 0,
+                "additional_fee_revenue": 0,  # ✅ ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (แยกโชว์ต่างหาก)
                 "cost": 0,
                 "additional_fees": 0,
                 "gross_profit": 0,
@@ -332,6 +333,7 @@ def financial_summary(request):
         order_additional_fee_revenue = get_additional_fee_revenue(order)
         revenue = float(order.sale_price or 0) + order_additional_fee_revenue
         result_map[key]["revenue"] += revenue
+        result_map[key]["additional_fee_revenue"] += order_additional_fee_revenue
         
         # ต้นทุนรถ
         cost = 0
@@ -422,13 +424,16 @@ def financial_overview(request):
     """
     
     total_revenue = 0
+    total_additional_fee_revenue = 0  # ✅ ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (แยกโชว์ต่างหาก)
     total_cost = 0
     total_additional_fees = 0
     total_orders = 0
     
     for order in Order.objects.prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
         # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า
-        total_revenue += float(order.sale_price or 0) + get_additional_fee_revenue(order)
+        order_additional_fee_revenue = get_additional_fee_revenue(order)
+        total_revenue += float(order.sale_price or 0) + order_additional_fee_revenue
+        total_additional_fee_revenue += order_additional_fee_revenue
         
         for bike in order.bikes.all():
             total_cost += get_bike_cost(bike)
@@ -445,6 +450,7 @@ def financial_overview(request):
     return Response({
         "data": {
             "total_revenue": total_revenue,
+            "total_additional_fee_revenue": total_additional_fee_revenue,
             "total_cost": total_cost,
             "total_additional_fees": total_additional_fees,
             "gross_profit": gross_profit,
