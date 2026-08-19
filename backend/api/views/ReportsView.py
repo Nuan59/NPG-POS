@@ -353,13 +353,25 @@ def financial_summary(request):
 def financial_by_model(request):
     """
     📊 สรุปการเงินแยกตามรุ่นรถ
+    ✅ รองรับ query param:
+       - year  : ปี ค.ศ. เช่น 2026 (ไม่ส่ง = ทุกปี)
+       - month : ชื่อเดือนไทย เช่น "มกราคม" (ไม่ส่ง = ทุกเดือน)
     """
-    
+    year_param = request.query_params.get('year')
+    month_param = request.query_params.get('month')
+
     result_map = {}
     
     for order in Order.objects.select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
         if not order.sale_date:
             continue
+
+        # ✅ กรองตามปี/เดือนที่ระบุมา (ถ้ามี)
+        if year_param and str(order.sale_date.year) != str(year_param):
+            continue
+        if month_param and month_param != 'all':
+            if THAI_MONTHS.get(order.sale_date.month) != month_param:
+                continue
         
         for bike in order.bikes.all():
             model_name = bike.model_name or "ไม่ระบุ"
