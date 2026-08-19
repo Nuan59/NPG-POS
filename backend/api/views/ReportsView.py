@@ -5,6 +5,7 @@ from django.db.models.functions import ExtractMonth, ExtractYear
 from django.db.models import Count, F, Q
 
 from api.models import Order, Bike
+from api.models.Cashflow import CashflowEntry
 
 
 # =========================
@@ -100,6 +101,31 @@ def get_additional_fee_revenue(order):
     total = 0
     for fee in order.additional_fees.all():
         total += float(fee.amount or 0)
+    return total
+
+
+def get_cashflow_expenses_by_month():
+    """
+    ✅ ดึงยอด "รายจ่าย" จากระบบรายรับ-รายจ่ายประจำวัน (CashflowEntry.expense) รวมเป็นรายเดือน
+    เอาเฉพาะคอลัมน์ expense เท่านั้น - ไม่รวม รายรับ/ส่งเงิน/ทอนเงิน/คืนมัดจำ ตามที่ระบุ
+    คืนค่าเป็น dict {"2026-สิงหาคม": 12345.0, ...}
+    """
+    result = {}
+    for entry in CashflowEntry.objects.all():
+        if not entry.date:
+            continue
+        year = entry.date.year
+        month_name = THAI_MONTHS.get(entry.date.month)
+        key = f"{year}-{month_name}"
+        result[key] = result.get(key, 0) + float(entry.expense or 0)
+    return result
+
+
+def get_total_cashflow_expense():
+    """✅ ยอดรวมรายจ่ายทั้งหมดจากระบบรายรับ-รายจ่าย (สำหรับภาพรวมทั้งหมด ไม่แยกเดือน)"""
+    total = 0
+    for entry in CashflowEntry.objects.all():
+        total += float(entry.expense or 0)
     return total
 
 
@@ -324,6 +350,7 @@ def financial_summary(request):
                 "additional_fee_revenue": 0,  # ✅ ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (แยกโชว์ต่างหาก)
                 "cost": 0,
                 "additional_fees": 0,
+                "cashflow_expense": 0,  # ✅ รายจ่ายจากระบบรายรับ-รายจ่าย (เติมทีหลัง)
                 "gross_profit": 0,
                 "net_profit": 0,
                 "order_count": 0,
@@ -345,11 +372,31 @@ def financial_summary(request):
         result_map[key]["additional_fees"] += get_gift_cost(order)
         result_map[key]["order_count"] += 1
     
+    # ✅ เติมยอดรายจ่ายจากระบบรายรับ-รายจ่าย - รวมเข้าเดือนที่มีอยู่แล้ว หรือสร้างเดือนใหม่ถ้าเดือนนั้นไม่มีออเดอร์เลย
+    cashflow_expenses_by_month = get_cashflow_expenses_by_month()
+    for key, expense_amount in cashflow_expenses_by_month.items():
+        if key not in result_map:
+            year_str, month_name = key.split("-", 1)
+            result_map[key] = {
+                "year": int(year_str),
+                "month": month_name,
+                "revenue": 0,
+                "additional_fee_revenue": 0,
+                "cost": 0,
+                "additional_fees": 0,
+                "cashflow_expense": 0,
+                "gross_profit": 0,
+                "net_profit": 0,
+                "order_count": 0,
+            }
+        result_map[key]["cashflow_expense"] += expense_amount
+    
     # คำนวณกำไร
     for key in result_map:
         data = result_map[key]
         data["gross_profit"] = data["revenue"] - data["cost"]
-        data["net_profit"] = data["gross_profit"] - data["additional_fees"]
+        # ✅ กำไรสุทธิหักทั้งต้นทุนของแถม และรายจ่ายจากระบบรายรับ-รายจ่ายด้วย
+        data["net_profit"] = data["gross_profit"] - data["additional_fees"] - data["cashflow_expense"]
     
     data = list(result_map.values())
     data.sort(key=lambda x: (x["year"], list(THAI_MONTHS.values()).index(x["month"])))
@@ -444,7 +491,8 @@ def financial_overview(request):
         total_orders += 1
     
     gross_profit = total_revenue - total_cost
-    net_profit = gross_profit - total_additional_fees
+    total_cashflow_expense = get_total_cashflow_expense()  # ✅ รายจ่ายจากระบบรายรับ-รายจ่าย
+    net_profit = gross_profit - total_additional_fees - total_cashflow_expense
     profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
     
     return Response({
@@ -453,6 +501,7 @@ def financial_overview(request):
             "total_additional_fee_revenue": total_additional_fee_revenue,
             "total_cost": total_cost,
             "total_additional_fees": total_additional_fees,
+            "total_cashflow_expense": total_cashflow_expense,
             "gross_profit": gross_profit,
             "net_profit": net_profit,
             "profit_margin": round(profit_margin, 2),
