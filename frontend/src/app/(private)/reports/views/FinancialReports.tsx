@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   LineChart,
   Line,
@@ -27,14 +27,6 @@ import {
 } from "lucide-react";
 import { getFinancialSummary, getFinancialByModel, getFinancialOverview } from "@/services/FinancialReportsService";
 import { fillMissingMonths, MONTHS } from "@/util/reports/index";
-import PdfLoading from "@/components/pdf/PdfLoading";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 
 type FinancialData = {
   year: string | number;
@@ -69,24 +61,6 @@ type OverviewData = {
 const COLORS = ["#00C49F", "#FF8042", "#f97316"];
 
 const FinancialReports = () => {
-  const PDFDownloadLink = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-    { ssr: false, loading: () => <PdfLoading /> }
-  );
-  // ✅ preview PDF ในหน้าเว็บด้วย PDFViewer ตัวเดียวกับที่ใช้ export จริง
-  // (ไม่ต้องมีไฟล์ ViewFinancialReportPDF.tsx แยก เพราะไม่มีอยู่จริงในโปรเจกต์)
-  const PDFViewer = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFViewer),
-    { ssr: false, loading: () => <PdfLoading /> }
-  );
-  // ✅ path ที่ถูกต้อง: ไฟล์อยู่ที่ src/components/pdf/FinancialReportPDF.tsx
-  const FinancialReportPDF = dynamic(
-    () => import("@/components/pdf/FinancialReportPDF"),
-    { ssr: false }
-  );
-
-  const [showPreview, setShowPreview] = useState(false);
-
   const [monthlyData, setMonthlyData] = useState<FinancialData[]>([]);
   const [modelData, setModelData] = useState<ModelData[]>([]);
   const [overview, setOverview] = useState<OverviewData>({
@@ -352,13 +326,13 @@ const FinancialReports = () => {
             </select>
           </div>
 
-          <button
-            onClick={() => setShowPreview(true)}
+          <Link
+            href={`/reports/financial/print?mode=${viewMode}&year=${selectedYear}&month=${selectedMonth}`}
             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             <Printer className="h-4 w-4" />
             พิมพ์รายงาน
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -562,50 +536,6 @@ const FinancialReports = () => {
           </table>
         </div>
       </div>
-
-      {/* ✅ Dialog พรีวิว PDF ก่อนพิมพ์จริง (แพทเทิร์นเดียวกับใบส่งมอบ) */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>ตัวอย่างรายงานการเงิน - {periodLabel}</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex-1 min-h-0">
-            {showPreview && (
-              <PDFViewer width="100%" height="100%" showToolbar={false} style={{ border: "none" }}>
-                <FinancialReportPDF
-                  overview={computedOverview}
-                  monthlyData={filteredData}
-                  modelData={modelData}
-                  periodLabel={periodLabel}
-                />
-              </PDFViewer>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center pt-2 border-t">
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
-              ปิด
-            </Button>
-            <PDFDownloadLink
-              fileName={`รายงานการเงิน-${periodLabel.replace(/\s+/g, "-")}.pdf`}
-              document={
-                <FinancialReportPDF
-                  overview={computedOverview}
-                  monthlyData={filteredData}
-                  modelData={modelData}
-                  periodLabel={periodLabel}
-                />
-              }
-            >
-              <Button className="flex items-center gap-2">
-                <Printer className="h-4 w-4" />
-                ดาวน์โหลด / พิมพ์
-              </Button>
-            </PDFDownloadLink>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );
