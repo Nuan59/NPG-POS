@@ -152,6 +152,7 @@ type FinancialData = {
   year: string | number;
   month: string;
   revenue: number;
+  additional_fee_revenue: number;
   cost: number;
   additional_fees: number;
   gross_profit: number;
@@ -169,6 +170,7 @@ type ModelData = {
 
 type OverviewData = {
   total_revenue: number;
+  total_additional_fee_revenue: number;
   total_cost: number;
   total_additional_fees: number;
   gross_profit: number;
@@ -190,6 +192,18 @@ const today = new Date().toLocaleDateString("th-TH", {
   month: "long",
   day: "numeric",
 });
+
+// ✅ จำนวนแถวต่อการโชว์หัวตารางซ้ำ 1 รอบ - กันปัญหาตารางขาดหัวตอนขึ้นหน้าใหม่
+// (react-pdf ไม่ repeat header อัตโนมัติเวลาตารางยาวเกิน 1 หน้า)
+const ROWS_PER_HEADER_REPEAT = 18;
+
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result.length > 0 ? result : [[]];
+};
 
 export default function FinancialReportPDF({
   overview,
@@ -238,24 +252,24 @@ export default function FinancialReportPDF({
             <Text style={styles.summaryValue}>{fmt(overview.total_revenue)}</Text>
           </View>
           <View style={styles.summaryCell}>
+            <Text style={styles.summaryLabel}>รายได้เพิ่มเติม{ZWJ}</Text>
+            <Text style={styles.summaryValue}>{fmt(overview.total_additional_fee_revenue)}</Text>
+          </View>
+          <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>ต้นทุนรถ{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.total_cost)}</Text>
           </View>
-          <View style={styles.summaryCell}>
+          <View style={[styles.summaryCell, { borderRight: "none" }]}>
             <Text style={styles.summaryLabel}>ต้นทุนของแถม{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.total_additional_fees)}</Text>
           </View>
-          <View style={[styles.summaryCell, { borderRight: "none" }]}>
+          <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>กำไรขั้นต้น{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.gross_profit)}</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>กำไรสุทธิ{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.net_profit)}</Text>
-          </View>
-          <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>Profit Margin{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{overview.profit_margin.toFixed(1)}%</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>จำ{ZWJ}นวนออเดอร์{ZWJ}</Text>
@@ -267,23 +281,27 @@ export default function FinancialReportPDF({
           </View>
         </View>
 
-        {/* ตารางรายเดือน - wrap={false} ทุกแถว กันแถวขาดครึ่งเวลาขึ้นหน้าใหม่ */}
+        {/* ตารางรายเดือน - wrap={false} ทุกแถว + ทำหัวตารางซ้ำทุก ROWS_PER_HEADER_REPEAT แถว กันขาดหัวตอนขึ้นหน้าใหม่ */}
         <Text style={styles.sectionTitle}>สรุปรายเดือน{ZWJ}</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeaderRow} wrap={false}>
-            <Text style={[styles.th, { width: "20%" }]}>เดือน{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนของแถม{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>กำไรสุทธิ{ZWJ}</Text>
-          </View>
-          {monthlyData.map((row, idx) => (
-            <View key={idx} style={styles.tableRow} wrap={false}>
-              <Text style={[styles.td, { width: "20%" }]}>{sanitizeText(row.month)}{ZWJ}</Text>
-              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.revenue)}</Text>
-              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.cost)}</Text>
-              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.additional_fees)}</Text>
-              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.net_profit)}</Text>
+          {chunkArray(monthlyData, ROWS_PER_HEADER_REPEAT).map((chunk, chunkIdx) => (
+            <View key={chunkIdx}>
+              <View style={styles.tableHeaderRow} wrap={false}>
+                <Text style={[styles.th, { width: "20%" }]}>เดือน{ZWJ}</Text>
+                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
+                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
+                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนของแถม{ZWJ}</Text>
+                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>กำไรสุทธิ{ZWJ}</Text>
+              </View>
+              {chunk.map((row, idx) => (
+                <View key={idx} style={styles.tableRow} wrap={false}>
+                  <Text style={[styles.td, { width: "20%" }]}>{sanitizeText(row.month)}{ZWJ}</Text>
+                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.revenue)}</Text>
+                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.cost)}</Text>
+                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.additional_fees)}</Text>
+                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.net_profit)}</Text>
+                </View>
+              ))}
             </View>
           ))}
           <View style={styles.tableRowTotal} wrap={false}>
@@ -303,23 +321,27 @@ export default function FinancialReportPDF({
           </View>
         </View>
 
-        {/* ตารางรุ่นรถ - wrap={false} ทุกแถวเช่นกัน */}
+        {/* ตารางรุ่นรถ - wrap={false} ทุกแถว + ทำหัวตารางซ้ำทุก ROWS_PER_HEADER_REPEAT แถว */}
         <Text style={styles.sectionTitle}>สรุปตามรุ่นรถ{ZWJ}</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeaderRow} wrap={false}>
-            <Text style={[styles.th, { width: "30%" }]}>รุ่นรถ{ZWJ}</Text>
-            <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>จำ{ZWJ}นวนขาย{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
-            <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>กำไร{ZWJ}</Text>
-          </View>
-          {modelData.map((m, idx) => (
-            <View key={idx} style={styles.tableRow} wrap={false}>
-              <Text style={[styles.td, { width: "30%" }]}>{sanitizeText(m.model_name)}{ZWJ}</Text>
-              <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>{m.count}</Text>
-              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(m.revenue)}</Text>
-              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(m.cost)}</Text>
-              <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>{fmt(m.gross_profit)}</Text>
+          {chunkArray(modelData, ROWS_PER_HEADER_REPEAT).map((chunk, chunkIdx) => (
+            <View key={chunkIdx}>
+              <View style={styles.tableHeaderRow} wrap={false}>
+                <Text style={[styles.th, { width: "30%" }]}>รุ่นรถ{ZWJ}</Text>
+                <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>จำ{ZWJ}นวนขาย{ZWJ}</Text>
+                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
+                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
+                <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>กำไร{ZWJ}</Text>
+              </View>
+              {chunk.map((m, idx) => (
+                <View key={idx} style={styles.tableRow} wrap={false}>
+                  <Text style={[styles.td, { width: "30%" }]}>{sanitizeText(m.model_name)}{ZWJ}</Text>
+                  <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>{m.count}</Text>
+                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(m.revenue)}</Text>
+                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(m.cost)}</Text>
+                  <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>{fmt(m.gross_profit)}</Text>
+                </View>
+              ))}
             </View>
           ))}
           <View style={styles.tableRowTotal} wrap={false}>
