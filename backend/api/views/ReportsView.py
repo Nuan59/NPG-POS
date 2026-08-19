@@ -127,9 +127,17 @@ def get_cashflow_expenses_by_month():
     ✅ ดึงยอด "รายจ่าย" จากระบบรายรับ-รายจ่ายประจำวัน (CashflowEntry.expense) รวมเป็นรายเดือน
     เอาเฉพาะคอลัมน์ expense เท่านั้น - ไม่รวม รายรับ/ส่งเงิน/ทอนเงิน/คืนมัดจำ ตามที่ระบุ
     คืนค่าเป็น dict {"2026-สิงหาคม": 12345.0, ...}
+    ✅ ห่อการ query ทั้งก้อนด้วย try/except ด้วย - ถ้า query ล้มเหลวทั้งชุด
+    (เช่น table ยังไม่ migrate / DB error) จะไม่ทำให้ financial_summary/overview ทั้ง endpoint 500
     """
     result = {}
-    for entry in CashflowEntry.objects.all():
+    try:
+        entries = list(CashflowEntry.objects.all())
+    except Exception as e:
+        print(f"⚠️ get_cashflow_expenses_by_month: query ทั้งก้อนล้มเหลว: {e}")
+        return result
+
+    for entry in entries:
         if not entry.date:
             continue
         try:
@@ -144,9 +152,18 @@ def get_cashflow_expenses_by_month():
 
 
 def get_total_cashflow_expense():
-    """✅ ยอดรวมรายจ่ายทั้งหมดจากระบบรายรับ-รายจ่าย (สำหรับภาพรวมทั้งหมด ไม่แยกเดือน)"""
+    """
+    ✅ ยอดรวมรายจ่ายทั้งหมดจากระบบรายรับ-รายจ่าย (สำหรับภาพรวมทั้งหมด ไม่แยกเดือน)
+    ห่อการ query ทั้งก้อนด้วย try/except เช่นกัน
+    """
     total = 0
-    for entry in CashflowEntry.objects.all():
+    try:
+        entries = list(CashflowEntry.objects.all())
+    except Exception as e:
+        print(f"⚠️ get_total_cashflow_expense: query ทั้งก้อนล้มเหลว: {e}")
+        return total
+
+    for entry in entries:
         try:
             total += float(entry.expense or 0)
         except Exception as e:
@@ -357,7 +374,16 @@ def financial_summary(request):
     - ค่าใช้จ่ายเพิ่มเติม (AdditionalFee + ต้นทุนของแถม)
     - กำไรสุทธิ
     """
-    
+    try:
+        return _financial_summary_impl(request)
+    except Exception as e:
+        import traceback
+        print(f"❌ financial_summary FATAL: {e}")
+        traceback.print_exc()
+        return Response({"error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+def _financial_summary_impl(request):
     result_map = {}
     
     for order in Order.objects.select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
@@ -444,6 +470,16 @@ def financial_by_model(request):
        - year  : ปี ค.ศ. เช่น 2026 (ไม่ส่ง = ทุกปี)
        - month : ชื่อเดือนไทย เช่น "มกราคม" (ไม่ส่ง = ทุกเดือน)
     """
+    try:
+        return _financial_by_model_impl(request)
+    except Exception as e:
+        import traceback
+        print(f"❌ financial_by_model FATAL: {e}")
+        traceback.print_exc()
+        return Response({"error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+def _financial_by_model_impl(request):
     year_param = request.query_params.get('year')
     month_param = request.query_params.get('month')
 
@@ -500,7 +536,16 @@ def financial_overview(request):
     """
     📊 ภาพรวมการเงินทั้งหมด
     """
-    
+    try:
+        return _financial_overview_impl(request)
+    except Exception as e:
+        import traceback
+        print(f"❌ financial_overview FATAL: {e}")
+        traceback.print_exc()
+        return Response({"error": f"{type(e).__name__}: {e}"}, status=500)
+
+
+def _financial_overview_impl(request):
     total_revenue = 0
     total_additional_fee_revenue = 0  # ✅ ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (แยกโชว์ต่างหาก)
     total_cost = 0
