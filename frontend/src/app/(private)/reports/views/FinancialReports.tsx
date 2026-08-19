@@ -157,17 +157,15 @@ const FinancialReports = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [summaryRes, modelRes, overviewRes] = await Promise.all([
+        const [summaryRes, overviewRes] = await Promise.all([
           getFinancialSummary(),
-          getFinancialByModel(),
           getFinancialOverview(),
         ]);
         const filledData = fillMissingMonths(summaryRes.data || []);
         setMonthlyData(filledData);
-        setModelData(modelRes.data || []);
         setOverview(overviewRes.data || overview);
 
-        const errors = [summaryRes.error, modelRes.error, overviewRes.error].filter(
+        const errors = [summaryRes.error, overviewRes.error].filter(
           (e): e is string => Boolean(e)
         );
         setApiErrors(Array.from(new Set(errors)));
@@ -180,6 +178,26 @@ const FinancialReports = () => {
     };
     fetchData();
   }, []);
+
+  // ✅ ตารางแยกตามรุ่นรถ ต้องดึงข้อมูลใหม่ทุกครั้งที่เปลี่ยนปี/เดือนที่เลือก
+  // (เดิมเรียกครั้งเดียวตอน mount โดยไม่ส่งตัวกรองเลย เลยไม่เคยกรองตามที่เลือกบนหน้าจอ)
+  useEffect(() => {
+    const fetchModelData = async () => {
+      try {
+        const modelRes = await getFinancialByModel(
+          selectedYear !== "all" ? selectedYear : undefined,
+          selectedMonth !== "all" ? selectedMonth : undefined
+        );
+        setModelData(modelRes.data || []);
+        if (modelRes.error) {
+          setApiErrors((prev) => Array.from(new Set([...prev, modelRes.error as string])));
+        }
+      } catch (error) {
+        console.error("Error fetching model data:", error);
+      }
+    };
+    fetchModelData();
+  }, [selectedYear, selectedMonth]);
 
   const filteredData = monthlyData.filter((d) => {
     const matchesYear = selectedYear === "all" || String(d.year) === selectedYear;
