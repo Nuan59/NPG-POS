@@ -36,6 +36,51 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+/**
+ * ✅ Error Boundary กันไม่ให้ error ตอน render PDF preview ทำให้ทั้งหน้าพัง/refresh
+ * (React error ที่ไม่มีใครจับจะ bubble ขึ้นไปจน Next.js reset ทั้ง route
+ *  ดูเหมือนหน้าเว็บ refresh ทั้งที่จริงๆ ไม่ใช่ - ห่อ boundary ไว้จะเห็น error message จริงแทน)
+ */
+class PDFPreviewErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[PDFPreviewErrorBoundary] จับ error ได้:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex items-center justify-center h-full p-8">
+          <div className="text-center max-w-xl">
+            <div className="text-red-500 text-5xl mb-4">⚠️</div>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">
+              สร้างตัวอย่างรายงานไม่สำเร็จ
+            </h2>
+            <p className="text-gray-600 mb-2 break-words">
+              {this.state.error.message || String(this.state.error)}
+            </p>
+            <p className="text-xs text-gray-400">
+              (ดู stack trace เต็มได้ใน Console)
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 type FinancialData = {
   year: string | number;
   month: string;
@@ -500,12 +545,14 @@ const FinancialReports = () => {
 
           <div className="flex-1 min-h-0">
             {showPreview && (
-              <ViewFinancialReportPDF
-                overview={computedOverview}
-                monthlyData={filteredData}
-                modelData={modelData}
-                periodLabel={periodLabel}
-              />
+              <PDFPreviewErrorBoundary>
+                <ViewFinancialReportPDF
+                  overview={computedOverview}
+                  monthlyData={filteredData}
+                  modelData={modelData}
+                  periodLabel={periodLabel}
+                />
+              </PDFPreviewErrorBoundary>
             )}
           </div>
 
