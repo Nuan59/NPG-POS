@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
-import FinancialReportPDF from "./FinancialReportPDF";
+import FinancialReportPDF from "@/components/pdf/FinancialReportPDF";
 
 type FinancialData = {
   year: string | number;
