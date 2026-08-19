@@ -211,12 +211,26 @@ export default function FinancialReportPDF({
   modelData,
   periodLabel,
 }: FinancialReportPDFProps) {
+  // ✅ กัน crash ถ้า field ใดยังไม่มีค่า (เช่น backend ยังไม่ deploy field ใหม่)
+  // fmt() เรียก .toLocaleString() ถ้าได้ undefined จะพังทันที
+  const safeOverview: OverviewData = {
+    total_revenue: overview?.total_revenue || 0,
+    total_additional_fee_revenue: overview?.total_additional_fee_revenue || 0,
+    total_cost: overview?.total_cost || 0,
+    total_additional_fees: overview?.total_additional_fees || 0,
+    gross_profit: overview?.gross_profit || 0,
+    net_profit: overview?.net_profit || 0,
+    profit_margin: overview?.profit_margin || 0,
+    total_orders: overview?.total_orders || 0,
+    average_profit_per_order: overview?.average_profit_per_order || 0,
+  };
+
   const modelTotals = modelData.reduce(
     (acc, m) => {
-      acc.count += m.count;
-      acc.revenue += m.revenue;
-      acc.cost += m.cost;
-      acc.gross_profit += m.gross_profit;
+      acc.count += m.count || 0;
+      acc.revenue += m.revenue || 0;
+      acc.cost += m.cost || 0;
+      acc.gross_profit += m.gross_profit || 0;
       return acc;
     },
     { count: 0, revenue: 0, cost: 0, gross_profit: 0 }
@@ -249,35 +263,35 @@ export default function FinancialReportPDF({
         <View style={styles.summaryGrid} wrap={false}>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>รายได้รวม{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.total_revenue)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.total_revenue)}</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>รายได้เพิ่มเติม{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.total_additional_fee_revenue)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.total_additional_fee_revenue)}</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>ต้นทุนรถ{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.total_cost)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.total_cost)}</Text>
           </View>
           <View style={[styles.summaryCell, { borderRight: "none" }]}>
             <Text style={styles.summaryLabel}>ต้นทุนของแถม{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.total_additional_fees)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.total_additional_fees)}</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>กำไรขั้นต้น{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.gross_profit)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.gross_profit)}</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>กำไรสุทธิ{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.net_profit)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.net_profit)}</Text>
           </View>
           <View style={styles.summaryCell}>
             <Text style={styles.summaryLabel}>จำ{ZWJ}นวนออเดอร์{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{overview.total_orders}</Text>
+            <Text style={styles.summaryValue}>{safeOverview.total_orders}</Text>
           </View>
           <View style={[styles.summaryCell, { borderRight: "none" }]}>
             <Text style={styles.summaryLabel}>กำไรเฉลี่ย/ออเดอร์{ZWJ}</Text>
-            <Text style={styles.summaryValue}>{fmt(overview.average_profit_per_order)}</Text>
+            <Text style={styles.summaryValue}>{fmt(safeOverview.average_profit_per_order)}</Text>
           </View>
         </View>
 
