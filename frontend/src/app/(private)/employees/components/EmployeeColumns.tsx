@@ -45,6 +45,7 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
       const employee = row.original;
       const router = useRouter();
       const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+      const [dropdownOpen, setDropdownOpen] = useState(false);
 
       const handleDelete = async () => {
         const ok = window.confirm(
@@ -87,7 +88,7 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
 
       return (
         <>
-          <DropdownMenu>
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 w-8 p-0">
                 <span className="sr-only">Open menu</span>
@@ -113,7 +114,10 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
               {/* ✅ กำหนดสิทธิ์แบบด่วน - เฉพาะพนักงาน (ผู้จัดการเข้าได้ทุกหน้าอยู่แล้ว) */}
               {employee.role !== "adm" && (
                 <DropdownMenuItem
-                  onClick={() => setPermissionsDialogOpen(true)}
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    setPermissionsDialogOpen(true);
+                  }}
                   className="flex justify-between"
                 >
                   <ShieldCheck className="opacity-60" />
