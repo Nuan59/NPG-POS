@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import NextLink from "next/link";
 import {
   LineChart,
   Line,
@@ -322,14 +323,13 @@ const FinancialReports = () => {
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowPreview(true)}
+          <NextLink
+            href={`/reports/financial/print?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`}
             className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             <Printer className="h-4 w-4" />
             พิมพ์รายงาน
-          </button>
+          </NextLink>
         </div>
       </div>
 
