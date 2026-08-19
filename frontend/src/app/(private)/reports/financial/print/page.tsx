@@ -155,7 +155,12 @@ const FinancialReportPrintPage = async ({
 
       {/* PDF Viewer */}
       <div className="h-[90%]">
-        <ViewFinancialReportPDF data={reportData} />
+        <ViewFinancialReportPDF
+          overview={reportData.overview}
+          monthlyData={reportData.monthlyData}
+          modelData={reportData.modelData}
+          periodLabel={reportData.periodLabel}
+        />
       </div>
 
       {/* ปุ่ม กลับ / ดาวน์โหลด */}
