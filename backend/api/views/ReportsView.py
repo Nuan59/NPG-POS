@@ -62,33 +62,51 @@ def decode_price(encoded):
         return 0
 
 
-def get_bike_cost(bike):
-    if not bike.wholesale_price:
+def parse_price_value(value):
+    """
+    ✅ แปลงค่า wholesale_price ให้เป็นตัวเลขอย่างปลอดภัย
+    รองรับทั้งตัวเลขปกติ ("12500") และรหัสตัวอักษร ("NCIOW...") ที่ต้อง decode
+    ใช้ร่วมกันทั้งกับ Bike และ Gift item เพื่อกันปัญหา field รูปแบบไม่ตรงกัน
+    (เดิม get_gift_cost ไม่ได้ decode ทำให้ float() พังถ้าเจอค่าที่เป็นรหัสตัวอักษร -> 500)
+    """
+    if not value:
         return 0
-    
-    value = str(bike.wholesale_price).strip()
-    
-    if value.replace('.', '').replace('-', '').isdigit():
+
+    text = str(value).strip()
+    if not text:
+        return 0
+
+    if text.replace('.', '').replace('-', '').isdigit():
         try:
-            return float(value)
-        except:
+            return float(text)
+        except (ValueError, TypeError):
             return 0
     else:
-        decoded = decode_price(value)
-        return decoded
+        return decode_price(text)
+
+
+def get_bike_cost(bike):
+    return parse_price_value(bike.wholesale_price)
 
 
 def get_gift_cost(order):
     """
     ✅ คำนวณต้นทุนของแถมจาก OrderGift
-    - ดึง wholesale_price จาก Gift model
+    - ดึง wholesale_price จาก Gift model (รองรับทั้งเลขปกติและรหัสตัวอักษรแบบเดียวกับ Bike)
     - คูณด้วย quantity
     - นี่คือ "ต้นทุน" จริงที่ร้านเสียไป (ของที่แจกฟรี) ต้องหักออกจากกำไร
+    ✅ กัน crash ต่อ order_gift ที่ผิดปกติ (field หาย/รูปแบบแปลก) ไม่ให้ล้ม request ทั้งชุด
     """
     total_gift_cost = 0
     for order_gift in order.gifts.select_related('item').all():
-        if order_gift.item and order_gift.item.wholesale_price:
-            total_gift_cost += float(order_gift.item.wholesale_price) * int(order_gift.quantity or 0)
+        try:
+            if order_gift.item and order_gift.item.wholesale_price:
+                price = parse_price_value(order_gift.item.wholesale_price)
+                qty = int(order_gift.quantity or 0)
+                total_gift_cost += price * qty
+        except Exception as e:
+            print(f"⚠️ get_gift_cost error on order_gift id={getattr(order_gift, 'id', '?')}: {e}")
+            continue
     return total_gift_cost
 
 
@@ -114,10 +132,14 @@ def get_cashflow_expenses_by_month():
     for entry in CashflowEntry.objects.all():
         if not entry.date:
             continue
-        year = entry.date.year
-        month_name = THAI_MONTHS.get(entry.date.month)
-        key = f"{year}-{month_name}"
-        result[key] = result.get(key, 0) + float(entry.expense or 0)
+        try:
+            year = entry.date.year
+            month_name = THAI_MONTHS.get(entry.date.month)
+            key = f"{year}-{month_name}"
+            result[key] = result.get(key, 0) + float(entry.expense or 0)
+        except Exception as e:
+            print(f"⚠️ get_cashflow_expenses_by_month error on entry id={getattr(entry, 'id', '?')}: {e}")
+            continue
     return result
 
 
@@ -125,7 +147,11 @@ def get_total_cashflow_expense():
     """✅ ยอดรวมรายจ่ายทั้งหมดจากระบบรายรับ-รายจ่าย (สำหรับภาพรวมทั้งหมด ไม่แยกเดือน)"""
     total = 0
     for entry in CashflowEntry.objects.all():
-        total += float(entry.expense or 0)
+        try:
+            total += float(entry.expense or 0)
+        except Exception as e:
+            print(f"⚠️ get_total_cashflow_expense error on entry id={getattr(entry, 'id', '?')}: {e}")
+            continue
     return total
 
 
@@ -337,40 +363,45 @@ def financial_summary(request):
     for order in Order.objects.select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
         if not order.sale_date:
             continue
-        
-        year = order.sale_date.year
-        month_name = THAI_MONTHS.get(order.sale_date.month)
-        key = f"{year}-{month_name}"
-        
-        if key not in result_map:
-            result_map[key] = {
-                "year": year,
-                "month": month_name,
-                "revenue": 0,
-                "additional_fee_revenue": 0,  # ✅ ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (แยกโชว์ต่างหาก)
-                "cost": 0,
-                "additional_fees": 0,
-                "cashflow_expense": 0,  # ✅ รายจ่ายจากระบบรายรับ-รายจ่าย (เติมทีหลัง)
-                "gross_profit": 0,
-                "net_profit": 0,
-                "order_count": 0,
-            }
-        
-        # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (เช่น ค่าทะเบียน, ค่าโอน)
-        order_additional_fee_revenue = get_additional_fee_revenue(order)
-        revenue = float(order.sale_price or 0) + order_additional_fee_revenue
-        result_map[key]["revenue"] += revenue
-        result_map[key]["additional_fee_revenue"] += order_additional_fee_revenue
-        
-        # ต้นทุนรถ
-        cost = 0
-        for bike in order.bikes.all():
-            cost += get_bike_cost(bike)
-        result_map[key]["cost"] += cost
-        
-        # ✅ ต้นทุนของแถม (เฉพาะของที่ร้านแจกฟรีจริงๆ - คนละก้อนกับค่าใช้จ่ายที่เก็บจากลูกค้าข้างบน)
-        result_map[key]["additional_fees"] += get_gift_cost(order)
-        result_map[key]["order_count"] += 1
+
+        try:
+            year = order.sale_date.year
+            month_name = THAI_MONTHS.get(order.sale_date.month)
+            key = f"{year}-{month_name}"
+
+            if key not in result_map:
+                result_map[key] = {
+                    "year": year,
+                    "month": month_name,
+                    "revenue": 0,
+                    "additional_fee_revenue": 0,  # ✅ ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (แยกโชว์ต่างหาก)
+                    "cost": 0,
+                    "additional_fees": 0,
+                    "cashflow_expense": 0,  # ✅ รายจ่ายจากระบบรายรับ-รายจ่าย (เติมทีหลัง)
+                    "gross_profit": 0,
+                    "net_profit": 0,
+                    "order_count": 0,
+                }
+
+            # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (เช่น ค่าทะเบียน, ค่าโอน)
+            order_additional_fee_revenue = get_additional_fee_revenue(order)
+            revenue = float(order.sale_price or 0) + order_additional_fee_revenue
+            result_map[key]["revenue"] += revenue
+            result_map[key]["additional_fee_revenue"] += order_additional_fee_revenue
+
+            # ต้นทุนรถ
+            cost = 0
+            for bike in order.bikes.all():
+                cost += get_bike_cost(bike)
+            result_map[key]["cost"] += cost
+
+            # ✅ ต้นทุนของแถม (เฉพาะของที่ร้านแจกฟรีจริงๆ - คนละก้อนกับค่าใช้จ่ายที่เก็บจากลูกค้าข้างบน)
+            result_map[key]["additional_fees"] += get_gift_cost(order)
+            result_map[key]["order_count"] += 1
+        except Exception as e:
+            # ✅ กัน order แปลกๆ ตัวเดียวทำให้ทั้ง endpoint 500 - log แล้วข้ามไปตัวถัดไป
+            print(f"⚠️ financial_summary error on order id={getattr(order, 'id', '?')}: {e}")
+            continue
     
     # ✅ เติมยอดรายจ่ายจากระบบรายรับ-รายจ่าย - รวมเข้าเดือนที่มีอยู่แล้ว หรือสร้างเดือนใหม่ถ้าเดือนนั้นไม่มีออเดอร์เลย
     cashflow_expenses_by_month = get_cashflow_expenses_by_month()
@@ -477,18 +508,23 @@ def financial_overview(request):
     total_orders = 0
     
     for order in Order.objects.prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
-        # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า
-        order_additional_fee_revenue = get_additional_fee_revenue(order)
-        total_revenue += float(order.sale_price or 0) + order_additional_fee_revenue
-        total_additional_fee_revenue += order_additional_fee_revenue
-        
-        for bike in order.bikes.all():
-            total_cost += get_bike_cost(bike)
-        
-        # ✅ ต้นทุนของแถม (เฉพาะของแจกฟรีจริง ไม่รวมค่าใช้จ่ายที่เก็บจากลูกค้าแล้ว)
-        total_additional_fees += get_gift_cost(order)
-        
-        total_orders += 1
+        try:
+            # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า
+            order_additional_fee_revenue = get_additional_fee_revenue(order)
+            total_revenue += float(order.sale_price or 0) + order_additional_fee_revenue
+            total_additional_fee_revenue += order_additional_fee_revenue
+
+            for bike in order.bikes.all():
+                total_cost += get_bike_cost(bike)
+
+            # ✅ ต้นทุนของแถม (เฉพาะของแจกฟรีจริง ไม่รวมค่าใช้จ่ายที่เก็บจากลูกค้าแล้ว)
+            total_additional_fees += get_gift_cost(order)
+
+            total_orders += 1
+        except Exception as e:
+            # ✅ กัน order แปลกๆ ตัวเดียวทำให้ทั้ง endpoint 500 - log แล้วข้ามไปตัวถัดไป
+            print(f"⚠️ financial_overview error on order id={getattr(order, 'id', '?')}: {e}")
+            continue
     
     gross_profit = total_revenue - total_cost
     total_cashflow_expense = get_total_cashflow_expense()  # ✅ รายจ่ายจากระบบรายรับ-รายจ่าย
