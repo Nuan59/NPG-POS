@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
-import FinancialReportPDF from "@/components/pdf/FinancialReportPDF";
+import FinancialReportPDF from "./FinancialReportPDF";
 
 type FinancialData = {
   year: string | number;
   month: string;
   revenue: number;
+  additional_fee_revenue: number;
   cost: number;
   additional_fees: number;
+  cashflow_expense?: number;
   gross_profit: number;
   net_profit: number;
   order_count: number;
@@ -25,8 +27,10 @@ type ModelData = {
 
 type OverviewData = {
   total_revenue: number;
+  total_additional_fee_revenue: number;
   total_cost: number;
   total_additional_fees: number;
+  total_cashflow_expense?: number;
   gross_profit: number;
   net_profit: number;
   profit_margin: number;
@@ -34,18 +38,19 @@ type OverviewData = {
   average_profit_per_order: number;
 };
 
-interface ReportData {
+interface ViewFinancialReportPDFProps {
   overview: OverviewData;
   monthlyData: FinancialData[];
   modelData: ModelData[];
   periodLabel: string;
 }
 
-interface Props {
-  data: ReportData;
-}
-
-export default function ViewFinancialReportPDF({ data }: Props) {
+export default function ViewFinancialReportPDF({
+  overview,
+  monthlyData,
+  modelData,
+  periodLabel,
+}: ViewFinancialReportPDFProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +67,10 @@ export default function ViewFinancialReportPDF({ data }: Props) {
 
         const blob = await pdf(
           <FinancialReportPDF
-            overview={data.overview}
-            monthlyData={data.monthlyData}
-            modelData={data.modelData}
-            periodLabel={data.periodLabel}
+            overview={overview}
+            monthlyData={monthlyData}
+            modelData={modelData}
+            periodLabel={periodLabel}
           />
         ).toBlob();
 
@@ -82,8 +87,7 @@ export default function ViewFinancialReportPDF({ data }: Props) {
           console.log("[PDF] 🎉 แสดง PDF สำเร็จ!");
         }
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "เกิดข้อผิดพลาดไม่ทราบสาเหตุ";
+        const errorMessage = err instanceof Error ? err.message : "เกิดข้อผิดพลาดไม่ทราบสาเหตุ";
         console.error("[PDF] ❌ Error:", err);
 
         if (isMounted) {
@@ -107,21 +111,19 @@ export default function ViewFinancialReportPDF({ data }: Props) {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [data]);
+  }, [overview, monthlyData, modelData, periodLabel]);
 
-  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-orange-600 mb-4"></div>
-          <p className="text-gray-600">กำลังสร้างรายงานการเงิน...</p>
+          <p className="text-gray-600">กำลังสร้างรายงาน...</p>
         </div>
       </div>
     );
   }
 
-  // Error state
   if (error || !pdfUrl) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -129,25 +131,14 @@ export default function ViewFinancialReportPDF({ data }: Props) {
           <div className="text-red-500 text-5xl mb-4">⚠️</div>
           <h2 className="text-xl font-bold text-gray-800 mb-2">เกิดข้อผิดพลาด</h2>
           <p className="text-gray-600 mb-4">{error || "ไม่สามารถโหลด PDF ได้"}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
-          >
-            🔄 ลองใหม่
-          </button>
         </div>
       </div>
     );
   }
 
-  // Success - แสดง PDF เต็มหน้าจอ
   return (
     <div className="w-full h-full">
-      <iframe
-        src={pdfUrl}
-        className="w-full h-full border-0"
-        title="Financial Report Viewer"
-      />
+      <iframe src={pdfUrl} className="w-full h-full border-0" title="Financial Report Viewer" />
     </div>
   );
 }

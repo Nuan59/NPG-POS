@@ -80,7 +80,7 @@ const FinancialReports = () => {
     { ssr: false }
   );
   const ViewFinancialReportPDF = dynamic(
-    () => import("@/components/pdf/ViewFinancialReportPDF"),
+    () => import("../financial/print/components/ViewFinancialReportPDF"),
     { ssr: false }
   );
 
