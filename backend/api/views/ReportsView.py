@@ -429,8 +429,10 @@ def _financial_summary_impl(request):
             print(f"⚠️ financial_summary error on order id={getattr(order, 'id', '?')}: {e}")
             continue
     
-    # ✅ เติมยอดรายจ่ายจากระบบรายรับ-รายจ่าย - รวมเข้าเดือนที่มีอยู่แล้ว หรือสร้างเดือนใหม่ถ้าเดือนนั้นไม่มีออเดอร์เลย
-    cashflow_expenses_by_month = get_cashflow_expenses_by_month()
+    # ⏸️ ปิดการดึงยอดรายจ่ายจากระบบรายรับ-รายจ่ายไว้ก่อนชั่วคราว
+    # (ตาราง cashflow_entry ยังไม่ถูกสร้างจริงในฐานข้อมูล production - รอ migrate)
+    # เมื่อพร้อม migrate แล้วค่อยเปิดกลับมาใช้: cashflow_expenses_by_month = get_cashflow_expenses_by_month()
+    cashflow_expenses_by_month = {}
     for key, expense_amount in cashflow_expenses_by_month.items():
         if key not in result_map:
             year_str, month_name = key.split("-", 1)
@@ -572,7 +574,10 @@ def _financial_overview_impl(request):
             continue
     
     gross_profit = total_revenue - total_cost
-    total_cashflow_expense = get_total_cashflow_expense()  # ✅ รายจ่ายจากระบบรายรับ-รายจ่าย
+    # ⏸️ ปิดการดึงยอดรายจ่ายจากระบบรายรับ-รายจ่ายไว้ก่อนชั่วคราว
+    # (ตาราง cashflow_entry ยังไม่ถูกสร้างจริงในฐานข้อมูล production - รอ migrate)
+    # เมื่อพร้อม migrate แล้วค่อยเปิดกลับมาใช้: total_cashflow_expense = get_total_cashflow_expense()
+    total_cashflow_expense = 0
     net_profit = gross_profit - total_additional_fees - total_cashflow_expense
     profit_margin = (net_profit / total_revenue * 100) if total_revenue > 0 else 0
     
