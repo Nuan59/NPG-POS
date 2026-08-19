@@ -73,12 +73,15 @@ const FinancialReports = () => {
     () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
     { ssr: false, loading: () => <PdfLoading /> }
   );
-  const FinancialReportPDF = dynamic(
-    () => import("../components/FinancialReportPDF"),
-    { ssr: false }
+  // ✅ preview PDF ในหน้าเว็บด้วย PDFViewer ตัวเดียวกับที่ใช้ export จริง
+  // (ไม่ต้องมีไฟล์ ViewFinancialReportPDF.tsx แยก เพราะไม่มีอยู่จริงในโปรเจกต์)
+  const PDFViewer = dynamic(
+    () => import("@react-pdf/renderer").then((mod) => mod.PDFViewer),
+    { ssr: false, loading: () => <PdfLoading /> }
   );
-  const ViewFinancialReportPDF = dynamic(
-    () => import("../components/ViewFinancialReportPDF"),
+  // ✅ path ที่ถูกต้อง: ไฟล์อยู่ที่ src/components/pdf/FinancialReportPDF.tsx
+  const FinancialReportPDF = dynamic(
+    () => import("@/components/pdf/FinancialReportPDF"),
     { ssr: false }
   );
 
@@ -569,12 +572,14 @@ const FinancialReports = () => {
 
           <div className="flex-1 min-h-0">
             {showPreview && (
-              <ViewFinancialReportPDF
-                overview={computedOverview}
-                monthlyData={filteredData}
-                modelData={modelData}
-                periodLabel={periodLabel}
-              />
+              <PDFViewer width="100%" height="100%" showToolbar={false} style={{ border: "none" }}>
+                <FinancialReportPDF
+                  overview={computedOverview}
+                  monthlyData={filteredData}
+                  modelData={modelData}
+                  periodLabel={periodLabel}
+                />
+              </PDFViewer>
             )}
           </div>
 
