@@ -34,13 +34,21 @@ export const getFinancialSummary = async () => {
 
 /**
  * 📊 สรุปการเงินแยกตามรุ่นรถ
+ * ✅ รองรับกรองตามปี/เดือนที่เลือกในหน้าจอ
+ * @param year  ปี ค.ศ. เช่น "2026" (ไม่ส่ง หรือส่ง "all" = ทุกปี)
+ * @param month ชื่อเดือนไทย เช่น "มกราคม" (ไม่ส่ง หรือส่ง "all" = ทุกเดือน)
  * Response: { data: Array<{ model_name, revenue, cost, gross_profit, count }> }
  */
-export const getFinancialByModel = async () => {
+export const getFinancialByModel = async (year?: string, month?: string) => {
 	"use server";
 
+	const params = new URLSearchParams();
+	if (year && year !== "all") params.set("year", year);
+	if (month && month !== "all") params.set("month", month);
+	const queryString = params.toString();
+
 	const response = await authorizedFetch(
-		`${process.env.API_URL}/reports/financial/by_model/`,
+		`${process.env.API_URL}/reports/financial/by_model/${queryString ? `?${queryString}` : ""}`,
 		{
 			next: { revalidate: 0 },
 		}

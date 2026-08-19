@@ -97,6 +97,8 @@ const FinancialReports = () => {
     average_profit_per_order: 0,
   });
   const [loading, setLoading] = useState(true);
+  // ✅ โหมดการแสดงผล: "month" = รายเดือน (ค่าเริ่มต้น), "year" = รายปี (เปรียบเทียบระหว่างปี)
+  const [viewMode, setViewMode] = useState<"month" | "year">("month");
   // ✅ ค่าเริ่มต้น: ดูแบบรายเดือนของปีล่าสุด (ไม่ใช่ "ทั้งหมด" ที่รวมทุกปีทุกเดือนปนกัน)
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
@@ -132,13 +134,75 @@ const FinancialReports = () => {
     fetchData();
   }, []);
 
-  const filteredData = monthlyData.filter((d) => {
-    const matchesYear = selectedYear === "all" || String(d.year) === selectedYear;
-    const matchesMonth = selectedMonth === "all" || d.month === selectedMonth;
-    return matchesYear && matchesMonth;
-  });
+  // ✅ ดึง "กำไรแยกตามรุ่นรถ" ใหม่ทุกครั้งที่เปลี่ยนโหมด/ปี/เดือน ให้ตรงกับตัวกรองที่เลือกบนหน้าจอ
+  useEffect(() => {
+    if (loading) return; // ข้ามตอนกำลังโหลดข้อมูลรอบแรก (fetchData ด้านบนดึงให้ตามค่าเริ่มต้นแล้ว)
+    const fetchModelData = async () => {
+      try {
+        const yearParam = selectedYear !== "all" ? selectedYear : undefined;
+        const monthParam = viewMode === "month" && selectedMonth !== "all" ? selectedMonth : undefined;
+        const modelRes = await getFinancialByModel(yearParam, monthParam);
+        setModelData(modelRes.data || []);
+      } catch (error) {
+        console.error("Error fetching model data:", error);
+      }
+    };
+    fetchModelData();
+  }, [selectedYear, selectedMonth, viewMode, loading]);
 
   const years = Array.from(new Set(monthlyData.map((d) => String(d.year)))).sort();
+
+  // ✅ รวมข้อมูลรายเดือน -> รายปี สำหรับโหมด "รายปี" (กันไม่ให้กราฟรายเดือนของหลายปีมาปนกันจนดูรก)
+  const yearlyData = React.useMemo(() => {
+    const map = new Map<string, any>();
+    monthlyData.forEach((d) => {
+      const y = String(d.year);
+      if (!map.has(y)) {
+        map.set(y, {
+          year: y,
+          yearLabel: `${parseInt(y) + 543}`,
+          revenue: 0,
+          cost: 0,
+          additional_fees: 0,
+          gross_profit: 0,
+          net_profit: 0,
+          order_count: 0,
+        });
+      }
+      const acc = map.get(y);
+      acc.revenue += d.revenue || 0;
+      acc.cost += d.cost || 0;
+      acc.additional_fees += d.additional_fees || 0;
+      acc.order_count += d.order_count || 0;
+    });
+    const arr = Array.from(map.values()).sort((a, b) => Number(a.year) - Number(b.year));
+    arr.forEach((a) => {
+      a.gross_profit = a.revenue - a.cost;
+      a.net_profit = a.gross_profit - a.additional_fees;
+    });
+    return arr;
+  }, [monthlyData]);
+
+  // ✅ เปลี่ยนโหมด: รายเดือนต้องมีปีที่เจาะจงเสมอ (กันเลือก "ทั้งหมด" แล้วกราฟรายเดือนปนกันหลายปี)
+  const handleViewModeChange = (mode: "month" | "year") => {
+    setViewMode(mode);
+    if (mode === "month" && selectedYear === "all" && years.length > 0) {
+      setSelectedYear(years[years.length - 1]);
+    }
+    if (mode === "year") {
+      setSelectedMonth("all");
+    }
+  };
+
+  // ✅ ข้อมูลที่ใช้แสดงจริง: ขึ้นกับโหมด + ปี/เดือนที่เลือก
+  const filteredData =
+    viewMode === "month"
+      ? monthlyData.filter((d) => {
+          const matchesYear = selectedYear === "all" || String(d.year) === selectedYear;
+          const matchesMonth = selectedMonth === "all" || d.month === selectedMonth;
+          return matchesYear && matchesMonth;
+        })
+      : yearlyData.filter((d) => selectedYear === "all" || d.year === selectedYear);
 
   // ✅ คำนวณสรุปภาพรวมสดจากข้อมูลที่กรองแล้ว (ตามปี/เดือนที่เลือก)
   // แทนการใช้ overview จาก API ที่เป็นยอดรวมทั้งหมดคงที่ ไม่ตอบสนองตัวกรอง
@@ -174,7 +238,11 @@ const FinancialReports = () => {
 
   // ✅ label ช่วงเวลาที่กำลังดู ใช้ทั้งบนหน้าจอและในรายงานที่พิมพ์
   const periodLabel =
-    selectedYear === "all"
+    viewMode === "year"
+      ? selectedYear === "all"
+        ? "เปรียบเทียบรายปี (ทั้งหมด)"
+        : `ปี ${parseInt(selectedYear) + 543}`
+      : selectedYear === "all"
       ? "ทั้งหมด"
       : selectedMonth === "all"
       ? `ปี ${parseInt(selectedYear) + 543}`
@@ -223,6 +291,26 @@ const FinancialReports = () => {
           <p className="text-gray-600 mt-1">สรุปรายได้ ต้นทุน และกำไร</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {/* ✅ สลับโหมดรายเดือน / รายปี */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => handleViewModeChange("month")}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === "month" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              รายเดือน
+            </button>
+            <button
+              onClick={() => handleViewModeChange("year")}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === "year" ? "bg-white shadow text-blue-600" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              รายปี
+            </button>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">ปี:</span>
             <select
@@ -233,7 +321,8 @@ const FinancialReports = () => {
               }}
               className="px-4 py-2 border rounded-lg"
             >
-              <option value="all">ทั้งหมด (รวมทุกปี)</option>
+              {/* โหมดรายปีเท่านั้นที่เลือก "ทั้งหมด" ได้ (เปรียบเทียบทุกปี) */}
+              {viewMode === "year" && <option value="all">ทั้งหมด (เปรียบเทียบทุกปี)</option>}
               {years.map((year) => (
                 <option key={year} value={year}>
                   {parseInt(year) + 543}
@@ -247,9 +336,9 @@ const FinancialReports = () => {
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              disabled={selectedYear === "all"}
+              disabled={viewMode === "year" || selectedYear === "all"}
               className="px-4 py-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
-              title={selectedYear === "all" ? "เลือกปีก่อนจึงจะเลือกเดือนได้" : ""}
+              title={viewMode === "year" ? "โหมดรายปีไม่ใช้ตัวกรองเดือน" : selectedYear === "all" ? "เลือกปีก่อนจึงจะเลือกเดือนได้" : ""}
             >
               <option value="all">ทั้งหมด</option>
               {MONTHS.map((month) => (
@@ -377,12 +466,12 @@ const FinancialReports = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
             <BarChart3 className="h-6 w-6 text-blue-600" />
-            แนวโน้มรายเดือน
+            {viewMode === "year" ? "แนวโน้มรายปี" : "แนวโน้มรายเดือน"}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={filteredData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" style={{ fontSize: "10px" }} />
+              <XAxis dataKey={viewMode === "year" ? "yearLabel" : "month"} style={{ fontSize: "10px" }} />
               <YAxis style={{ fontSize: "10px" }} />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
@@ -397,11 +486,11 @@ const FinancialReports = () => {
 
       {/* Bar กำไรรายเดือน */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-bold mb-4">กำไรแยกตามเดือน</h3>
+        <h3 className="text-xl font-bold mb-4">{viewMode === "year" ? "กำไรแยกตามปี" : "กำไรแยกตามเดือน"}</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={filteredData}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" style={{ fontSize: "10px" }} />
+            <XAxis dataKey={viewMode === "year" ? "yearLabel" : "month"} style={{ fontSize: "10px" }} />
             <YAxis style={{ fontSize: "10px" }} />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
@@ -414,7 +503,8 @@ const FinancialReports = () => {
 
       {/* ตารางรุ่นรถ */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-bold mb-4">กำไรแยกตามรุ่นรถ</h3>
+        <h3 className="text-xl font-bold mb-1">กำไรแยกตามรุ่นรถ</h3>
+        <p className="text-sm text-gray-500 mb-4">ช่วงเวลา: {periodLabel}</p>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-100">
