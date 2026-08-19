@@ -76,11 +76,11 @@ const FinancialReports = () => {
     { ssr: false, loading: () => <PdfLoading /> }
   );
   const FinancialReportPDF = dynamic(
-    () => import("../components/FinancialReportPDF"),
+    () => import("@/components/pdf/FinancialReportPDF"),
     { ssr: false }
   );
   const ViewFinancialReportPDF = dynamic(
-    () => import("../components/ViewFinancialReportPDF"),
+    () => import("@/components/pdf/ViewFinancialReportPDF"),
     { ssr: false }
   );
 
