@@ -1,29 +1,18 @@
 "use client";
 
-import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import {
+  registerFonts,
+  ZWJ,
+  sanitizeText,
+  fmt,
+} from "@/components/pdf/Salereceiptutils";
 
-Font.register({
-  family: "Sarabun",
-  fonts: [
-    { src: "/fonts/Sarabun-Regular.ttf", fontWeight: "normal" },
-    { src: "/fonts/Sarabun-Bold.ttf", fontWeight: "bold" },
-  ],
-});
-Font.registerHyphenationCallback((word: string) => [word]);
+registerFonts();
 
-const ZWJ = "\u200D";
-
-// ✅ ป้องกันตัวอักษรไทยบางตัวหายตอน render (บั๊ก react-pdf ที่เจอมาก่อนหน้า)
-const safe = (text: string | number | null | undefined): string => {
-  if (text === null || text === undefined) return "-";
-  return String(text)
-    .split("")
-    .join(ZWJ);
-};
-
-const COMPANY_NAME = "นพดลมอเตอร์กรุ้ป";
-const COMPANY_ADDRESS = "359/2 หมู่ 6 ตำบลร้องเข็ม อำเภอร้องกวาง จังหวัดแพร่";
-const COMPANY_PHONE = "โทร. 099-376-8889";
+const COMPANY_NAME = "ห้างหุ้นส่วนจำกัด นพดลมอเตอร์กรุ้ป";
+const COMPANY_ADDRESS = "359/2 หมู่ 6 ตำบลร้องเข็ม อำเภอร้องกวาง จังหวัดแพร่ 54140";
+const COMPANY_TAX = "โทร. 099-376-8889  เลขประจำตัวผู้เสียภาษี 0543564001773";
 
 const styles = StyleSheet.create({
   page: {
@@ -32,26 +21,46 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#1a1a1a",
   },
+
+  // ✅ หัวกระดาษแบบเดียวกับใบเสร็จ (โลโก้ + ชื่อบริษัท)
   header: {
-    textAlign: "center",
-    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "flex-start",
     borderBottom: "2pt solid #1a1a1a",
     paddingBottom: 12,
+    marginBottom: 16,
+  },
+  logoContainer: {
+    width: 55,
+    height: 55,
+    marginRight: 10,
+  },
+  logo: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
+  companyInfo: {
+    flex: 1,
   },
   companyName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 3,
+    marginBottom: 2,
   },
   companyDetail: {
-    fontSize: 9,
-    color: "#555",
+    fontSize: 8.5,
+    color: "#444",
     marginBottom: 1,
+  },
+
+  titleBlock: {
+    textAlign: "center",
+    marginBottom: 14,
   },
   reportTitle: {
     fontSize: 13,
     fontWeight: "bold",
-    marginTop: 10,
   },
   reportPeriod: {
     fontSize: 10,
@@ -61,7 +70,7 @@ const styles = StyleSheet.create({
   reportDate: {
     fontSize: 8,
     color: "#888",
-    marginTop: 4,
+    marginBottom: 10,
     textAlign: "right",
   },
 
@@ -74,7 +83,6 @@ const styles = StyleSheet.create({
     paddingLeft: 6,
   },
 
-  // สรุปภาพรวม
   summaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -96,7 +104,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // ตาราง
   table: {
     border: "1pt solid #999",
   },
@@ -178,12 +185,6 @@ interface FinancialReportPDFProps {
   periodLabel: string;
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("th-TH", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(n || 0);
-
 const today = new Date().toLocaleDateString("th-TH", {
   year: "numeric",
   month: "long",
@@ -210,75 +211,83 @@ export default function FinancialReportPDF({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* หัวรายงาน */}
+        {/* ✅ หัวกระดาษแบบเดียวกับใบเสร็จ */}
         <View style={styles.header}>
-          <Text style={styles.companyName}>{safe(COMPANY_NAME)}</Text>
-          <Text style={styles.companyDetail}>{safe(COMPANY_ADDRESS)}</Text>
-          <Text style={styles.companyDetail}>{safe(COMPANY_PHONE)}</Text>
-          <Text style={styles.reportTitle}>{safe("รายงานสรุปผลประกอบการทางการเงิน")}</Text>
-          <Text style={styles.reportPeriod}>{safe(`ประจำ${periodLabel}`)}</Text>
+          <View style={styles.logoContainer}>
+            <Image src="/logo.png" style={styles.logo} />
+          </View>
+          <View style={styles.companyInfo}>
+            <Text style={styles.companyName}>{COMPANY_NAME}{ZWJ}</Text>
+            <Text style={styles.companyDetail}>{COMPANY_ADDRESS}{ZWJ}</Text>
+            <Text style={styles.companyDetail}>{COMPANY_TAX}{ZWJ}</Text>
+          </View>
         </View>
 
-        <Text style={styles.reportDate}>{safe(`จัดทำรายงานวันที่ ${today}`)}</Text>
+        <View style={styles.titleBlock}>
+          <Text style={styles.reportTitle}>รายงานสรุปผลประกอบการทางการเงิน{ZWJ}</Text>
+          <Text style={styles.reportPeriod}>{sanitizeText(`ประจำ${periodLabel}`)}{ZWJ}</Text>
+        </View>
+
+        <Text style={styles.reportDate}>{sanitizeText(`จัดทำรายงานวันที่ ${today}`)}{ZWJ}</Text>
 
         {/* สรุปภาพรวม */}
-        <Text style={styles.sectionTitle}>{safe("สรุปภาพรวม")}</Text>
-        <View style={styles.summaryGrid}>
+        <Text style={styles.sectionTitle}>สรุปภาพรวม{ZWJ}</Text>
+        <View style={styles.summaryGrid} wrap={false}>
           <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>{safe("รายได้รวม")}</Text>
+            <Text style={styles.summaryLabel}>รายได้รวม{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.total_revenue)}</Text>
           </View>
           <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>{safe("ต้นทุนรถ")}</Text>
+            <Text style={styles.summaryLabel}>ต้นทุนรถ{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.total_cost)}</Text>
           </View>
           <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>{safe("ต้นทุนของแถม")}</Text>
+            <Text style={styles.summaryLabel}>ต้นทุนของแถม{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.total_additional_fees)}</Text>
           </View>
           <View style={[styles.summaryCell, { borderRight: "none" }]}>
-            <Text style={styles.summaryLabel}>{safe("กำไรขั้นต้น")}</Text>
+            <Text style={styles.summaryLabel}>กำไรขั้นต้น{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.gross_profit)}</Text>
           </View>
           <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>{safe("กำไรสุทธิ")}</Text>
+            <Text style={styles.summaryLabel}>กำไรสุทธิ{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.net_profit)}</Text>
           </View>
           <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>{safe("Profit Margin")}</Text>
+            <Text style={styles.summaryLabel}>Profit Margin{ZWJ}</Text>
             <Text style={styles.summaryValue}>{overview.profit_margin.toFixed(1)}%</Text>
           </View>
           <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>{safe("จำนวนออเดอร์")}</Text>
+            <Text style={styles.summaryLabel}>จำ{ZWJ}นวนออเดอร์{ZWJ}</Text>
             <Text style={styles.summaryValue}>{overview.total_orders}</Text>
           </View>
           <View style={[styles.summaryCell, { borderRight: "none" }]}>
-            <Text style={styles.summaryLabel}>{safe("กำไรเฉลี่ย/ออเดอร์")}</Text>
+            <Text style={styles.summaryLabel}>กำไรเฉลี่ย/ออเดอร์{ZWJ}</Text>
             <Text style={styles.summaryValue}>{fmt(overview.average_profit_per_order)}</Text>
           </View>
         </View>
 
-        {/* ตารางรายเดือน */}
-        <Text style={styles.sectionTitle}>{safe("สรุปรายเดือน")}</Text>
+        {/* ตารางรายเดือน - wrap={false} ทุกแถว กันแถวขาดครึ่งเวลาขึ้นหน้าใหม่ */}
+        <Text style={styles.sectionTitle}>สรุปรายเดือน{ZWJ}</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.th, { width: "20%" }]}>{safe("เดือน")}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{safe("รายได้")}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{safe("ต้นทุนรถ")}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{safe("ต้นทุนของแถม")}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{safe("กำไรสุทธิ")}</Text>
+          <View style={styles.tableHeaderRow} wrap={false}>
+            <Text style={[styles.th, { width: "20%" }]}>เดือน{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนของแถม{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>กำไรสุทธิ{ZWJ}</Text>
           </View>
           {monthlyData.map((row, idx) => (
-            <View key={idx} style={styles.tableRow}>
-              <Text style={[styles.td, { width: "20%" }]}>{safe(row.month)}</Text>
+            <View key={idx} style={styles.tableRow} wrap={false}>
+              <Text style={[styles.td, { width: "20%" }]}>{sanitizeText(row.month)}{ZWJ}</Text>
               <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.revenue)}</Text>
               <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.cost)}</Text>
               <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.additional_fees)}</Text>
               <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.net_profit)}</Text>
             </View>
           ))}
-          <View style={styles.tableRowTotal}>
-            <Text style={[styles.th, { width: "20%" }]}>{safe("รวม")}</Text>
+          <View style={styles.tableRowTotal} wrap={false}>
+            <Text style={[styles.th, { width: "20%" }]}>รวม{ZWJ}</Text>
             <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>
               {fmt(monthlyData.reduce((s, r) => s + (r.revenue || 0), 0))}
             </Text>
@@ -294,27 +303,27 @@ export default function FinancialReportPDF({
           </View>
         </View>
 
-        {/* ตารางรุ่นรถ */}
-        <Text style={styles.sectionTitle}>{safe("สรุปตามรุ่นรถ")}</Text>
+        {/* ตารางรุ่นรถ - wrap={false} ทุกแถวเช่นกัน */}
+        <Text style={styles.sectionTitle}>สรุปตามรุ่นรถ{ZWJ}</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.th, { width: "30%" }]}>{safe("รุ่นรถ")}</Text>
-            <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>{safe("จำนวนขาย")}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{safe("รายได้")}</Text>
-            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{safe("ต้นทุนรถ")}</Text>
-            <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>{safe("กำไร")}</Text>
+          <View style={styles.tableHeaderRow} wrap={false}>
+            <Text style={[styles.th, { width: "30%" }]}>รุ่นรถ{ZWJ}</Text>
+            <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>จำ{ZWJ}นวนขาย{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>รายได้{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ต้นทุนรถ{ZWJ}</Text>
+            <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>กำไร{ZWJ}</Text>
           </View>
           {modelData.map((m, idx) => (
-            <View key={idx} style={styles.tableRow}>
-              <Text style={[styles.td, { width: "30%" }]}>{safe(m.model_name)}</Text>
+            <View key={idx} style={styles.tableRow} wrap={false}>
+              <Text style={[styles.td, { width: "30%" }]}>{sanitizeText(m.model_name)}{ZWJ}</Text>
               <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>{m.count}</Text>
               <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(m.revenue)}</Text>
               <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(m.cost)}</Text>
               <Text style={[styles.td, { width: "15%", textAlign: "right" }]}>{fmt(m.gross_profit)}</Text>
             </View>
           ))}
-          <View style={styles.tableRowTotal}>
-            <Text style={[styles.th, { width: "30%" }]}>{safe("รวม")}</Text>
+          <View style={styles.tableRowTotal} wrap={false}>
+            <Text style={[styles.th, { width: "30%" }]}>รวม{ZWJ}</Text>
             <Text style={[styles.th, { width: "15%", textAlign: "right" }]}>{modelTotals.count}</Text>
             <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{fmt(modelTotals.revenue)}</Text>
             <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>{fmt(modelTotals.cost)}</Text>
@@ -322,13 +331,13 @@ export default function FinancialReportPDF({
           </View>
         </View>
 
-        {/* ลายเซ็นรับรอง */}
-        <View style={styles.signSection}>
+        {/* ลายเซ็นรับรอง - wrap={false} กันฉีกออกจากตารางสุดท้าย */}
+        <View style={styles.signSection} wrap={false}>
           <View style={styles.signBox}>
-            <Text style={styles.signLine}>{safe("ผู้จัดทำรายงาน")}</Text>
+            <Text style={styles.signLine}>ผู้จัดทำรายงาน{ZWJ}</Text>
           </View>
           <View style={styles.signBox}>
-            <Text style={styles.signLine}>{safe("ผู้มีอำนาจลงนาม")}</Text>
+            <Text style={styles.signLine}>ผู้มีอำ{ZWJ}นาจลงนาม{ZWJ}</Text>
           </View>
         </View>
       </Page>
