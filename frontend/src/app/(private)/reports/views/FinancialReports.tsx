@@ -70,20 +70,23 @@ type OverviewData = {
 
 const COLORS = ["#00C49F", "#FF8042", "#f97316"];
 
-const FinancialReports = () => {
-  const PDFDownloadLink = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-    { ssr: false, loading: () => <PdfLoading /> }
-  );
-  const FinancialReportPDF = dynamic(
-    () => import("@/components/pdf/FinancialReportPDF"),
-    { ssr: false }
-  );
-  const ViewFinancialReportPDF = dynamic(
-    () => import("../financial/print/components/ViewFinancialReportPDF"),
-    { ssr: false }
-  );
+// ✅ ต้องประกาศ dynamic() ที่ module scope เท่านั้น ห้ามอยู่ในตัว component
+// (เดิมอยู่ในตัว FinancialReports ทำให้ทุกครั้งที่ re-render เช่นตอนกด "พิมพ์รายงาน"
+//  จะสร้าง component ใหม่ทั้ง 3 ตัวซ้ำๆ ทำให้ React unmount/remount วนซ้ำจนพังและหน้าเว็บ refresh)
+const PDFDownloadLink = dynamic(
+  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+  { ssr: false, loading: () => <PdfLoading /> }
+);
+const FinancialReportPDF = dynamic(
+  () => import("@/components/pdf/FinancialReportPDF"),
+  { ssr: false }
+);
+const ViewFinancialReportPDF = dynamic(
+  () => import("../financial/print/components/ViewFinancialReportPDF"),
+  { ssr: false }
+);
 
+const FinancialReports = () => {
   const [showPreview, setShowPreview] = useState(false);
 
   const [monthlyData, setMonthlyData] = useState<FinancialData[]>([]);
