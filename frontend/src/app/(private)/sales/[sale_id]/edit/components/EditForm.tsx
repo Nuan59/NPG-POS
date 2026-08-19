@@ -127,12 +127,24 @@ const EditForm = ({ order }: EditFormProps) => {
 			? `DEPOSIT_RECEIPT:${data.depositReceiptNo}${data.notes ? `\n${data.notes}` : ''}`
 			: data.notes;
 
+		// ✅ แปลงวันที่ พ.ศ. → ค.ศ. ก่อนส่ง backend
+		// (บาง browser ที่ locale เป็นไทยจะแสดงผลเป็น พ.ศ. ให้อัตโนมัติ
+		// แต่ค่าที่ submit กลับมาจาก <input type="date"> จะเป็นปีที่ "แสดงบนจอ" คือ พ.ศ.
+		// ทำให้ backend ได้รับปีที่บวกเกิน 543 ปี ต้องลบกลับก่อนส่ง)
+		const convertToAD = (dateStr?: string) => {
+			if (!dateStr) return undefined;
+			const [year, month, day] = dateStr.split("-").map(Number);
+			// ถ้าปีมากกว่า 2400 แสดงว่าเป็น พ.ศ. ให้ลบ 543
+			const adYear = year > 2400 ? year - 543 : year;
+			return `${adYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+		};
+
 		const payload = {
 			...data,
 			notes: notesWithDeposit,
 			total,
 			bikePrice: data.salePrice,
-			sale_date: data.saleDate || undefined,
+			sale_date: convertToAD(data.saleDate), // ✅ แปลงแล้ว
 			finance_amount: isFinance ? data.financeAmount : 0,
 			interest_rate: isFinance ? data.interestRate : 0,
 			installment_count: isFinance ? data.installmentCount : 0,
@@ -140,7 +152,7 @@ const EditForm = ({ order }: EditFormProps) => {
 			finance_provider:
 				isFinance && (data.paymentMethod === "Cathay" || data.paymentMethod === "ทรัพย์สยาม" || data.paymentMethod === "NPG")
 					? data.paymentMethod : "",
-			registration_expiry_date: data.registrationExpiryDate || null,
+			registration_expiry_date: convertToAD(data.registrationExpiryDate) || null, // ✅ แปลงแล้ว
 		};
 
 		if (images.length === 0) {
