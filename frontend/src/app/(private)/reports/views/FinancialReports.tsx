@@ -101,6 +101,8 @@ const FinancialReports = () => {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  // ✅ เก็บ error จริงจาก API ไว้โชว์บนหน้าจอ แทนที่จะเงียบแล้วขึ้น 0 โดยไม่รู้สาเหตุ
+  const [apiErrors, setApiErrors] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -115,8 +117,14 @@ const FinancialReports = () => {
         setMonthlyData(filledData);
         setModelData(modelRes.data || []);
         setOverview(overviewRes.data || overview);
+
+        const errors = [summaryRes.error, modelRes.error, overviewRes.error].filter(
+          (e): e is string => Boolean(e)
+        );
+        setApiErrors(Array.from(new Set(errors)));
       } catch (error) {
         console.error("Error fetching financial data:", error);
+        setApiErrors([error instanceof Error ? error.message : "เกิดข้อผิดพลาดไม่ทราบสาเหตุ"]);
       } finally {
         setLoading(false);
       }
@@ -209,6 +217,18 @@ const FinancialReports = () => {
 
   return (
     <div className="w-full p-6 space-y-6">
+
+      {/* ✅ Error banner - โชว์ error จริงจาก API ถ้ามี ไม่ต้องเปิด Vercel logs เอง */}
+      {apiErrors.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+          <p className="font-bold text-red-800 mb-1">⚠️ ดึงข้อมูลการเงินไม่สำเร็จ:</p>
+          <ul className="list-disc list-inside text-sm text-red-700 space-y-0.5">
+            {apiErrors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
