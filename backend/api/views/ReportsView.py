@@ -82,12 +82,25 @@ def get_gift_cost(order):
     ✅ คำนวณต้นทุนของแถมจาก OrderGift
     - ดึง wholesale_price จาก Gift model
     - คูณด้วย quantity
+    - นี่คือ "ต้นทุน" จริงที่ร้านเสียไป (ของที่แจกฟรี) ต้องหักออกจากกำไร
     """
     total_gift_cost = 0
     for order_gift in order.gifts.select_related('item').all():
         if order_gift.item and order_gift.item.wholesale_price:
             total_gift_cost += float(order_gift.item.wholesale_price) * int(order_gift.quantity or 0)
     return total_gift_cost
+
+
+def get_additional_fee_revenue(order):
+    """
+    ✅ ค่าใช้จ่ายเพิ่มเติมที่ "เก็บจากลูกค้า" (เช่น ค่าทะเบียน, ค่าโอน, หักเงินให้บุคคลที่ 3)
+    เงินก้อนนี้ลูกค้าเป็นคนจ่ายเข้ามา = รายได้เพิ่มเติมของร้าน ไม่ใช่ต้นทุน
+    (เดิมโค้ดเอาไปรวมกับต้นทุนของแถมแล้วหักออกจากกำไรผิดจุด)
+    """
+    total = 0
+    for fee in order.additional_fees.all():
+        total += float(fee.amount or 0)
+    return total
 
 
 # ============================================================
@@ -315,8 +328,9 @@ def financial_summary(request):
                 "order_count": 0,
             }
         
-        # รายได้
-        revenue = float(order.sale_price or 0)
+        # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า (เช่น ค่าทะเบียน, ค่าโอน)
+        order_additional_fee_revenue = get_additional_fee_revenue(order)
+        revenue = float(order.sale_price or 0) + order_additional_fee_revenue
         result_map[key]["revenue"] += revenue
         
         # ต้นทุนรถ
@@ -325,15 +339,8 @@ def financial_summary(request):
             cost += get_bike_cost(bike)
         result_map[key]["cost"] += cost
         
-        # ค่าใช้จ่ายเพิ่มเติม (AdditionalFee เดิม + ต้นทุนของแถม)
-        additional_fees = 0
-        for fee in order.additional_fees.all():
-            additional_fees += float(fee.amount or 0)
-        
-        # ✅ เพิ่มต้นทุนของแถม
-        additional_fees += get_gift_cost(order)
-        
-        result_map[key]["additional_fees"] += additional_fees
+        # ✅ ต้นทุนของแถม (เฉพาะของที่ร้านแจกฟรีจริงๆ - คนละก้อนกับค่าใช้จ่ายที่เก็บจากลูกค้าข้างบน)
+        result_map[key]["additional_fees"] += get_gift_cost(order)
         result_map[key]["order_count"] += 1
     
     # คำนวณกำไร
@@ -373,6 +380,10 @@ def financial_by_model(request):
             if THAI_MONTHS.get(order.sale_date.month) != month_param:
                 continue
         
+        # ✅ รายได้รวมค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า หารเฉลี่ยตามจำนวนรถในออเดอร์เดียวกัน
+        order_additional_fee_revenue = get_additional_fee_revenue(order)
+        order_total_revenue = float(order.sale_price or 0) + order_additional_fee_revenue
+
         for bike in order.bikes.all():
             model_name = bike.model_name or "ไม่ระบุ"
             
@@ -386,7 +397,7 @@ def financial_by_model(request):
                 }
             
             bike_count = order.bikes.count()
-            revenue_per_bike = float(order.sale_price or 0) / bike_count if bike_count > 0 else 0
+            revenue_per_bike = order_total_revenue / bike_count if bike_count > 0 else 0
             
             result_map[model_name]["revenue"] += revenue_per_bike
             result_map[model_name]["cost"] += get_bike_cost(bike)
@@ -416,16 +427,13 @@ def financial_overview(request):
     total_orders = 0
     
     for order in Order.objects.prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
-        total_revenue += float(order.sale_price or 0)
+        # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า
+        total_revenue += float(order.sale_price or 0) + get_additional_fee_revenue(order)
         
         for bike in order.bikes.all():
             total_cost += get_bike_cost(bike)
         
-        # AdditionalFee เดิม
-        for fee in order.additional_fees.all():
-            total_additional_fees += float(fee.amount or 0)
-        
-        # ✅ เพิ่มต้นทุนของแถม
+        # ✅ ต้นทุนของแถม (เฉพาะของแจกฟรีจริง ไม่รวมค่าใช้จ่ายที่เก็บจากลูกค้าแล้ว)
         total_additional_fees += get_gift_cost(order)
         
         total_orders += 1
