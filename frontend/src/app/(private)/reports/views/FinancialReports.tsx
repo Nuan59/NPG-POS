@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import NextLink from "next/link";
 import {
@@ -27,6 +27,8 @@ import {
   Printer,
 } from "lucide-react";
 import { getFinancialSummary, getFinancialByModel, getFinancialOverview } from "@/services/FinancialReportsService";
+import { getOrders } from "@/services/OrderService";
+import { IOrder } from "@/types/Order";
 import { fillMissingMonths, MONTHS } from "@/util/reports/index";
 import PdfLoading from "@/components/pdf/PdfLoading";
 import {
@@ -137,6 +139,9 @@ const FinancialReports = () => {
 
   const [monthlyData, setMonthlyData] = useState<FinancialData[]>([]);
   const [modelData, setModelData] = useState<ModelData[]>([]);
+  // ✅ orders ทั้งหมด ดึงมาครั้งเดียว แล้วคำนวณแยกย่อยค่าใช้จ่ายเพิ่มเติมที่ฝั่ง frontend เอง
+  // (ไม่ต้องเพิ่ม backend endpoint ใหม่ - ใช้ /order/ ที่มีอยู่แล้วเหมือนหน้า "ประวัติการขาย")
+  const [allOrders, setAllOrders] = useState<IOrder[]>([]);
   const [overview, setOverview] = useState<OverviewData>({
     total_revenue: 0,
     total_cost: 0,
@@ -157,13 +162,15 @@ const FinancialReports = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [summaryRes, overviewRes] = await Promise.all([
+        const [summaryRes, overviewRes, ordersRes] = await Promise.all([
           getFinancialSummary(),
           getFinancialOverview(),
+          getOrders().then((res) => res?.json()).catch(() => []),
         ]);
         const filledData = fillMissingMonths(summaryRes.data || []);
         setMonthlyData(filledData);
         setOverview(overviewRes.data || overview);
+        setAllOrders(Array.isArray(ordersRes) ? ordersRes : []);
 
         const errors = [summaryRes.error, overviewRes.error].filter(
           (e): e is string => Boolean(e)
@@ -198,6 +205,36 @@ const FinancialReports = () => {
     };
     fetchModelData();
   }, [selectedYear, selectedMonth]);
+
+  // ✅ แยกย่อยค่าใช้จ่ายเพิ่มเติมตามรายการ (description) คำนวณสดจาก allOrders
+  // กรองตามปี/เดือนที่เลือกด้วย logic เดียวกับ filteredData ด้านล่าง
+  const feeBreakdown = useMemo(() => {
+    const result = new Map<string, { description: string; total_amount: number; count: number }>();
+
+    for (const order of allOrders) {
+      if (!order.sale_date) continue;
+      const d = new Date(order.sale_date);
+      const orderYear = String(d.getFullYear());
+      const orderMonth = MONTHS[d.getMonth()];
+
+      if (selectedYear !== "all" && orderYear !== selectedYear) continue;
+      if (selectedMonth !== "all" && orderMonth !== selectedMonth) continue;
+
+      for (const fee of order.additional_fees || []) {
+        const label = (fee.description || "ไม่ระบุรายการ").trim() || "ไม่ระบุรายการ";
+        const amount = Number(fee.amount || 0);
+        const existing = result.get(label);
+        if (existing) {
+          existing.total_amount += amount;
+          existing.count += 1;
+        } else {
+          result.set(label, { description: label, total_amount: amount, count: 1 });
+        }
+      }
+    }
+
+    return Array.from(result.values()).sort((a, b) => b.total_amount - a.total_amount);
+  }, [allOrders, selectedYear, selectedMonth]);
 
   const filteredData = monthlyData.filter((d) => {
     const matchesYear = selectedYear === "all" || String(d.year) === selectedYear;
@@ -552,6 +589,44 @@ const FinancialReports = () => {
             </tfoot>
           </table>
         </div>
+      </div>
+
+      {/* ✅ แยกย่อยค่าใช้จ่ายเพิ่มเติมตามรายการ - กรองตามปี/เดือนที่เลือกด้านบนเหมือนตารางรุ่นรถ */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">รายละเอียดค่าใช้จ่ายเพิ่มเติม</h2>
+        {feeBreakdown.length === 0 ? (
+          <p className="text-sm text-gray-500">ไม่มีรายการค่าใช้จ่ายเพิ่มเติมในช่วงที่เลือก</p>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">รายการ</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">จำนวนครั้ง</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">ยอดรวม</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {feeBreakdown.map((fee, index) => (
+                <tr key={index}>
+                  <td className="px-4 py-3 text-sm">{fee.description}</td>
+                  <td className="px-4 py-3 text-sm text-right">{fee.count}</td>
+                  <td className="px-4 py-3 text-sm text-right font-semibold">{fmt(fee.total_amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-100 font-semibold">
+              <tr>
+                <td className="px-4 py-3 text-sm">รวม</td>
+                <td className="px-4 py-3 text-sm text-right">
+                  {feeBreakdown.reduce((sum, f) => sum + f.count, 0)}
+                </td>
+                <td className="px-4 py-3 text-sm text-right">
+                  {fmt(feeBreakdown.reduce((sum, f) => sum + f.total_amount, 0))}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        )}
       </div>
 
       {/* ✅ Dialog พรีวิว PDF ก่อนพิมพ์จริง (แพทเทิร์นเดียวกับใบส่งมอบ) */}
