@@ -15,7 +15,6 @@ const PDFDownloadLink = dynamic(
 );
 
 type MonthlyRow = { month: string; total: number; new: number; pre_owned: number };
-type ModelRow = { model_name: string; count: number };
 type DetailRow = { date: string; modelLabel: string; paymentLabel: string; amount: number };
 type SummaryData = {
   totalOrders: number;
@@ -30,12 +29,11 @@ type SummaryData = {
 interface ActionButtonsProps {
   summary: SummaryData;
   monthlyData: MonthlyRow[];
-  modelData: ModelRow[];
   detailRows: DetailRow[];
   periodLabel: string;
 }
 
-const ActionButtons = ({ summary, monthlyData, modelData, detailRows, periodLabel }: ActionButtonsProps) => {
+const ActionButtons = ({ summary, monthlyData, detailRows, periodLabel }: ActionButtonsProps) => {
   return (
     <div className="flex justify-between container mt-2">
       <Link href={`/reports`}>
@@ -47,7 +45,6 @@ const ActionButtons = ({ summary, monthlyData, modelData, detailRows, periodLabe
           <SalesReportPDF
             summary={summary}
             monthlyData={monthlyData}
-            modelData={modelData}
             detailRows={detailRows}
             periodLabel={periodLabel}
           />

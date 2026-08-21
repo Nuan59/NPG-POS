@@ -72,11 +72,6 @@ type MonthlyRow = {
   pre_owned: number;
 };
 
-type ModelRow = {
-  model_name: string;
-  count: number;
-};
-
 type DetailRow = {
   date: string;
   modelLabel: string;
@@ -97,7 +92,6 @@ type SummaryData = {
 interface SalesReportPDFProps {
   summary: SummaryData;
   monthlyData: MonthlyRow[];
-  modelData: ModelRow[];
   detailRows: DetailRow[];
   periodLabel: string;
 }
@@ -108,21 +102,9 @@ const today = new Date().toLocaleDateString("th-TH", {
   day: "numeric",
 });
 
-// ✅ จำนวนแถวต่อการโชว์หัวตารางซ้ำ 1 รอบ - กันตารางขาดหัวตอนขึ้นหน้าใหม่ (react-pdf ไม่ repeat header ให้เอง)
-const ROWS_PER_HEADER_REPEAT = 22;
-
-const chunkArray = <T,>(arr: T[], size: number): T[][] => {
-  const result: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    result.push(arr.slice(i, i + size));
-  }
-  return result.length > 0 ? result : [[]];
-};
-
 export default function SalesReportPDF({
   summary,
   monthlyData,
-  modelData,
   detailRows,
   periodLabel,
 }: SalesReportPDFProps) {
@@ -175,7 +157,7 @@ export default function SalesReportPDF({
         {/* ตารางรายเดือน */}
         <Text style={styles.sectionTitle}>สรุปรายเดือน{ZWJ}</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeaderRow} wrap={false}>
+          <View style={styles.tableHeaderRow} fixed>
             <Text style={[styles.th, { width: "25%" }]}>เดือน{ZWJ}</Text>
             <Text style={[styles.th, { width: "25%", textAlign: "right" }]}>ยอดขายรวม{ZWJ}</Text>
             <Text style={[styles.th, { width: "25%", textAlign: "right" }]}>รถใหม่{ZWJ}</Text>
@@ -203,46 +185,23 @@ export default function SalesReportPDF({
           </View>
         </View>
 
-        {/* ตารางรุ่นรถ */}
-        <Text style={styles.sectionTitle}>สรุปตามรุ่นรถ{ZWJ}</Text>
-        <View style={styles.table}>
-          <View style={styles.tableHeaderRow} wrap={false}>
-            <Text style={[styles.th, { width: "70%" }]}>รุ่นรถ{ZWJ}</Text>
-            <Text style={[styles.th, { width: "30%", textAlign: "right" }]}>จำ{ZWJ}นวนขาย{ZWJ}</Text>
-          </View>
-          {modelData.map((row, idx) => (
-            <View key={idx} style={styles.tableRow} wrap={false}>
-              <Text style={[styles.td, { width: "70%" }]}>{sanitizeText(row.model_name)}{ZWJ}</Text>
-              <Text style={[styles.td, { width: "30%", textAlign: "right" }]}>{row.count}</Text>
-            </View>
-          ))}
-          <View style={styles.tableRowTotal} wrap={false}>
-            <Text style={[styles.th, { width: "70%" }]}>รวม{ZWJ}</Text>
-            <Text style={[styles.th, { width: "30%", textAlign: "right" }]}>
-              {modelData.reduce((s, r) => s + r.count, 0)}
-            </Text>
-          </View>
-        </View>
-
-        {/* ตารางรายละเอียด - ทำหัวตารางซ้ำทุก ROWS_PER_HEADER_REPEAT แถว กันขาดหัวตอนขึ้นหน้าใหม่ */}
+        {/* ตารางรายละเอียด - หัวตาราง fixed จะขึ้นซ้ำอัตโนมัติทุกหน้าที่ react-pdf ขึ้นหน้าใหม่จริงๆ
+            (เดิมใช้วิธีตัดแบ่งเป็นก้อนตามจำนวนแถวเอง แต่ react-pdf ขึ้นหน้าใหม่ตามความสูงจริง
+            ไม่ตรงกับที่กะไว้ ทำให้หัวตารางไม่ตรงจุดที่ขึ้นหน้าจริง ดูเหมือนตารางขาดหาย) */}
         <Text style={styles.sectionTitle} break>รายละเอียดการขาย{ZWJ}</Text>
         <View style={styles.table}>
-          {chunkArray(detailRows, ROWS_PER_HEADER_REPEAT).map((chunk, chunkIdx) => (
-            <View key={chunkIdx}>
-              <View style={styles.tableHeaderRow} wrap={false}>
-                <Text style={[styles.th, { width: "20%" }]}>วันที่{ZWJ}</Text>
-                <Text style={[styles.th, { width: "40%" }]}>รุ่นรถ{ZWJ}</Text>
-                <Text style={[styles.th, { width: "20%", textAlign: "center" }]}>วิธีชำระ{ZWJ}</Text>
-                <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ยอดขาย{ZWJ}</Text>
-              </View>
-              {chunk.map((row, idx) => (
-                <View key={idx} style={styles.tableRow} wrap={false}>
-                  <Text style={[styles.td, { width: "20%" }]}>{sanitizeText(row.date)}{ZWJ}</Text>
-                  <Text style={[styles.td, { width: "40%" }]}>{sanitizeText(row.modelLabel)}{ZWJ}</Text>
-                  <Text style={[styles.td, { width: "20%", textAlign: "center" }]}>{sanitizeText(row.paymentLabel)}{ZWJ}</Text>
-                  <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.amount)}</Text>
-                </View>
-              ))}
+          <View style={styles.tableHeaderRow} fixed>
+            <Text style={[styles.th, { width: "20%" }]}>วันที่{ZWJ}</Text>
+            <Text style={[styles.th, { width: "40%" }]}>รุ่นรถ{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "center" }]}>วิธีชำระ{ZWJ}</Text>
+            <Text style={[styles.th, { width: "20%", textAlign: "right" }]}>ยอดขาย{ZWJ}</Text>
+          </View>
+          {detailRows.map((row, idx) => (
+            <View key={idx} style={styles.tableRow} wrap={false}>
+              <Text style={[styles.td, { width: "20%" }]}>{sanitizeText(row.date)}{ZWJ}</Text>
+              <Text style={[styles.td, { width: "40%" }]}>{sanitizeText(row.modelLabel)}{ZWJ}</Text>
+              <Text style={[styles.td, { width: "20%", textAlign: "center" }]}>{sanitizeText(row.paymentLabel)}{ZWJ}</Text>
+              <Text style={[styles.td, { width: "20%", textAlign: "right" }]}>{fmt(row.amount)}</Text>
             </View>
           ))}
           <View style={styles.tableRowTotal} wrap={false}>

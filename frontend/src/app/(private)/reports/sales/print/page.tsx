@@ -63,18 +63,6 @@ const SalesReportPrintPage = async ({ searchParams }: SalesReportPrintPageProps)
     ...monthlyMap.get(month)!,
   }));
 
-  // ✅ ตารางแยกตามรุ่นรถ
-  const modelMap = new Map<string, number>();
-  for (const order of filteredOrders) {
-    for (const bike of order.bikes || []) {
-      const name = bike.model_name || "ไม่ระบุ";
-      modelMap.set(name, (modelMap.get(name) || 0) + 1);
-    }
-  }
-  const modelData = Array.from(modelMap.entries())
-    .map(([model_name, count]) => ({ model_name, count }))
-    .sort((a, b) => b.count - a.count);
-
   // ✅ ตารางรายละเอียด
   const detailRows = filteredOrders
     .map((order) => {
@@ -154,7 +142,6 @@ const SalesReportPrintPage = async ({ searchParams }: SalesReportPrintPageProps)
         <ViewSalesReportPDF
           summary={summary}
           monthlyData={monthlyData}
-          modelData={modelData}
           detailRows={detailRows}
           periodLabel={periodLabel}
         />
@@ -163,7 +150,6 @@ const SalesReportPrintPage = async ({ searchParams }: SalesReportPrintPageProps)
       <ActionButtons
         summary={summary}
         monthlyData={monthlyData}
-        modelData={modelData}
         detailRows={detailRows}
         periodLabel={periodLabel}
       />

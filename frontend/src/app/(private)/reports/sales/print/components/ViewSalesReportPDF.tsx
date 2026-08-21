@@ -5,7 +5,6 @@ import { pdf } from "@react-pdf/renderer";
 import SalesReportPDF from "@/components/pdf/SalesReportPDF";
 
 type MonthlyRow = { month: string; total: number; new: number; pre_owned: number };
-type ModelRow = { model_name: string; count: number };
 type DetailRow = { date: string; modelLabel: string; paymentLabel: string; amount: number };
 type SummaryData = {
   totalOrders: number;
@@ -20,7 +19,6 @@ type SummaryData = {
 interface ViewSalesReportPDFProps {
   summary: SummaryData;
   monthlyData: MonthlyRow[];
-  modelData: ModelRow[];
   detailRows: DetailRow[];
   periodLabel: string;
 }
@@ -28,7 +26,6 @@ interface ViewSalesReportPDFProps {
 export default function ViewSalesReportPDF({
   summary,
   monthlyData,
-  modelData,
   detailRows,
   periodLabel,
 }: ViewSalesReportPDFProps) {
@@ -49,7 +46,6 @@ export default function ViewSalesReportPDF({
           <SalesReportPDF
             summary={summary}
             monthlyData={monthlyData}
-            modelData={modelData}
             detailRows={detailRows}
             periodLabel={periodLabel}
           />
@@ -88,7 +84,7 @@ export default function ViewSalesReportPDF({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [summary, monthlyData, modelData, detailRows, periodLabel]);
+  }, [summary, monthlyData, detailRows, periodLabel]);
 
   if (loading) {
     return (
