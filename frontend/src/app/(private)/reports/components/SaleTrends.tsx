@@ -60,10 +60,19 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">ยอดขายรายเดือน (จำนวนคัน)</h2>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={chartData}>
+        <ResponsiveContainer width="100%" height={340}>
+          <ComposedChart data={chartData} margin={{ bottom: 40 }}>
             <CartesianGrid stroke="#E5E7EB" />
-            <XAxis dataKey="month" />
+            {/* ✅ เอียงป้ายชื่อเดือน 45 องศา + interval={0} บังคับให้ขึ้นครบทุกเดือนเสมอ
+                (เดิมปล่อยให้ recharts auto-skip label เอง พอจอแคบเลยข้ามบางเดือนไปมองไม่เห็น) */}
+            <XAxis
+              dataKey="month"
+              angle={-45}
+              textAnchor="end"
+              interval={0}
+              tick={{ fontSize: 10 }}
+              height={60}
+            />
             <YAxis allowDecimals={false} />
             <Tooltip formatter={(value: number) => [`${value} คัน`, "จำนวน"]} />
             <Legend />
@@ -83,10 +92,17 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">รถใหม่ vs รถมือสอง (รายเดือน)</h2>
 
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={chartData}>
+        <ResponsiveContainer width="100%" height={340}>
+          <ComposedChart data={chartData} margin={{ bottom: 40 }}>
             <CartesianGrid stroke="#E5E7EB" />
-            <XAxis dataKey="month" />
+            <XAxis
+              dataKey="month"
+              angle={-45}
+              textAnchor="end"
+              interval={0}
+              tick={{ fontSize: 10 }}
+              height={60}
+            />
             <YAxis allowDecimals={false} />
             <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
             <Legend />

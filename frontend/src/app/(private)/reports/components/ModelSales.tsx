@@ -71,10 +71,18 @@ const ModelSales = ({ orders }: ModelSalesProps) => {
     <div className="flex flex-col items-center w-full">
       <h2 className="mb-3">ยอดขายแยกตามรุ่นรถ (รายเดือน)</h2>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={chartData}>
+      <ResponsiveContainer width="100%" height={340}>
+        <ComposedChart data={chartData} margin={{ bottom: 40 }}>
           <CartesianGrid stroke="#E5E7EB" />
-          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+          {/* ✅ เอียงป้ายชื่อเดือน + interval={0} กันจอแคบแล้ว recharts auto-skip เดือนไป */}
+          <XAxis
+            dataKey="month"
+            angle={-45}
+            textAnchor="end"
+            interval={0}
+            tick={{ fontSize: 10 }}
+            height={60}
+          />
           <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
           <Tooltip
             formatter={(value: number, name: string) => [`${value} คัน`, name]}
