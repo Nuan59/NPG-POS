@@ -1,149 +1,41 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
-import NextLink from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-import {
-  TrendingUp,
-  DollarSign,
-  ShoppingCart,
-  Gift,
-  BarChart3,
-  Printer,
-} from "lucide-react";
-import { getFinancialSummary, getFinancialByModel, getFinancialOverview } from "@/services/FinancialReportsService";
-import { getOrders } from "@/services/OrderService";
+  getFinancialSummary,
+  getFinancialByModel,
+  getFinancialOverview,
+} from "@/services/FinancialReportsService";
 import { IOrder } from "@/types/Order";
-import { fillMissingMonths, MONTHS } from "@/util/reports/index";
-import PdfLoading from "@/components/pdf/PdfLoading";
+import { fillMissingMonths, MONTHS } from "../util/index";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+  FinancialData,
+  ModelData,
+  OverviewData,
+  FeeBreakdownItem,
+} from "../util/financialTypes";
 
-/**
- * ✅ Error Boundary กันไม่ให้ error ตอน render PDF preview ทำให้ทั้งหน้าพัง/refresh
- * (React error ที่ไม่มีใครจับจะ bubble ขึ้นไปจน Next.js reset ทั้ง route
- *  ดูเหมือนหน้าเว็บ refresh ทั้งที่จริงๆ ไม่ใช่ - ห่อ boundary ไว้จะเห็น error message จริงแทน)
- */
-class PDFPreviewErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { error: Error | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { error: null };
-  }
+import FinancialFilters from "../components/FinancialFilters";
+import FinancialSummaryFlow from "../components/FinancialSummaryFlow";
+import FinancialCostProfitPie from "../components/FinancialCostProfitPie";
+import FinancialMonthlyTrendChart from "../components/FinancialMonthlyTrendChart";
+import FinancialMonthlyProfitBarChart from "../components/FinancialMonthlyProfitBarChart";
+import FinancialModelTable from "../components/FinancialModelTable";
+import FinancialFeeBreakdownTable from "../components/FinancialFeeBreakdownTable";
 
-  static getDerivedStateFromError(error: Error) {
-    return { error };
-  }
-
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("[PDFPreviewErrorBoundary] จับ error ได้:", error, info.componentStack);
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div className="flex items-center justify-center h-full p-8">
-          <div className="text-center max-w-xl">
-            <div className="text-red-500 text-5xl mb-4">⚠️</div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
-              สร้างตัวอย่างรายงานไม่สำเร็จ
-            </h2>
-            <p className="text-gray-600 mb-2 break-words">
-              {this.state.error.message || String(this.state.error)}
-            </p>
-            <p className="text-xs text-gray-400">
-              (ดู stack trace เต็มได้ใน Console)
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+interface FinancialReportsProps {
+  // ✅ orders ดึงมาจาก server component (page.tsx) แล้วส่งเข้ามาเป็น prop
+  // ไม่เรียก getOrders() เองใน useEffect เพราะ Server Action มี response size limit
+  // order 500+ รายการพร้อมข้อมูลซ้อน (bikes, additional_fees, gifts) ใหญ่เกินจนล้มเหลวเงียบๆ
+  orders?: IOrder[];
 }
 
-type FinancialData = {
-  year: string | number;
-  month: string;
-  revenue: number;
-  additional_fee_revenue: number;
-  cost: number;
-  additional_fees: number;
-  gross_profit: number;
-  net_profit: number;
-  order_count: number;
-};
-
-type ModelData = {
-  model_name: string;
-  revenue: number;
-  cost: number;
-  gross_profit: number;
-  count: number;
-};
-
-type OverviewData = {
-  total_revenue: number;
-  total_additional_fee_revenue: number;
-  total_cost: number;
-  total_additional_fees: number;
-  gross_profit: number;
-  net_profit: number;
-  profit_margin: number;
-  total_orders: number;
-  average_profit_per_order: number;
-};
-
-const COLORS = ["#00C49F", "#FF8042", "#f97316"];
-
-// ✅ ต้องประกาศ dynamic() ที่ module scope เท่านั้น ห้ามอยู่ในตัว component
-// (เดิมอยู่ในตัว FinancialReports ทำให้ทุกครั้งที่ re-render เช่นตอนกด "พิมพ์รายงาน"
-//  จะสร้าง component ใหม่ทั้ง 3 ตัวซ้ำๆ ทำให้ React unmount/remount วนซ้ำจนพังและหน้าเว็บ refresh)
-const PDFDownloadLink = dynamic(
-  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-  { ssr: false, loading: () => <PdfLoading /> }
-);
-const FinancialReportPDF = dynamic(
-  () => import("@/components/pdf/FinancialReportPDF"),
-  { ssr: false }
-);
-const ViewFinancialReportPDF = dynamic(
-  () => import("../financial/print/components/ViewFinancialReportPDF"),
-  { ssr: false }
-);
-
-const FinancialReports = () => {
-  const [showPreview, setShowPreview] = useState(false);
-
+const FinancialReports = ({ orders = [] }: FinancialReportsProps) => {
   const [monthlyData, setMonthlyData] = useState<FinancialData[]>([]);
   const [modelData, setModelData] = useState<ModelData[]>([]);
-  // ✅ orders ทั้งหมด ดึงมาครั้งเดียว แล้วคำนวณแยกย่อยค่าใช้จ่ายเพิ่มเติมที่ฝั่ง frontend เอง
-  // (ไม่ต้องเพิ่ม backend endpoint ใหม่ - ใช้ /order/ ที่มีอยู่แล้วเหมือนหน้า "ประวัติการขาย")
-  const [allOrders, setAllOrders] = useState<IOrder[]>([]);
   const [overview, setOverview] = useState<OverviewData>({
     total_revenue: 0,
+    total_additional_fee_revenue: 0,
     total_cost: 0,
     total_additional_fees: 0,
     gross_profit: 0,
@@ -162,15 +54,13 @@ const FinancialReports = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [summaryRes, overviewRes, ordersRes] = await Promise.all([
+        const [summaryRes, overviewRes] = await Promise.all([
           getFinancialSummary(),
           getFinancialOverview(),
-          getOrders().then((res) => res?.json()).catch(() => []),
         ]);
         const filledData = fillMissingMonths(summaryRes.data || []);
         setMonthlyData(filledData);
         setOverview(overviewRes.data || overview);
-        setAllOrders(Array.isArray(ordersRes) ? ordersRes : []);
 
         const errors = [summaryRes.error, overviewRes.error].filter(
           (e): e is string => Boolean(e)
@@ -187,7 +77,6 @@ const FinancialReports = () => {
   }, []);
 
   // ✅ ตารางแยกตามรุ่นรถ ต้องดึงข้อมูลใหม่ทุกครั้งที่เปลี่ยนปี/เดือนที่เลือก
-  // (เดิมเรียกครั้งเดียวตอน mount โดยไม่ส่งตัวกรองเลย เลยไม่เคยกรองตามที่เลือกบนหน้าจอ)
   useEffect(() => {
     const fetchModelData = async () => {
       try {
@@ -206,12 +95,12 @@ const FinancialReports = () => {
     fetchModelData();
   }, [selectedYear, selectedMonth]);
 
-  // ✅ แยกย่อยค่าใช้จ่ายเพิ่มเติมตามรายการ (description) คำนวณสดจาก allOrders
+  // ✅ แยกย่อยค่าใช้จ่ายเพิ่มเติมตามรายการ (description) คำนวณสดจาก orders ที่รับมาเป็น prop
   // กรองตามปี/เดือนที่เลือกด้วย logic เดียวกับ filteredData ด้านล่าง
-  const feeBreakdown = useMemo(() => {
-    const result = new Map<string, { description: string; total_amount: number; count: number }>();
+  const feeBreakdown: FeeBreakdownItem[] = useMemo(() => {
+    const result = new Map<string, FeeBreakdownItem>();
 
-    for (const order of allOrders) {
+    for (const order of orders) {
       if (!order.sale_date) continue;
       const d = new Date(order.sale_date);
       const orderYear = String(d.getFullYear());
@@ -234,7 +123,7 @@ const FinancialReports = () => {
     }
 
     return Array.from(result.values()).sort((a, b) => b.total_amount - a.total_amount);
-  }, [allOrders, selectedYear, selectedMonth]);
+  }, [orders, selectedYear, selectedMonth]);
 
   const filteredData = monthlyData.filter((d) => {
     const matchesYear = selectedYear === "all" || String(d.year) === selectedYear;
@@ -278,36 +167,6 @@ const FinancialReports = () => {
       ? computedOverview.net_profit / computedOverview.total_orders
       : 0;
 
-  // ✅ label ช่วงเวลาที่กำลังดู ใช้ทั้งบนหน้าจอและในรายงานที่พิมพ์
-  const periodLabel =
-    selectedYear === "all"
-      ? "ทั้งหมด"
-      : selectedMonth === "all"
-      ? `ปี ${parseInt(selectedYear) + 543}`
-      : `${selectedMonth} ${parseInt(selectedYear) + 543}`;
-
-  const fmt = (num: number) =>
-    new Intl.NumberFormat("th-TH", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(num);
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white border border-gray-300 rounded-lg p-4 shadow-lg">
-          <p className="font-semibold mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ color: entry.color }} className="text-sm">
-              {entry.name}: {fmt(entry.value)} บาท
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -321,7 +180,6 @@ const FinancialReports = () => {
 
   return (
     <div className="w-full p-6 space-y-6">
-
       {/* ✅ Error banner - โชว์ error จริงจาก API ถ้ามี ไม่ต้องเปิด Vercel logs เอง */}
       {apiErrors.length > 0 && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-4">
@@ -334,345 +192,26 @@ const FinancialReports = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-3xl font-bold">รายงานการเงิน</h2>
-          <p className="text-gray-600 mt-1">สรุปรายได้ ต้นทุน และกำไร</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">ปี:</span>
-            <select
-              value={selectedYear}
-              onChange={(e) => {
-                setSelectedYear(e.target.value);
-                setSelectedMonth("all"); // เปลี่ยนปีแล้วรีเซ็ตเดือน กันเลือกเดือนที่ไม่มีข้อมูลในปีใหม่
-              }}
-              className="px-4 py-2 border rounded-lg"
-            >
-              <option value="all">ทั้งหมด</option>
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {parseInt(year) + 543}
-                </option>
-              ))}
-            </select>
-          </div>
+      <FinancialFilters
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        years={years}
+        onYearChange={setSelectedYear}
+        onMonthChange={setSelectedMonth}
+      />
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">เดือน:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              disabled={selectedYear === "all"}
-              className="px-4 py-2 border rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
-              title={selectedYear === "all" ? "เลือกปีก่อนจึงจะเลือกเดือนได้" : ""}
-            >
-              <option value="all">ทั้งหมด</option>
-              {MONTHS.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
-          </div>
+      <FinancialSummaryFlow overview={computedOverview} />
 
-          <NextLink
-            href={`/reports/financial/print?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Printer className="h-4 w-4" />
-            พิมพ์รายงาน
-          </NextLink>
-        </div>
-      </div>
-
-      {/* ===== สูตรกำไร (แสดงแบบ flow) ===== */}
-      <div className="bg-white rounded-xl shadow p-6">
-        <h3 className="text-lg font-bold mb-5 text-gray-700">📊 สรุปภาพรวม</h3>
-
-        {/* Flow: รายได้ − ต้นทุนรถ − ต้นทุนของแถม = กำไรสุทธิ */}
-        <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
-          <div className="flex flex-col items-center bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 min-w-[130px]">
-            <DollarSign className="h-6 w-6 text-blue-600 mb-1" />
-            <span className="text-xs text-blue-600 font-medium">รายได้</span>
-            <span className="text-xl font-bold text-blue-900">{fmt(computedOverview.total_revenue)}</span>
-            <span className="text-xs text-blue-500">บาท</span>
-            {computedOverview.total_additional_fee_revenue > 0 && (
-              <span className="text-[10px] text-blue-400 mt-0.5">
-                (รวมรายได้เพิ่มเติม {fmt(computedOverview.total_additional_fee_revenue)})
-              </span>
-            )}
-          </div>
-
-          <span className="text-2xl font-bold text-gray-400">−</span>
-
-          <div className="flex flex-col items-center bg-red-50 border border-red-200 rounded-xl px-5 py-4 min-w-[130px]">
-            <ShoppingCart className="h-6 w-6 text-red-600 mb-1" />
-            <span className="text-xs text-red-600 font-medium">ต้นทุนรถ</span>
-            <span className="text-xl font-bold text-red-900">{fmt(computedOverview.total_cost)}</span>
-            <span className="text-xs text-red-500">บาท</span>
-          </div>
-
-          <span className="text-2xl font-bold text-gray-400">−</span>
-
-          <div className="flex flex-col items-center bg-orange-50 border border-orange-200 rounded-xl px-5 py-4 min-w-[130px]">
-            <Gift className="h-6 w-6 text-orange-600 mb-1" />
-            <span className="text-xs text-orange-600 font-medium">ต้นทุนของแถม</span>
-            <span className="text-xl font-bold text-orange-900">{fmt(computedOverview.total_additional_fees)}</span>
-            <span className="text-xs text-orange-500">บาท</span>
-          </div>
-
-          <span className="text-2xl font-bold text-gray-400">=</span>
-
-          <div className={`flex flex-col items-center rounded-xl px-5 py-4 min-w-[130px] border ${
-            computedOverview.net_profit >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
-          }`}>
-            <TrendingUp className={`h-6 w-6 mb-1 ${computedOverview.net_profit >= 0 ? "text-green-600" : "text-red-600"}`} />
-            <span className={`text-xs font-medium ${computedOverview.net_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-              กำไรสุทธิ
-            </span>
-            <span className={`text-xl font-bold ${computedOverview.net_profit >= 0 ? "text-green-900" : "text-red-900"}`}>
-              {fmt(computedOverview.net_profit)}
-            </span>
-            <span className={`text-xs ${computedOverview.net_profit >= 0 ? "text-green-500" : "text-red-500"}`}>
-              บาท ({computedOverview.profit_margin.toFixed(1)}%)
-            </span>
-          </div>
-        </div>
-
-        {/* สถิติเพิ่มเติม */}
-        <div className="grid grid-cols-3 gap-4 border-t pt-4">
-          <div className="text-center">
-            <p className="text-sm text-gray-500">จำนวนออเดอร์</p>
-            <p className="text-2xl font-bold">{computedOverview.total_orders}</p>
-            <p className="text-xs text-gray-400">คำสั่งซื้อ</p>
-          </div>
-          <div className="text-center">
-            <p className="text-sm text-gray-500">กำไรเฉลี่ย/ออเดอร์</p>
-            <p className="text-2xl font-bold text-green-600">{fmt(computedOverview.average_profit_per_order)}</p>
-            <p className="text-xs text-gray-400">บาท</p>
-          </div>
-          <div className="text-center">
-            <p className="text-sm text-gray-500">รายได้เพิ่มเติม</p>
-            <p className="text-2xl font-bold text-blue-600">{fmt(computedOverview.total_additional_fee_revenue)}</p>
-            <p className="text-xs text-gray-400">บาท (ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า)</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Pie + Line */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4">สัดส่วนต้นทุนและกำไร</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={[
-                  { name: "กำไรสุทธิ", value: Math.max(computedOverview.net_profit, 0) },
-                  { name: "ต้นทุนรถ", value: computedOverview.total_cost },
-                  { name: "ต้นทุนของแถม", value: computedOverview.total_additional_fees },
-                ]}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={(entry) =>
-                  computedOverview.total_revenue > 0
-                    ? `${entry.name}: ${((entry.value / computedOverview.total_revenue) * 100).toFixed(1)}%`
-                    : ""
-                }
-                outerRadius={100}
-                dataKey="value"
-              >
-                {[0, 1, 2].map((index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => [`${fmt(value)} บาท`, ""]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-blue-600" />
-            แนวโน้มรายเดือน
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={filteredData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" style={{ fontSize: "10px" }} />
-              <YAxis style={{ fontSize: "10px" }} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              <Line type="monotone" dataKey="revenue" name="รายได้" stroke="#0088FE" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="cost" name="ต้นทุนรถ" stroke="#FF8042" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="additional_fees" name="ต้นทุนของแถม" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="4 2" />
-              <Line type="monotone" dataKey="net_profit" name="กำไรสุทธิ" stroke="#00C49F" strokeWidth={3} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <FinancialCostProfitPie overview={computedOverview} />
+        <FinancialMonthlyTrendChart data={filteredData} />
       </div>
 
-      {/* Bar กำไรรายเดือน */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-bold mb-4">กำไรแยกตามเดือน</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={filteredData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" style={{ fontSize: "10px" }} />
-            <YAxis style={{ fontSize: "10px" }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Bar dataKey="gross_profit" name="กำไรขั้นต้น (ก่อนหักของแถม)" fill="#8884d8" />
-            <Bar dataKey="additional_fees" name="ต้นทุนของแถม" fill="#f97316" />
-            <Bar dataKey="net_profit" name="กำไรสุทธิ" fill="#82ca9d" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      <FinancialMonthlyProfitBarChart data={filteredData} />
 
-      {/* ตารางรุ่นรถ */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-xl font-bold mb-4">กำไรแยกตามรุ่นรถ</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold">รุ่นรถ</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">จำนวนขาย</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">รายได้</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">ต้นทุนรถ</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">กำไร</th>
-                <th className="px-4 py-3 text-right text-sm font-semibold">Margin</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {modelData.map((model, index) => {
-                const margin =
-                  model.revenue > 0
-                    ? ((model.gross_profit / model.revenue) * 100).toFixed(1)
-                    : "0.0";
-                const profitColor = model.gross_profit > 0 ? "text-green-600" : "text-red-600";
-                return (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium">{model.model_name}</td>
-                    <td className="px-4 py-3 text-sm text-right">{model.count}</td>
-                    <td className="px-4 py-3 text-sm text-right">{fmt(model.revenue)}</td>
-                    <td className="px-4 py-3 text-sm text-right text-red-600">{fmt(model.cost)}</td>
-                    <td className={`px-4 py-3 text-sm text-right font-semibold ${profitColor}`}>
-                      {fmt(model.gross_profit)}
-                    </td>
-                    <td className={`px-4 py-3 text-sm text-right ${profitColor}`}>{margin}%</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot className="bg-gray-100 font-semibold">
-              <tr>
-                <td className="px-4 py-3 text-sm">รวม</td>
-                <td className="px-4 py-3 text-sm text-right">
-                  {modelData.reduce((sum, m) => sum + m.count, 0)}
-                </td>
-                <td className="px-4 py-3 text-sm text-right">
-                  {fmt(modelData.reduce((sum, m) => sum + m.revenue, 0))}
-                </td>
-                <td className="px-4 py-3 text-sm text-right text-red-600">
-                  {fmt(modelData.reduce((sum, m) => sum + m.cost, 0))}
-                </td>
-                <td className="px-4 py-3 text-sm text-right text-green-600">
-                  {fmt(modelData.reduce((sum, m) => sum + m.gross_profit, 0))}
-                </td>
-                <td className="px-4 py-3 text-sm text-right">-</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
+      <FinancialModelTable modelData={modelData} />
 
-      {/* ✅ แยกย่อยค่าใช้จ่ายเพิ่มเติมตามรายการ - กรองตามปี/เดือนที่เลือกด้านบนเหมือนตารางรุ่นรถ */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">รายละเอียดค่าใช้จ่ายเพิ่มเติม</h2>
-        {feeBreakdown.length === 0 ? (
-          <p className="text-sm text-gray-500">ไม่มีรายการค่าใช้จ่ายเพิ่มเติมในช่วงที่เลือก</p>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">รายการ</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">จำนวนครั้ง</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">ยอดรวม</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {feeBreakdown.map((fee, index) => (
-                <tr key={index}>
-                  <td className="px-4 py-3 text-sm">{fee.description}</td>
-                  <td className="px-4 py-3 text-sm text-right">{fee.count}</td>
-                  <td className="px-4 py-3 text-sm text-right font-semibold">{fmt(fee.total_amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-gray-100 font-semibold">
-              <tr>
-                <td className="px-4 py-3 text-sm">รวม</td>
-                <td className="px-4 py-3 text-sm text-right">
-                  {feeBreakdown.reduce((sum, f) => sum + f.count, 0)}
-                </td>
-                <td className="px-4 py-3 text-sm text-right">
-                  {fmt(feeBreakdown.reduce((sum, f) => sum + f.total_amount, 0))}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-      </div>
-
-      {/* ✅ Dialog พรีวิว PDF ก่อนพิมพ์จริง (แพทเทิร์นเดียวกับใบส่งมอบ) */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>ตัวอย่างรายงานการเงิน - {periodLabel}</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex-1 min-h-0">
-            {showPreview && (
-              <PDFPreviewErrorBoundary>
-                <ViewFinancialReportPDF
-                  overview={computedOverview}
-                  monthlyData={filteredData}
-                  modelData={modelData}
-                  periodLabel={periodLabel}
-                />
-              </PDFPreviewErrorBoundary>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center pt-2 border-t">
-            <Button type="button" variant="outline" onClick={() => setShowPreview(false)}>
-              ปิด
-            </Button>
-            <PDFDownloadLink
-              fileName={`รายงานการเงิน-${periodLabel.replace(/\s+/g, "-")}.pdf`}
-              document={
-                <FinancialReportPDF
-                  overview={computedOverview}
-                  monthlyData={filteredData}
-                  modelData={modelData}
-                  periodLabel={periodLabel}
-                />
-              }
-            >
-              <Button className="flex items-center gap-2">
-                <Printer className="h-4 w-4" />
-                ดาวน์โหลด / พิมพ์
-              </Button>
-            </PDFDownloadLink>
-          </div>
-        </DialogContent>
-      </Dialog>
-
+      <FinancialFeeBreakdownTable feeBreakdown={feeBreakdown} />
     </div>
   );
 };
