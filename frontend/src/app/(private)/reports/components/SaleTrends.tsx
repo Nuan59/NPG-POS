@@ -17,22 +17,6 @@ import {
 import { IOrder } from "@/types/Order";
 import { MONTHS } from "../util/index";
 
-// ✅ ตัวย่อเดือนไทย ใช้โชว์บนแกน x แทนชื่อเต็ม (สั้นพอจะวางแนวนอนได้โดยไม่ต้องเอียง)
-const MONTH_SHORT: Record<string, string> = {
-  "มกราคม": "ม.ค.",
-  "กุมภาพันธ์": "ก.พ.",
-  "มีนาคม": "มี.ค.",
-  "เมษายน": "เม.ย.",
-  "พฤษภาคม": "พ.ค.",
-  "มิถุนายน": "มิ.ย.",
-  "กรกฎาคม": "ก.ค.",
-  "สิงหาคม": "ส.ค.",
-  "กันยายน": "ก.ย.",
-  "ตุลาคม": "ต.ค.",
-  "พฤศจิกายน": "พ.ย.",
-  "ธันวาคม": "ธ.ค.",
-};
-
 const COLOR_TOTAL = "#3B82F6";
 const COLOR_NEW = "#F36B21";   // รถใหม่
 const COLOR_USED = "#9CA3AF"; // รถมือสอง
@@ -76,18 +60,14 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">ยอดขายรายเดือน (จำนวนคัน)</h2>
 
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ bottom: 5 }}>
             <CartesianGrid stroke="#E5E7EB" />
-            {/* ✅ ตัวอักษรแนวนอน ไม่เอียง + ใช้ตัวย่อเดือนให้พอดีแนวนอน + ลดขนาดกราฟลง */}
-            <XAxis
-              dataKey="month"
-              tickFormatter={(value) => MONTH_SHORT[value] || value}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis allowDecimals={false} />
+            {/* ✅ ชื่อเดือนเต็ม แนวนอน ไม่เอียง - ย่อขนาดกราฟลงแทน (ความสูง 260→200) */}
+            <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={30} />
             <Tooltip formatter={(value: number) => [`${value} คัน`, "จำนวน"]} />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line
               type="monotone"
               dataKey="total"
@@ -104,17 +84,13 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">รถใหม่ vs รถมือสอง (รายเดือน)</h2>
 
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ bottom: 5 }}>
             <CartesianGrid stroke="#E5E7EB" />
-            <XAxis
-              dataKey="month"
-              tickFormatter={(value) => MONTH_SHORT[value] || value}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis allowDecimals={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 9 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={30} />
             <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="new" name="รถใหม่" fill={COLOR_NEW} />
             <Bar dataKey="pre_owned" name="รถมือสอง" fill={COLOR_USED} />
           </ComposedChart>
