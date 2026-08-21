@@ -1,6 +1,8 @@
+// ModelSales.tsx
+// วางไฟล์นี้ใน: src/app/(private)/reports/components/ModelSales.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -11,21 +13,8 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { getSalesByModelReport } from "@/services/ReportsService";
+import { IOrder } from "@/types/Order";
 import { MONTHS } from "../util/index";
-
-const normalizeYear = (rawYear: any): number => {
-  const y = Number(String(rawYear).match(/\d{4}/)?.[0]);
-  if (!y) return 0;
-  return y > 2500 ? y - 543 : y;
-};
-
-type ModelSalesRow = {
-  year: number;
-  month: string;
-  model_name: string;
-  total: number;
-};
 
 const MODEL_COLORS = [
   "#F36B21","#3B82F6","#10B981","#8B5CF6",
@@ -33,153 +22,54 @@ const MODEL_COLORS = [
   "#84CC16","#F97316","#6366F1","#14B8A6",
 ];
 
-const YEAR_COLORS: Record<number, string> = {
-  2023: "#9CA3AF",
-  2024: "#FDBA74",
-  2025: "#F36B21",
-  2026: "#3B82F6",
-};
+interface ModelSalesProps {
+  // ✅ orders ที่กรองปี/เดือนมาแล้วจาก SalesReports (parent) - ไม่ยิง API เอง
+  orders: IOrder[];
+}
 
-const ModelSales = () => {
-  const [rawData, setRawData] = useState<ModelSalesRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set());
+const ModelSales = ({ orders }: ModelSalesProps) => {
+  const { chartData, activeModels } = useMemo(() => {
+    // นับจำนวนคันขายต่อ (เดือน, รุ่นรถ)
+    const counts = new Map<string, Map<string, number>>(); // month -> model -> count
+    const modelSet = new Set<string>();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res: any = await getSalesByModelReport();
-        if (res?.data && Array.isArray(res.data)) {
-          const normalized: ModelSalesRow[] = res.data.map((item: any) => ({
-            year: normalizeYear(item.year),
-            month: item.month,
-            model_name: item.model_name || "ไม่ระบุ",
-            total: Number(item.total ?? 0),
-          }));
-          setRawData(normalized);
-          const years = Array.from(new Set(normalized.map(d => d.year))).sort();
-          setSelectedYears(new Set(years));
-        }
-      } catch (error) {
-        console.error("❌ Error fetching model sales data:", error);
-      } finally {
-        setLoading(false);
+    for (const order of orders) {
+      if (!order.sale_date) continue;
+      const month = MONTHS[new Date(order.sale_date).getMonth()];
+      for (const bike of order.bikes || []) {
+        const model = bike.model_name || "ไม่ระบุ";
+        modelSet.add(model);
+        if (!counts.has(month)) counts.set(month, new Map());
+        const monthMap = counts.get(month)!;
+        monthMap.set(model, (monthMap.get(model) || 0) + 1);
       }
-    };
-    fetchData();
-  }, []);
+    }
 
-  const allYears = useMemo(
-    () => Array.from(new Set(rawData.map(d => d.year))).sort(),
-    [rawData]
-  );
+    const activeModels = Array.from(modelSet).sort();
 
-  const allModels = useMemo(
-    () => Array.from(new Set(rawData.map(d => d.model_name))).sort(),
-    [rawData]
-  );
-
-  // กรองข้อมูลตามปีที่เลือก
-  const filteredData = useMemo(
-    () => rawData.filter(d => selectedYears.has(d.year)),
-    [rawData, selectedYears]
-  );
-
-  // กรองเฉพาะรุ่นที่มียอดขายในช่วงที่เลือก
-  const activeModels = useMemo(
-    () => allModels.filter(model =>
-      filteredData.some(d => d.model_name === model && d.total > 0)
-    ),
-    [allModels, filteredData]
-  );
-  const chartData = useMemo(() => {
-    if (filteredData.length === 0) return [];
-
-    return MONTHS.map((month) => {
+    const chartData = MONTHS.map((month) => {
       const row: any = { month };
+      const monthMap = counts.get(month);
       activeModels.forEach((model) => {
-        const total = filteredData
-          .filter(d => d.month === month && d.model_name === model)
-          .reduce((sum, d) => sum + d.total, 0);
-        row[model] = total || null; // null = ไม่แสดงจุด
+        row[model] = monthMap?.get(model) || null; // null = ไม่แสดงจุด
       });
       return row;
     });
-  }, [filteredData, activeModels]);
 
-  const toggleYear = (year: number) => {
-    setSelectedYears(prev => {
-      const next = new Set(prev);
-      if (next.has(year) && next.size > 1) next.delete(year);
-      else next.add(year);
-      return next;
-    });
-  };
+    return { chartData, activeModels };
+  }, [orders]);
 
-  const toggleAll = () => {
-    if (selectedYears.size === allYears.length) {
-      setSelectedYears(new Set([allYears[allYears.length - 1]]));
-    } else {
-      setSelectedYears(new Set(allYears));
-    }
-  };
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-gray-500">กำลังโหลด...</p>
-    </div>
-  );
-
-  if (chartData.length === 0) return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-gray-500">ไม่มีข้อมูลยอดขาย</p>
-    </div>
-  );
-
-  const isAllSelected = selectedYears.size === allYears.length;
+  if (activeModels.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">ไม่มีข้อมูลยอดขายในช่วงที่เลือก</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center w-full">
       <h2 className="mb-3">ยอดขายแยกตามรุ่นรถ (รายเดือน)</h2>
-
-      {/* ปุ่มเลือกปี */}
-      <div className="flex gap-2 flex-wrap mb-4">
-        <button
-          onClick={toggleAll}
-          className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all ${
-            isAllSelected
-              ? "bg-gray-800 text-white border-gray-800"
-              : "bg-white text-gray-600 border-gray-300"
-          }`}
-        >
-          ทั้งหมด
-        </button>
-        {allYears.map(year => {
-          const color = YEAR_COLORS[year] || "#888";
-          const active = selectedYears.has(year);
-          return (
-            <button
-              key={year}
-              onClick={() => toggleYear(year)}
-              style={{
-                borderColor: color,
-                backgroundColor: active ? color : "transparent",
-                color: active ? "#fff" : color,
-              }}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all"
-            >
-              {year}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* label ว่าดูอะไรอยู่ */}
-      <p className="text-xs text-gray-400 mb-3">
-        {isAllSelected
-          ? "แสดงยอดรวมทุกปี แยกตามรุ่นรถ"
-          : `แสดงปี ${[...selectedYears].sort().join(", ")} แยกตามรุ่นรถ`}
-      </p>
 
       <ResponsiveContainer width="100%" height={300}>
         <ComposedChart data={chartData}>

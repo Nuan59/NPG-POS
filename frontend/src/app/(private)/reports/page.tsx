@@ -3,8 +3,18 @@ import SalesReports from "./views/SalesReports";
 import InventoryReport from "./views/InventoryReport";
 import CustomersReports from "./views/CustomersReports";
 import FinancialReports from "./views/FinancialReports";
+import { getOrders } from "@/services/OrderService";
+import { IOrder } from "@/types/Order";
 
-const Reports = () => {
+const Reports = async () => {
+    // ✅ ดึง orders ฝั่ง server component (เหมือนหน้า /sales) แล้วส่งเป็น prop ให้ FinancialReports
+    // แทนที่จะให้ client component เรียก getOrders() เป็น Server Action เอง
+    // เพราะ Server Action มีข้อจำกัดขนาด response - order 500+ รายการพร้อมข้อมูลซ้อนครบ (bikes, additional_fees, gifts)
+    // ใหญ่เกินจนล้มเหลวเงียบๆ ไม่มี error โชว์เลย
+    const orders: IOrder[] = await getOrders()
+        .then((res) => res?.json())
+        .catch(() => []);
+
     return (
         <div className="h-full overflow-y-auto">
             <h2 className="text-3xl font-semibold prompt">รายงาน</h2>
@@ -17,7 +27,7 @@ const Reports = () => {
                     <TabsTrigger value="financial">การเงิน</TabsTrigger>
                 </TabsList>
                 <TabsContent value="sales">
-                    <SalesReports />
+                    <SalesReports orders={Array.isArray(orders) ? orders : []} />
                 </TabsContent>
                 <TabsContent value="inventory">
                     <InventoryReport />
@@ -26,7 +36,7 @@ const Reports = () => {
                     <CustomersReports />
                 </TabsContent>
                 <TabsContent value="financial">
-                    <FinancialReports />
+                    <FinancialReports orders={Array.isArray(orders) ? orders : []} />
                 </TabsContent>
             </Tabs>
         </div>
