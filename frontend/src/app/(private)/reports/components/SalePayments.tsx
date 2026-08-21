@@ -52,32 +52,38 @@ const SalePayments = ({ orders }: SalePaymentsProps) => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center w-full">
+    <div className="flex flex-col items-center justify-center w-full min-w-0">
       <h2 className="mb-4 text-xl font-semibold">ยอดขายแยกตามวิธีชำระเงิน</h2>
 
-      <div className="flex flex-row items-center justify-center gap-10 w-full">
-        <ResponsiveContainer width="50%" height={320}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={({ name, value, percent }) =>
-                `${name}: ${value} คัน (${(percent * 100).toFixed(1)}%)`
-              }
-              outerRadius={120}
-              fill="#8884d8"
-              dataKey="value"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+      {/* ✅ เดิมใช้ flex-row + ResponsiveContainer width="50%" ตรงๆ ทำให้กราฟไม่ยอมหดตามจอเล็ก
+          (flex item ไม่หดต่ำกว่าขนาดเนื้อหาโดย default) เลยล้นกรอบขาว
+          แก้เป็น: จอเล็กเรียงตามแนวตั้ง, จอใหญ่ (md+) ค่อยเรียงแนวนอน + ห่อ ResponsiveContainer
+          ด้วย div ที่กำหนดความกว้างเอง แล้วให้ ResponsiveContainer width="100%" แทน */}
+      <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 w-full min-w-0">
+        <div className="w-full md:w-1/2 min-w-0">
+          <ResponsiveContainer width="100%" height={320}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value, percent }) =>
+                  `${name}: ${value} คัน (${(percent * 100).toFixed(1)}%)`
+                }
+                outerRadius={120}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
 
         <div className="flex flex-col gap-4">
           {data.map((item, index) => (

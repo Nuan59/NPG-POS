@@ -50,32 +50,35 @@ const VehicleTypeSales = ({ orders }: VehicleTypeSalesProps) => {
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center w-full">
+    <div className="flex flex-col items-center justify-center w-full min-w-0">
       <h2 className="mb-4 text-xl font-semibold">รถใหม่ vs รถมือสอง</h2>
 
-      <div className="flex flex-row items-center justify-center gap-10 w-full">
-        <ResponsiveContainer width="50%" height={320}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={({ name, value, percent }) =>
-                `${name}: ${value} คัน (${(percent * 100).toFixed(1)}%)`
-              }
-              outerRadius={120}
-              fill="#8884d8"
-              dataKey="value"
-            >
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+      {/* ✅ เดิม flex-row + width="50%" ตรงๆ ทำให้ไม่หดตามจอเล็ก เลยล้นกรอบขาว - แก้แบบเดียวกับ SalePayments */}
+      <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 w-full min-w-0">
+        <div className="w-full md:w-1/2 min-w-0">
+          <ResponsiveContainer width="100%" height={320}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value, percent }) =>
+                  `${name}: ${value} คัน (${(percent * 100).toFixed(1)}%)`
+                }
+                outerRadius={120}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
 
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">

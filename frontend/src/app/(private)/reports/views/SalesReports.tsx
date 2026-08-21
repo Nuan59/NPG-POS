@@ -18,6 +18,10 @@ interface SalesReportsProps {
 }
 
 const SalesReports = ({ orders = [] }: SalesReportsProps) => {
+  // ✅ ล็อกปีไว้ที่ 2569 (2026 ค.ศ.) ตามที่ขอ - เฉพาะรายงาน "ขาย" เท่านั้น
+  // ไม่กระทบแท็บ "การเงิน" ที่ยังเลือกปีอื่นได้ตามปกติ
+  const LOCKED_YEAR = "2026";
+
   const years = useMemo(
     () =>
       Array.from(
@@ -30,10 +34,7 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
     [orders]
   );
 
-  // ✅ ค่าเริ่มต้น = ปีล่าสุดที่มีข้อมูล (เช่น 2026 = พ.ศ. 2569) แทนการโชว์ทุกปีซ้อนกัน
-  const [selectedYear, setSelectedYear] = useState<string>(
-    () => years[years.length - 1] || "all"
-  );
+  const [selectedYear] = useState<string>(LOCKED_YEAR);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
 
   // ✅ กรอง orders ตามปี/เดือนที่เลือก แล้วส่งชุดเดียวกันนี้ให้ทุกกราฟ + ตารางรายละเอียด
@@ -81,8 +82,9 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
         selectedYear={selectedYear}
         selectedMonth={selectedMonth}
         years={years}
-        onYearChange={setSelectedYear}
+        onYearChange={() => {}}
         onMonthChange={setSelectedMonth}
+        lockYear
       />
 
       <div className="bg-white rounded-lg shadow p-6">
@@ -94,10 +96,10 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-6 min-w-0">
           <SalePayments orders={filteredOrders} />
         </div>
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-6 min-w-0">
           <VehicleTypeSales orders={filteredOrders} />
         </div>
       </div>
