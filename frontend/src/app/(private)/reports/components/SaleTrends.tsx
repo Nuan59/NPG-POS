@@ -60,7 +60,7 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">ยอดขายรายเดือน (จำนวนคัน)</h2>
 
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData}>
             <CartesianGrid stroke="#E5E7EB" />
             <XAxis dataKey="month" />
@@ -83,7 +83,7 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">รถใหม่ vs รถมือสอง (รายเดือน)</h2>
 
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData}>
             <CartesianGrid stroke="#E5E7EB" />
             <XAxis dataKey="month" />

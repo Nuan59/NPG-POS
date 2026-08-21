@@ -76,12 +76,7 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
   }, [filteredOrders]);
 
   return (
-    <div
-      className="
-				flex flex-col gap-5 h-full w-full
-				origin-top scale-[0.8]   /* ← ลด ~20% */
-			"
-    >
+    <div className="w-full p-6 space-y-6">
       <SalesFilters
         selectedYear={selectedYear}
         selectedMonth={selectedMonth}
@@ -90,14 +85,19 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
         onMonthChange={setSelectedMonth}
       />
 
-      <SaleTrends orders={filteredOrders} />
-      <ModelSales orders={filteredOrders} />
+      <div className="bg-white rounded-lg shadow p-6">
+        <SaleTrends orders={filteredOrders} />
+      </div>
 
-      <div className="flex flex-col xl:flex-row gap-5 w-full items-stretch">
-        <div className="w-full xl:w-1/2">
+      <div className="bg-white rounded-lg shadow p-6">
+        <ModelSales orders={filteredOrders} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
           <SalePayments orders={filteredOrders} />
         </div>
-        <div className="w-full xl:w-1/2">
+        <div className="bg-white rounded-lg shadow p-6">
           <VehicleTypeSales orders={filteredOrders} />
         </div>
       </div>
