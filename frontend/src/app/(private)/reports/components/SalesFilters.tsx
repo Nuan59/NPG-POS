@@ -4,27 +4,26 @@
 
 import NextLink from "next/link";
 import { Printer } from "lucide-react";
-import { MONTHS } from "../util/index";
+import MonthMultiSelect from "./MonthMultiSelect";
 
 interface SalesFiltersProps {
   selectedYear: string;
-  selectedMonth: string;
+  selectedMonths: string[]; // ว่าง = ทุกเดือน
   years: string[];
   onYearChange: (year: string) => void;
-  onMonthChange: (month: string) => void;
-  // ✅ ถ้า true จะล็อกปีไว้ ไม่ให้เปลี่ยนปีอื่นได้เลย (แสดงเป็นข้อความแทน dropdown)
-  // ใช้เฉพาะรายงาน "ขาย" ตามที่ขอ - จำกัดให้ดูได้แค่ปีที่ระบุเท่านั้น
-  lockYear?: boolean;
+  onMonthsChange: (months: string[]) => void;
 }
 
 const SalesFilters = ({
   selectedYear,
-  selectedMonth,
+  selectedMonths,
   years,
   onYearChange,
-  onMonthChange,
-  lockYear = false,
+  onMonthsChange,
 }: SalesFiltersProps) => {
+  // ✅ ส่งเดือนที่เลือกไปหน้าพิมพ์รายงานแบบ comma-separated เช่น "มกราคม,กุมภาพันธ์"
+  const monthParam = selectedMonths.length > 0 ? selectedMonths.join(",") : "all";
+
   return (
     <div className="flex items-center justify-between flex-wrap gap-3">
       <h2 className="text-2xl font-bold">รายงานยอดขาย</h2>
@@ -32,49 +31,27 @@ const SalesFilters = ({
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">ปี:</span>
-          {lockYear ? (
-            <span className="px-4 py-2 border rounded-lg text-sm bg-gray-50 font-medium">
-              {parseInt(selectedYear) + 543}
-            </span>
-          ) : (
-            <select
-              value={selectedYear}
-              onChange={(e) => {
-                onYearChange(e.target.value);
-                onMonthChange("all"); // เปลี่ยนปีแล้วรีเซ็ตเดือน กันเลือกเดือนที่ไม่มีข้อมูลในปีใหม่
-              }}
-              className="px-4 py-2 border rounded-lg text-sm"
-            >
-              <option value="all">ทุกปี</option>
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {parseInt(year) + 543}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">เดือน:</span>
           <select
-            value={selectedMonth}
-            onChange={(e) => onMonthChange(e.target.value)}
-            disabled={!lockYear && selectedYear === "all"}
-            className="px-4 py-2 border rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
-            title={!lockYear && selectedYear === "all" ? "เลือกปีก่อนจึงจะเลือกเดือนได้" : ""}
+            value={selectedYear}
+            onChange={(e) => onYearChange(e.target.value)}
+            className="px-4 py-2 border rounded-lg text-sm"
           >
-            <option value="all">ทุกเดือน</option>
-            {MONTHS.map((month) => (
-              <option key={month} value={month}>
-                {month}
+            <option value="all">ทุกปี</option>
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {parseInt(year) + 543}
               </option>
             ))}
           </select>
         </div>
 
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">เดือน:</span>
+          <MonthMultiSelect selectedMonths={selectedMonths} onChange={onMonthsChange} />
+        </div>
+
         <NextLink
-          href={`/reports/sales/print?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`}
+          href={`/reports/sales/print?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(monthParam)}`}
           className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
         >
           <Printer className="h-4 w-4" />

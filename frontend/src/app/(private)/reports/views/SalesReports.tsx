@@ -7,7 +7,7 @@ import { classifyCashOrInstallment } from "../util/salesHelpers";
 
 import SalesFilters from "../components/SalesFilters";
 import SaleTrends from "../components/SaleTrends";
-import ModelSales from "../components/ModelSales";
+import SalesModelTable from "../components/SalesModelTable";
 import SalePayments from "../components/SalePayments";
 import VehicleTypeSales from "../components/VehicleTypeSales";
 import SalesDetailTable, { SalesDetailRow } from "../components/SalesDetailTable";
@@ -18,10 +18,6 @@ interface SalesReportsProps {
 }
 
 const SalesReports = ({ orders = [] }: SalesReportsProps) => {
-  // ✅ ล็อกปีไว้ที่ 2569 (2026 ค.ศ.) ตามที่ขอ - เฉพาะรายงาน "ขาย" เท่านั้น
-  // ไม่กระทบแท็บ "การเงิน" ที่ยังเลือกปีอื่นได้ตามปกติ
-  const LOCKED_YEAR = "2026";
-
   const years = useMemo(
     () =>
       Array.from(
@@ -34,11 +30,14 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
     [orders]
   );
 
-  const [selectedYear] = useState<string>(LOCKED_YEAR);
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  // ✅ ค่าเริ่มต้น = ปีล่าสุดที่มีข้อมูล แต่เลือกปีอื่น/ทุกปีได้ตามปกติ (ไม่ล็อกอีกต่อไป)
+  const [selectedYear, setSelectedYear] = useState<string>(
+    () => years[years.length - 1] || "all"
+  );
+  // ✅ เลือกได้หลายเดือนพร้อมกัน - array ว่าง = ทุกเดือน
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
 
   // ✅ กรอง orders ตามปี/เดือนที่เลือก แล้วส่งชุดเดียวกันนี้ให้ทุกกราฟ + ตารางรายละเอียด
-  // เพื่อให้ทุกส่วนขยับตามตัวกรองพร้อมกันหมด
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       if (!order.sale_date) return false;
@@ -47,10 +46,10 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
       const orderMonth = MONTHS[d.getMonth()];
 
       if (selectedYear !== "all" && orderYear !== selectedYear) return false;
-      if (selectedMonth !== "all" && orderMonth !== selectedMonth) return false;
+      if (selectedMonths.length > 0 && !selectedMonths.includes(orderMonth)) return false;
       return true;
     });
-  }, [orders, selectedYear, selectedMonth]);
+  }, [orders, selectedYear, selectedMonths]);
 
   // ✅ ตารางรายละเอียด: รุ่นไหน ขายเมื่อไหร่ สดหรือผ่อน ขายไปเท่าไหร่
   const detailRows: SalesDetailRow[] = useMemo(() => {
@@ -80,20 +79,18 @@ const SalesReports = ({ orders = [] }: SalesReportsProps) => {
     <div className="w-full p-6 space-y-6">
       <SalesFilters
         selectedYear={selectedYear}
-        selectedMonth={selectedMonth}
+        selectedMonths={selectedMonths}
         years={years}
-        onYearChange={() => {}}
-        onMonthChange={setSelectedMonth}
-        lockYear
+        onYearChange={setSelectedYear}
+        onMonthsChange={setSelectedMonths}
       />
 
       <div className="bg-white rounded-lg shadow p-6">
         <SaleTrends orders={filteredOrders} />
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <ModelSales orders={filteredOrders} />
-      </div>
+      {/* ✅ แทนที่กราฟเส้นยอดขายแยกตามรุ่นรถ (ที่มีสีเยอะและ legend รกเกินไป) ด้วยตารางง่ายๆ */}
+      <SalesModelTable orders={filteredOrders} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6 min-w-0">

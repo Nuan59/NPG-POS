@@ -22,13 +22,14 @@ export const revalidate = 0;
 interface SalesReportPrintPageProps {
   searchParams: {
     year?: string; // ปี ค.ศ. เช่น "2026" หรือ "all"
-    month?: string; // ชื่อเดือนไทย เช่น "มกราคม" หรือ "all"
+    month?: string; // ชื่อเดือนไทย เช่น "มกราคม" หรือหลายเดือนคั่นด้วย , เช่น "มกราคม,กุมภาพันธ์" หรือ "all"
   };
 }
 
 const SalesReportPrintPage = async ({ searchParams }: SalesReportPrintPageProps) => {
   const selectedYear = searchParams.year || "all";
-  const selectedMonth = searchParams.month || "all";
+  const monthParam = searchParams.month || "all";
+  const selectedMonths = monthParam === "all" || monthParam === "" ? [] : monthParam.split(",");
 
   const orders: IOrder[] = await getOrders()
     .then((res) => res?.json())
@@ -41,7 +42,7 @@ const SalesReportPrintPage = async ({ searchParams }: SalesReportPrintPageProps)
     const orderMonth = MONTHS[d.getMonth()];
 
     if (selectedYear !== "all" && orderYear !== selectedYear) return false;
-    if (selectedMonth !== "all" && orderMonth !== selectedMonth) return false;
+    if (selectedMonths.length > 0 && !selectedMonths.includes(orderMonth)) return false;
     return true;
   });
 
@@ -127,9 +128,9 @@ const SalesReportPrintPage = async ({ searchParams }: SalesReportPrintPageProps)
   const periodLabel =
     selectedYear === "all"
       ? "ทั้งหมด"
-      : selectedMonth === "all"
+      : selectedMonths.length === 0
       ? `ปี ${parseInt(selectedYear) + 543}`
-      : `${selectedMonth} ${parseInt(selectedYear) + 543}`;
+      : `${selectedMonths.join(", ")} ${parseInt(selectedYear) + 543}`;
 
   return (
     <>

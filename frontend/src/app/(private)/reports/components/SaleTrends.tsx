@@ -17,6 +17,22 @@ import {
 import { IOrder } from "@/types/Order";
 import { MONTHS } from "../util/index";
 
+// ✅ ตัวย่อเดือนไทย ใช้โชว์บนแกน x แทนชื่อเต็ม (สั้นพอจะวางแนวนอนได้โดยไม่ต้องเอียง)
+const MONTH_SHORT: Record<string, string> = {
+  "มกราคม": "ม.ค.",
+  "กุมภาพันธ์": "ก.พ.",
+  "มีนาคม": "มี.ค.",
+  "เมษายน": "เม.ย.",
+  "พฤษภาคม": "พ.ค.",
+  "มิถุนายน": "มิ.ย.",
+  "กรกฎาคม": "ก.ค.",
+  "สิงหาคม": "ส.ค.",
+  "กันยายน": "ก.ย.",
+  "ตุลาคม": "ต.ค.",
+  "พฤศจิกายน": "พ.ย.",
+  "ธันวาคม": "ธ.ค.",
+};
+
 const COLOR_TOTAL = "#3B82F6";
 const COLOR_NEW = "#F36B21";   // รถใหม่
 const COLOR_USED = "#9CA3AF"; // รถมือสอง
@@ -60,18 +76,14 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">ยอดขายรายเดือน (จำนวนคัน)</h2>
 
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={chartData} margin={{ bottom: 40 }}>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={chartData} margin={{ bottom: 5 }}>
             <CartesianGrid stroke="#E5E7EB" />
-            {/* ✅ เอียงป้ายชื่อเดือน 45 องศา + interval={0} บังคับให้ขึ้นครบทุกเดือนเสมอ
-                (เดิมปล่อยให้ recharts auto-skip label เอง พอจอแคบเลยข้ามบางเดือนไปมองไม่เห็น) */}
+            {/* ✅ ตัวอักษรแนวนอน ไม่เอียง + ใช้ตัวย่อเดือนให้พอดีแนวนอน + ลดขนาดกราฟลง */}
             <XAxis
               dataKey="month"
-              angle={-45}
-              textAnchor="end"
-              interval={0}
-              tick={{ fontSize: 10 }}
-              height={60}
+              tickFormatter={(value) => MONTH_SHORT[value] || value}
+              tick={{ fontSize: 11 }}
             />
             <YAxis allowDecimals={false} />
             <Tooltip formatter={(value: number) => [`${value} คัน`, "จำนวน"]} />
@@ -92,16 +104,13 @@ const SaleTrends = ({ orders }: SaleTrendsProps) => {
       <div className="flex flex-col items-center justify-center w-full">
         <h2 className="mb-2">รถใหม่ vs รถมือสอง (รายเดือน)</h2>
 
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={chartData} margin={{ bottom: 40 }}>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={chartData} margin={{ bottom: 5 }}>
             <CartesianGrid stroke="#E5E7EB" />
             <XAxis
               dataKey="month"
-              angle={-45}
-              textAnchor="end"
-              interval={0}
-              tick={{ fontSize: 10 }}
-              height={60}
+              tickFormatter={(value) => MONTH_SHORT[value] || value}
+              tick={{ fontSize: 11 }}
             />
             <YAxis allowDecimals={false} />
             <Tooltip formatter={(value: number) => [`${value} คัน`, ""]} />
