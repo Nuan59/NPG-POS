@@ -86,6 +86,9 @@ interface UseFinanceCalculationsProps {
   financeProvider: FinanceProvider;
   npgPeriod: NpgPeriod;
   roundingMethod?: RoundingMethod; // เพิ่ม optional parameter
+  // ✅ true ถ้าเป็นรถใหญ่ (≥300cc) - มีผลเฉพาะไฟแนนซ์ที่ไม่ใช่ NPG เท่านั้น
+  // (NPG ไม่สนขนาดรถเลย ใช้ npgPeriod เลือกเองอย่างเดียว)
+  isBigBike?: boolean;
 }
 
 /**
@@ -101,6 +104,7 @@ export const useFinanceCalculations = ({
   financeProvider,
   npgPeriod,
   roundingMethod = "standard", // ค่าเริ่มต้นเป็นปัดเศษมาตรฐาน
+  isBigBike = false,
 }: UseFinanceCalculationsProps) => {
   const [financeAmount, setFinanceAmount] = useState<string>("");
   const [interest, setInterest] = useState<string>("");
@@ -129,7 +133,10 @@ export const useFinanceCalculations = ({
     setFinanceAmount(String(computedFinanceAmount));
   }, [sellPrice, discount, down_payment, computedFinanceAmount]);
 
-  // คำนวณค่างวด
+  // ✅ คำนวณค่างวด
+  // - ไฟแนนซ์ NPG: ใช้ npgPeriod (รายเดือน/รายปี) - รายปี = รวมยอด 12 เดือนมาจ่ายทีเดียว ไม่สนขนาดรถ
+  // - ไฟแนนซ์เจ้าอื่น: จ่ายรายเดือนเสมอ (installmentCount = จำนวนเดือนจริง)
+  //   แต่ถ้าเป็นรถใหญ่ (isBigBike) ตัวเลข "ดอกเบี้ย" ที่กรอกถือเป็นอัตรารายปี ต้องหาร 12 ก่อนคิดต่อเดือน
   useEffect(() => {
     if (financeAmount.trim() === "") {
       setInstallmentPerPeriod("");
@@ -143,37 +150,36 @@ export const useFinanceCalculations = ({
     }
 
     const principal = toNumber(financeAmount);
-    const isYearly = npgPeriod === "รายปี";
-    
-    // คำนวณดอกเบี้ยต่อเดือน
-    const ratePctPerMonth = toNumber(interest);
-    const interestPerMonth = principal * (ratePctPerMonth / 100);
-    
-    if (isYearly) {
-      // รายปี: คิดดอกเบี้ยเป็นเดือน แต่แบ่งชำระเป็นรายปี
-      const totalMonths = count * 12;
-      const totalInterest = interestPerMonth * totalMonths;
-      const totalAmount = principal + totalInterest;
-      const perYear = totalAmount / count;
-      
-      const roundedPerYear = roundByMethod(perYear, roundingMethod);
-      setInstallmentPerPeriod(String(roundedPerYear));
-    } else {
-      // รายเดือน
-      const months = count;
-      
+    const ratePctEntered = toNumber(interest);
+
+    let perPeriod: number;
+
+    if (financeProvider === "NPG") {
+      const isYearly = npgPeriod === "รายปี";
+      const months = isYearly ? count * 12 : count;
+
       if (months <= 0) {
         setInstallmentPerPeriod("");
         return;
       }
-      
+
+      const interestPerMonth = principal * (ratePctEntered / 100);
       const totalInterest = interestPerMonth * months;
       const perMonth = (principal + totalInterest) / months;
-      
-      const roundedPerMonth = roundByMethod(perMonth, roundingMethod);
-      setInstallmentPerPeriod(String(roundedPerMonth));
+      perPeriod = isYearly ? perMonth * 12 : perMonth;
+    } else {
+      // ไฟแนนซ์เจ้าอื่น: จ่ายรายเดือนเสมอ
+      const months = count;
+      // รถใหญ่ = อัตราที่กรอกเป็นรายปี ต้องหาร 12 ก่อนคิดดอกเบี้ยต่อเดือน
+      const monthlyRatePct = isBigBike ? ratePctEntered / 12 : ratePctEntered;
+      const interestPerMonth = principal * (monthlyRatePct / 100);
+      const totalInterest = interestPerMonth * months;
+      perPeriod = (principal + totalInterest) / months;
     }
-  }, [financeAmount, installmentCount, interest, financeProvider, npgPeriod, roundingMethod]);
+
+    const rounded = roundByMethod(perPeriod, roundingMethod);
+    setInstallmentPerPeriod(String(rounded));
+  }, [financeAmount, installmentCount, interest, financeProvider, npgPeriod, roundingMethod, isBigBike]);
 
   // สร้าง label สำหรับค่างวด
   const installmentLabel = useMemo(() => {

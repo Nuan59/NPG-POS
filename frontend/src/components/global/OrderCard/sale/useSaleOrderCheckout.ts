@@ -101,10 +101,10 @@ export const useSaleOrderCheckout = ({
       finance_provider:
         paymentMethod === "ไฟแนนซ์" && financeProvider ? financeProvider : "",
 
-      // ✅ รายเดือน/รายปี - บันทึกทุกครั้งที่เป็นไฟแนนซ์ ไม่ว่าใช้บริษัทไหน
-      // (เดิมบันทึกเฉพาะ NPG เท่านั้น ทำให้รถใหญ่ 300cc+ ที่ใช้ไฟแนนซ์เจ้าอื่นแล้วเลือก "รายปี"
-      //  ค่านี้หายไปตอนบันทึก แสดงผลย้อนหลังผิดว่าเป็นรายเดือนเสมอ)
-      npg_period: paymentMethod === "ไฟแนนซ์" && financeProvider ? npgPeriod : "",
+      // ✅ รายเดือน/รายปี - มีความหมายเฉพาะไฟแนนซ์ NPG เท่านั้น (ไฟแนนซ์เจ้าอื่นจ่ายรายเดือนเสมอ
+      // ตัวเลข "ดอกเบี้ย" ถูกตีความเป็นรายปี/รายเดือนจากขนาดรถแทน ไม่ได้เก็บเป็น field นี้)
+      npg_period:
+        paymentMethod === "ไฟแนนซ์" && financeProvider === "NPG" ? npgPeriod : "",
 
       // ประเภทการซื้อ
       payment_method:

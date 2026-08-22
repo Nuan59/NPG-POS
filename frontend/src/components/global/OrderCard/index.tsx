@@ -89,6 +89,13 @@ const OrderCard = () => {
   const [financeProvider, setFinanceProvider] = useState<FinanceProvider>("");
   const [npgPeriod, setNpgPeriod] = useState<NpgPeriod>("");
 
+  // ✅ รถใหญ่ ≥300cc ไหม (เดาจากชื่อ/รหัสรุ่น) - มีผลเฉพาะไฟแนนซ์ที่ไม่ใช่ NPG
+  // (ทำให้ตัวเลขที่กรอกในช่อง "ดอกเบี้ย" ถูกตีความเป็นอัตรารายปีแทนรายเดือน)
+  const isBigBikeSelected = useMemo(
+    () => (bikeDisplay ? isBigBike(bikeDisplay.model_name, bikeDisplay.model_code) : false),
+    [bikeDisplay]
+  );
+
   const {
     financeAmount,
     interest,
@@ -104,6 +111,7 @@ const OrderCard = () => {
     financeProvider,
     npgPeriod,
     roundingMethod: "standard",
+    isBigBike: isBigBikeSelected,
   });
 
   useEffect(() => {
@@ -115,15 +123,6 @@ const OrderCard = () => {
     };
     fetchData();
   }, [orderBike, totalPrice]);
-
-  // ✅ รถ 300cc ขึ้นไป ปกติไฟแนนซ์คิดดอกเบี้ยแบบรายปี - ตั้งค่าเริ่มต้นให้อัตโนมัติเวลาเลือกรถคันนี้
-  // (ยังกดเปลี่ยนเป็นรายเดือนเองได้ตามปกติ นี่แค่ค่าเริ่มต้นที่ช่วยลดการพิมพ์ผิด/ลืมตั้งค่า)
-  useEffect(() => {
-    if (bikeDisplay) {
-      const isBig = isBigBike(bikeDisplay.model_name, bikeDisplay.model_code);
-      setNpgPeriod(isBig ? "รายปี" : "รายเดือน");
-    }
-  }, [bikeDisplay]);
 
   const totalAdditionalFees = useMemo(
     () => calculateTotalAdditionalFees(orderAdditionalFees),

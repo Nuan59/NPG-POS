@@ -104,10 +104,12 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
 	const FINANCE_PROVIDERS = ["Cathay", "ทรัพย์สยาม", "NPG", "Summit", "S Leasing", "CIMB", "World Lease", "เงินติดล้อ"];
 	const isFinance = FINANCE_PROVIDERS.includes(order.payment_method);
 
-	// ✅ label ดอกเบี้ย - ใช้ npg_period ของออเดอร์ตรงๆ ไม่ล็อกเฉพาะ NPG อีกต่อไป
-	// (เดิมเช็ค order.payment_method === "NPG" ด้วย ทำให้ไฟแนนซ์เจ้าอื่นที่เลือก "รายปี"
-	//  ไว้ (เช่นรถใหญ่ 300cc+) ถูกบังคับโชว์เป็น "รายเดือน" อยู่ดี ทั้งที่ค่าจริงถูกบันทึกไว้แล้ว)
-	const interestPeriodLabel = order.npg_period || "รายเดือน";
+	// ✅ label ดอกเบี้ย - มีความหมายเฉพาะไฟแนนซ์ NPG เท่านั้น (เจ้าอื่นจ่ายรายเดือนเสมอ
+	// ตัวเลขดอกเบี้ยของรถใหญ่ถูกตีความเป็นรายปีตอนคำนวณไปแล้ว ไม่ได้เก็บ "รอบชำระ" แยกไว้)
+	const interestPeriodLabel =
+		order.payment_method === "NPG" && order.npg_period
+			? order.npg_period
+			: "รายเดือน";
 
 	// ✅ คำนวณยอดชำระรวมทั้งหมด
 	let calculatedTotal = 0;
@@ -241,8 +243,8 @@ const ViewOrder = async ({ params }: ViewOrderParams) => {
 										<TableCell className="font-medium">เงื่อนไขการชำระ</TableCell>
 										<TableCell className="font-medium text-right">
 											{order.payment_method}
-											{/* ✅ โชว์ (รายปี)/(รายเดือน) ให้ไฟแนนซ์ทุกเจ้าที่มีค่านี้บันทึกไว้ ไม่ใช่แค่ NPG */}
-											{order.npg_period ? ` (${order.npg_period})` : ""}
+											{/* ✅ โชว์ (รายปี)/(รายเดือน) เฉพาะ NPG เท่านั้น (เจ้าอื่นไม่มีรอบชำระให้เลือก) */}
+											{order.payment_method === "NPG" && order.npg_period ? ` (${order.npg_period})` : ""}
 										</TableCell>
 									</TableRow>
 

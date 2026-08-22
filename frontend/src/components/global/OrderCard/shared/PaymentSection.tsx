@@ -86,8 +86,10 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
         </Select>
       </div>
 
-      {/* เลือกรายปี/รายเดือน - แสดงทุก provider */}
-      {financeProvider && (
+      {/* ✅ เลือกรายปี/รายเดือน - โชว์เฉพาะไฟแนนซ์ NPG เท่านั้น
+          ไฟแนนซ์เจ้าอื่นจ่ายรายเดือนเสมอ ตัวเลขดอกเบี้ยถูกตีความรายปี/รายเดือนอัตโนมัติ
+          ตามขนาดรถ (isBigBike) แทน ไม่ต้องให้ผู้ใช้เลือกเอง */}
+      {financeProvider === "NPG" && (
         <div className="mt-1 flex justify-between items-center p-1">
           <label className={labelCls}>ประเภทดอกเบี้ย</label>
           <Select
