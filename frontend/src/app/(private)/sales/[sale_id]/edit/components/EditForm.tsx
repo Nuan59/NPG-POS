@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label";
 
 import { ImageUploadSection } from "./imageuploadsection";
 import { handleImageUpload, handleRemoveNewImage, handleRemoveExistingImage } from "./imageHandlers";
-import { calculateTotal, calculateFinanceAmount, calculateInstallmentAmount, isFinanceMethod } from "./calculations";
+import { calculateTotal, calculateFinanceAmount, calculateInstallmentAmount, isFinanceMethod, isBigBike } from "./calculations";
 
 interface FormDataType {
 	paymentMethod: string;
@@ -40,6 +40,8 @@ interface FormDataType {
 	installmentCount: number;
 	installmentAmount: number;
 	npgPeriod?: string;
+	// ✅ ขนาดรถ S/M/L - มีผลเฉพาะไฟแนนซ์ที่ไม่ใช่ NPG (L = ตีความดอกเบี้ยที่กรอกเป็นอัตรารายปี)
+	bikeSize?: "S" | "M" | "L" | "";
 	registrationExpiryDate?: string;
 	saleDate?: string;
 }
@@ -68,6 +70,12 @@ const EditForm = ({ order }: EditFormProps) => {
 		return "รายเดือน";
 	};
 
+	// ✅ ขนาดรถเริ่มต้น - เดาจากชื่อ/รหัสรุ่นของรถคันแรกในออเดอร์ (เหมือนกับ OrderCard)
+	const firstBike = order.bikes?.[0];
+	const defaultBikeSize: "S" | "L" = isBigBike(firstBike?.model_name, firstBike?.model_code)
+		? "L"
+		: "S";
+
 	const { register, control, handleSubmit, getValues, watch, setValue } =
 		useForm<FormDataType>({
 			defaultValues: {
@@ -91,6 +99,7 @@ const EditForm = ({ order }: EditFormProps) => {
 				installmentCount: Number(order.installment_count) || 0,
 				installmentAmount: Number(order.installment_amount) || 0,
 				npgPeriod: detectNpgPeriod(),
+				bikeSize: defaultBikeSize,
 				registrationExpiryDate: order.registration_expiry_date || "",
 				saleDate: order.sale_date || "",
 			},
@@ -107,7 +116,7 @@ const EditForm = ({ order }: EditFormProps) => {
 	const watchedFields = watch([
 		"salePrice", "discount", "downPayment", "deposit",
 		"paymentMethod", "financeAmount", "interestRate",
-		"installmentCount", "npgPeriod",
+		"installmentCount", "npgPeriod", "bikeSize",
 	]);
 
 	useEffect(() => { calculateTotal(getValues, setTotal); }, []);
@@ -117,7 +126,7 @@ const EditForm = ({ order }: EditFormProps) => {
 		calculateInstallmentAmount(getValues, setValue);
 		calculateTotal(getValues, setTotal);
 	}, [watchedFields[0], watchedFields[1], watchedFields[2], watchedFields[3],
-		watchedFields[4], watchedFields[5], watchedFields[6], watchedFields[7], watchedFields[8]]);
+		watchedFields[4], watchedFields[5], watchedFields[6], watchedFields[7], watchedFields[8], watchedFields[9]]);
 
 	const submitForm = async (data: FormDataType) => {
 		const isFinance = isFinanceMethod(data.paymentMethod);
@@ -324,6 +333,33 @@ const EditForm = ({ order }: EditFormProps) => {
 								</SelectContent>
 							</Select>
 						)} />
+				</div>
+			)}
+
+			{/* ✅ ขนาดรถ S/M/L - โชว์เฉพาะไฟแนนซ์ที่ไม่ใช่ NPG (NPG ไม่สนขนาดรถ ใช้ "รอบชำระ" ด้านบนแทน)
+			    L = ดอกเบี้ยที่กรอกด้านล่างถูกตีความเป็นอัตรารายปี (หาร 12 ก่อนคิดต่อเดือน) */}
+			{isFinance && !isNPG && isManager && (
+				<div className="flex items-center justify-between p-2">
+					<span>ขนาดรถ</span>
+					<div className="flex gap-1 w-[40%]">
+						{(["S", "M", "L"] as const).map((size) => (
+							<button
+								key={size}
+								type="button"
+								onClick={() => {
+									setValue("bikeSize", watch("bikeSize") === size ? "" : size);
+									setTimeout(() => calculateInstallmentAmount(getValues, setValue), 0);
+								}}
+								className={`flex-1 py-1 rounded text-xs font-semibold border transition-colors ${
+									watch("bikeSize") === size
+										? "bg-slate-900 border-slate-900 text-white"
+										: "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+								}`}
+							>
+								{size}
+							</button>
+						))}
+					</div>
 				</div>
 			)}
 
