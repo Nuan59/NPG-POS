@@ -55,6 +55,28 @@ export const roundByMethod = (value: number, method: RoundingMethod): number => 
   }
 };
 
+/**
+ * ✅ เดา cc ของรถจากชื่อรุ่น/รหัสรุ่น (เช่น "PCX160" -> 160, "FORZA350" -> 350)
+ * ใช้ตัวเลขที่ยาวที่สุดที่เจอ (2-4 หลัก) เพราะรุ่นรถมักฝัง cc ไว้ในชื่อ/รหัส
+ * เดาไม่ได้ (ไม่เจอตัวเลขที่สมเหตุสมผล) จะคืน 0
+ */
+export const guessEngineCC = (modelName?: string, modelCode?: string): number => {
+  const text = `${modelName || ""} ${modelCode || ""}`;
+  const matches = text.match(/\d{2,4}/g);
+  if (!matches || matches.length === 0) return 0;
+
+  // เลือกตัวเลขที่ใหญ่ที่สุดที่เจอ (กัน false positive จากตัวเลขอื่นในชื่อ เช่น "150i" ปนกับปีรุ่น)
+  const numbers = matches.map((m) => Number(m)).filter((n) => n >= 50 && n <= 2000);
+  if (numbers.length === 0) return 0;
+  return Math.max(...numbers);
+};
+
+// ✅ เกณฑ์ cc ที่ถือว่าเป็น "รถใหญ่" - ปกติไฟแนนซ์จะคิดดอกเบี้ยแบบรายปีสำหรับรถกลุ่มนี้
+export const BIG_BIKE_CC_THRESHOLD = 300;
+
+export const isBigBike = (modelName?: string, modelCode?: string): boolean =>
+  guessEngineCC(modelName, modelCode) >= BIG_BIKE_CC_THRESHOLD;
+
 // ================== CUSTOM HOOKS ==================
 
 interface UseFinanceCalculationsProps {
