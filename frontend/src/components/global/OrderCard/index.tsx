@@ -89,12 +89,17 @@ const OrderCard = () => {
   const [financeProvider, setFinanceProvider] = useState<FinanceProvider>("");
   const [npgPeriod, setNpgPeriod] = useState<NpgPeriod>("");
 
-  // ✅ รถใหญ่ ≥300cc ไหม (เดาจากชื่อ/รหัสรุ่น) - มีผลเฉพาะไฟแนนซ์ที่ไม่ใช่ NPG
-  // (ทำให้ตัวเลขที่กรอกในช่อง "ดอกเบี้ย" ถูกตีความเป็นอัตรารายปีแทนรายเดือน)
-  const isBigBikeSelected = useMemo(
-    () => (bikeDisplay ? isBigBike(bikeDisplay.model_name, bikeDisplay.model_code) : false),
-    [bikeDisplay]
-  );
+  // ✅ ขนาดรถ S/M/L - มีผลเฉพาะไฟแนนซ์ที่ไม่ใช่ NPG (L = ตีความดอกเบี้ยที่กรอกเป็นอัตรารายปี)
+  // ตั้งค่าเริ่มต้นอัตโนมัติจากชื่อ/รหัสรุ่น แต่ผู้ใช้เลือกเองทับได้เสมอ (เผื่อเดา cc ผิด)
+  const [bikeSize, setBikeSize] = useState<"S" | "M" | "L" | "">("");
+
+  useEffect(() => {
+    if (bikeDisplay) {
+      setBikeSize(isBigBike(bikeDisplay.model_name, bikeDisplay.model_code) ? "L" : "S");
+    } else {
+      setBikeSize("");
+    }
+  }, [bikeDisplay]);
 
   const {
     financeAmount,
@@ -111,7 +116,7 @@ const OrderCard = () => {
     financeProvider,
     npgPeriod,
     roundingMethod: "standard",
-    isBigBike: isBigBikeSelected,
+    isBigBike: bikeSize === "L",
   });
 
   useEffect(() => {
@@ -266,6 +271,8 @@ const OrderCard = () => {
             setFinanceProvider={setFinanceProvider}
             npgPeriod={npgPeriod}
             setNpgPeriod={setNpgPeriod}
+            bikeSize={bikeSize}
+            setBikeSize={setBikeSize}
             downPayment={down_payment || 0}
             setDownPayment={setDown_payment}
             financeAmount={financeAmount}

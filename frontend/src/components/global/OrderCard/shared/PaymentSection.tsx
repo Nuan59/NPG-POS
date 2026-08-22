@@ -31,6 +31,8 @@ interface FinanceSectionProps {
   setFinanceProvider: (value: FinanceProvider) => void;
   npgPeriod: NpgPeriod;
   setNpgPeriod: (value: NpgPeriod) => void;
+  bikeSize: "S" | "M" | "L" | "";
+  setBikeSize: (value: "S" | "M" | "L" | "") => void;
   deposit: number;
   setDeposit: (value: number) => void;
   discount: number;
@@ -49,6 +51,8 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
   setFinanceProvider,
   npgPeriod,
   setNpgPeriod,
+  bikeSize,
+  setBikeSize,
   deposit,
   setDeposit,
   discount,
@@ -85,6 +89,31 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
           </SelectContent>
         </Select>
       </div>
+
+      {/* ✅ ขนาดรถ S/M/L - โชว์เฉพาะไฟแนนซ์ที่ไม่ใช่ NPG (NPG ไม่สนขนาดรถ)
+          L = ดอกเบี้ยที่กรอกด้านล่างถูกตีความเป็นอัตรารายปี (หาร 12 ก่อนคิดต่อเดือน)
+          ตั้งค่าเริ่มต้นจากรุ่นรถที่เลือกให้แล้ว แต่แก้เองได้เผื่อเดา cc ผิด */}
+      {financeProvider && financeProvider !== "NPG" && (
+        <div className="mt-1 flex justify-between items-center p-1">
+          <label className={labelCls}>ขนาดรถ</label>
+          <div className="flex gap-1 w-32">
+            {(["S", "M", "L"] as const).map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => setBikeSize(bikeSize === size ? "" : size)}
+                className={`flex-1 py-1 rounded text-xs font-semibold border transition-colors ${
+                  bikeSize === size
+                    ? "bg-slate-900 border-slate-900 text-white"
+                    : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ✅ เลือกรายปี/รายเดือน - โชว์เฉพาะไฟแนนซ์ NPG เท่านั้น
           ไฟแนนซ์เจ้าอื่นจ่ายรายเดือนเสมอ ตัวเลขดอกเบี้ยถูกตีความรายปี/รายเดือนอัตโนมัติ

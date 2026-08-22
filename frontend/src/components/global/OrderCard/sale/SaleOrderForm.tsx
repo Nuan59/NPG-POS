@@ -33,6 +33,8 @@ interface SaleOrderFormProps {
   setFinanceProvider: (value: FinanceProvider) => void;
   npgPeriod: NpgPeriod;
   setNpgPeriod: (value: NpgPeriod) => void;
+  bikeSize: "S" | "M" | "L" | "";
+  setBikeSize: (value: "S" | "M" | "L" | "") => void;
   downPayment: number;
   setDownPayment: (value: number) => void;
   financeAmount: string;
@@ -61,6 +63,8 @@ const SaleOrderForm = ({
   setFinanceProvider,
   npgPeriod,
   setNpgPeriod,
+  bikeSize,
+  setBikeSize,
   downPayment,
   setDownPayment,
   financeAmount,
@@ -157,6 +161,8 @@ const SaleOrderForm = ({
             setFinanceProvider={setFinanceProvider}
             npgPeriod={npgPeriod}
             setNpgPeriod={setNpgPeriod}
+            bikeSize={bikeSize}
+            setBikeSize={setBikeSize}
             deposit={deposit}
             setDeposit={setDeposit}
             discount={discount || 0}
