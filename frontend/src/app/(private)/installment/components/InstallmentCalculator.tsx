@@ -13,6 +13,8 @@ import {
 
 type FinanceProvider = "Cathay" | "ทรัพย์สยาม" | "NPG" | "Summit" | "S Leasing" | "CIMB" | "World Lease" | "เงินติดล้อ" | "";
 type NpgPeriod = "รายปี" | "รายเดือน" | "";
+// ✅ ขนาดรถแบบง่าย S/M/L แทนการกรอก cc ตรงๆ - L = รถใหญ่ ปกติไฟแนนซ์คิดดอกเบี้ยรายปี
+type BikeSize = "S" | "M" | "L" | "";
 
 const toNumber = (s: string): number => {
   const t = s.trim();
@@ -28,6 +30,7 @@ export default function InstallmentCalculator() {
 
   const [financeProvider, setFinanceProvider] = useState<FinanceProvider>("");
   const [npgPeriod, setNpgPeriod] = useState<NpgPeriod>("");
+  const [bikeSize, setBikeSize] = useState<BikeSize>("");
 
   const [interest, setInterest] = useState<string>("");
   const [installmentCount, setInstallmentCount] = useState<string>("");
@@ -59,7 +62,12 @@ export default function InstallmentCalculator() {
   }, [sellPrice, discount, downPayment, computedFinanceAmount]);
 
   // =========================
-  // ค่างวด (logic เดิม + ปัดเศษ)
+  // ค่างวด
+  // - ไฟแนนซ์ NPG: ใช้ npgPeriod (รายเดือน/รายปี) ตามเดิม - รายปี = รวมยอด 12 เดือนมาจ่ายทีเดียว
+  //   ไม่สนขนาดรถเลย
+  // - ไฟแนนซ์เจ้าอื่น: จ่ายเป็นรายเดือนเสมอ (installmentCount = จำนวนเดือน)
+  //   แต่ถ้าขนาดรถเป็น L ตัวเลข "ดอกเบี้ย" ที่กรอกมาถือเป็นอัตรารายปี ต้องหาร 12 ก่อนคำนวณ
+  //   ขนาด S/M ตัวเลขที่กรอกถือเป็นอัตรารายเดือนตามปกติ
   // =========================
   useEffect(() => {
     if (financeAmount.trim() === "") {
@@ -74,20 +82,30 @@ export default function InstallmentCalculator() {
     }
 
     const principal = toNumber(financeAmount);
-    const isYearly = npgPeriod === "รายปี";
-    const months = isYearly ? count * 12 : count;
+    const ratePctEntered = toNumber(interest);
 
-    if (months <= 0) {
-      setInstallmentPerPeriod("");
-      return;
+    let perPeriod: number;
+
+    if (financeProvider === "NPG") {
+      const isYearly = npgPeriod === "รายปี";
+      const months = isYearly ? count * 12 : count;
+      if (months <= 0) {
+        setInstallmentPerPeriod("");
+        return;
+      }
+      const interestPerMonth = principal * (ratePctEntered / 100);
+      const totalInterest = interestPerMonth * months;
+      const perMonth = (principal + totalInterest) / months;
+      perPeriod = isYearly ? perMonth * 12 : perMonth;
+    } else {
+      // ✅ ไฟแนนซ์เจ้าอื่น: จ่ายรายเดือนเสมอ (ไม่รวมยอดเป็นรายปีแบบ NPG)
+      const months = count;
+      // ✅ L = ดอกเบี้ยที่กรอกเป็นอัตรารายปี ต้องหาร 12 ก่อนคิดต่อเดือน
+      const monthlyRatePct = bikeSize === "L" ? ratePctEntered / 12 : ratePctEntered;
+      const interestPerMonth = principal * (monthlyRatePct / 100);
+      const totalInterest = interestPerMonth * months;
+      perPeriod = (principal + totalInterest) / months;
     }
-
-    const ratePctPerMonth = toNumber(interest);
-    const interestPerMonth = principal * (ratePctPerMonth / 100);
-    const totalInterest = interestPerMonth * months;
-
-    const perMonth = (principal + totalInterest) / months;
-    const perPeriod = isYearly ? perMonth * 12 : perMonth;
 
     // ✅ ปัดเศษ: < 0.5 ปัดลง, >= 0.5 ปัดขึ้น
     const rounded = Math.round(perPeriod);
@@ -95,10 +113,13 @@ export default function InstallmentCalculator() {
     setInstallmentPerPeriod(
       Number.isFinite(rounded) ? rounded.toFixed(2) : ""
     );
-  }, [financeAmount, installmentCount, interest, financeProvider, npgPeriod]);
+  }, [financeAmount, installmentCount, interest, financeProvider, npgPeriod, bikeSize]);
 
+  // ✅ เปลี่ยนไฟแนนซ์แล้วรีเซ็ต npgPeriod (มีความหมายเฉพาะตอนเป็น NPG เท่านั้น)
   useEffect(() => {
-    if (!financeProvider) setNpgPeriod("");
+    if (financeProvider !== "NPG") {
+      setNpgPeriod("");
+    }
   }, [financeProvider]);
 
   const labelCls = "text-lg";
@@ -117,10 +138,17 @@ export default function InstallmentCalculator() {
     setDownPayment(0);
     setFinanceProvider("");
     setNpgPeriod("");
+    setBikeSize("");
     setInterest("");
     setInstallmentCount("");
     setFinanceAmount("");
     setInstallmentPerPeriod("");
+  };
+
+  const sizeLabel: Record<Exclude<BikeSize, "">, string> = {
+    S: "S (เล็ก)",
+    M: "M (กลาง)",
+    L: "L (ใหญ่ 300cc+)",
   };
 
   return (
@@ -135,6 +163,28 @@ export default function InstallmentCalculator() {
       <Separator className="my-5 opacity-40" />
 
       <div className="flex flex-col gap-3">
+        {/* ✅ ขนาดรถ S/M/L - มีผลเฉพาะไฟแนนซ์ที่ไม่ใช่ NPG (กำหนดว่าดอกเบี้ยที่กรอกเป็นอัตรารายเดือนหรือรายปี) */}
+        <div className={rowCls}>
+          <label className={labelCls}>ขนาดรถ</label>
+          <div className="flex gap-2">
+            {(["S", "M", "L"] as const).map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => setBikeSize(bikeSize === size ? "" : size)}
+                title={sizeLabel[size]}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                  bikeSize === size
+                    ? "bg-orange-500 border-orange-500 text-white"
+                    : "bg-slate-700 border-slate-600 text-slate-200 hover:bg-slate-600"
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className={rowCls}>
           <label className={labelCls}>เลือกไฟแนนซ์</label>
           <Select
@@ -157,7 +207,8 @@ export default function InstallmentCalculator() {
           </Select>
         </div>
 
-        {financeProvider && (
+        {/* ✅ ตัวเลือก "รายเดือน/รายปี" ให้เลือกเองได้เฉพาะไฟแนนซ์ NPG เท่านั้น ไม่สนขนาดรถ */}
+        {financeProvider === "NPG" && (
           <div className={rowCls}>
             <label className={labelCls}>ประเภทดอกเบี้ย</label>
             <Select
