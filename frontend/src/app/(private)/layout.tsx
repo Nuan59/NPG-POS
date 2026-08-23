@@ -3,6 +3,7 @@ import { Navbar } from "@/components/global/Navbar";
 import { Prompt } from "next/font/google";
 import OrderCard from "@/components/global/OrderCard";
 import OrderProvider from "@/context/OrderContext";
+import IssueLoginNotification from "@/components/global/IssueLoginNotification";
 const prompt = Prompt({ weight: "100", subsets: ["latin", "thai"] });
 
 export default function PrivateLayout({
@@ -13,6 +14,9 @@ export default function PrivateLayout({
 	return (
 		<OrderProvider>
 			<div className={`min-h-screen bg-slate-200 ${prompt.className}`}>
+				{/* ✅ เช็คกระทู้ที่ยังเปิดอยู่แล้วเด้ง popup ครั้งเดียวตอน login
+				    วางไว้ที่ layout นี้เพราะครอบทุกหน้าหลัง login ไม่ว่าจะเข้าหน้าไหนก่อนก็ทำงาน */}
+				<IssueLoginNotification />
 				<Navbar />
 				<main className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] text-slate-900 gap-0 mt-0">
 					<section className="m-3 lg:m-8 bg-slate-50 font-bold p-3 lg:p-8 min-h-[calc(100vh-80px)] lg:max-h-[calc(100vh-80px)] overflow-y-auto rounded-xl">
