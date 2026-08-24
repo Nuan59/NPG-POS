@@ -275,7 +275,7 @@ export default function TempReceiptTemplate({
               <View style={styles.rightInfoValue}><Text>{date}</Text></View>
             </View>
             <View style={styles.rightInfoRow}>
-              <Text style={styles.rightInfoLabel}>ชำ{ZWJ}าระโดย</Text>
+              <Text style={styles.rightInfoLabel}>ชำ{ZWJ}ระโดย</Text>
               <View style={styles.rightInfoValue}><Text>{sanitizeText(paymentMethodLabel || "-")}</Text></View>
             </View>
           </View>
