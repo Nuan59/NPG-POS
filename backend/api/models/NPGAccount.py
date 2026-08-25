@@ -19,13 +19,6 @@ class NPGAccount(models.Model):
         ('รายปี', 'รายปี'),
     ]
 
-    # ✅ แยกประเภทบัญชี - "finance" = ผ่อนไฟแนนซ์ทั้งคันตามปกติ, "down_payment" = ผ่อนเฉพาะเงินดาวน์
-    # (ลูกค้าจ่ายสด/ไฟแนนซ์เจ้าอื่นตามปกติ แต่ขอผ่อนเงินดาวน์เองกับร้าน)
-    ACCOUNT_TYPE_CHOICES = [
-        ('finance', 'ไฟแนนซ์'),
-        ('down_payment', 'ผ่อนดาวน์'),
-    ]
-
     order = models.OneToOneField(
         'Order',
         on_delete=models.CASCADE,
@@ -38,13 +31,6 @@ class NPGAccount(models.Model):
         choices=STATUS_CHOICES,
         default='active',
         verbose_name='สถานะ'
-    )
-
-    account_type = models.CharField(
-        max_length=20,
-        choices=ACCOUNT_TYPE_CHOICES,
-        default='finance',
-        verbose_name='ประเภทบัญชี'
     )
     
     finance_amount = models.DecimalField(

@@ -80,12 +80,6 @@ const OrderCard = () => {
   const [deposit, setDeposit] = useState<number>(0);
   const [depositReceiptNo, setDepositReceiptNo] = useState<string>("");
 
-  // ✅ ผ่อนดาวน์ (เฉพาะกรณีเงินสด) - จะไปขึ้นเป็นบัญชี NPG แยกต่างหากตอน checkout
-  const [downPaymentInstallment, setDownPaymentInstallment] = useState<boolean>(false);
-  const [downPaymentInstallmentAmount, setDownPaymentInstallmentAmount] = useState<number>(0);
-  const [downPaymentInstallmentCount, setDownPaymentInstallmentCount] = useState<string>("");
-  const [downPaymentInterestRate, setDownPaymentInterestRate] = useState<string>("");
-
   // วิธีการชำระเงิน (ใช้ร่วมกันทั้งขาย/ซ่อม/ต่อภาษี+พรบ/อื่นๆ)
   const [paymentType, setPaymentType] = useState<PaymentType>("");
   const [transferBank, setTransferBank] = useState<TransferBank>("");
@@ -286,14 +280,6 @@ const OrderCard = () => {
             setInterest={setInterest}
             installmentCount={installmentCount}
             setInstallmentCount={setInstallmentCount}
-            downPaymentInstallment={downPaymentInstallment}
-            setDownPaymentInstallment={setDownPaymentInstallment}
-            downPaymentInstallmentAmount={downPaymentInstallmentAmount}
-            setDownPaymentInstallmentAmount={setDownPaymentInstallmentAmount}
-            downPaymentInstallmentCount={downPaymentInstallmentCount}
-            setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
-            downPaymentInterestRate={downPaymentInterestRate}
-            setDownPaymentInterestRate={setDownPaymentInterestRate}
           />
         )}
 

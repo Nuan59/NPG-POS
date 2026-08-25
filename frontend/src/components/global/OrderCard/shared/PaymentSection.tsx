@@ -7,7 +7,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { FinanceProvider, NpgPeriod, numberToInput, toNumber, roundByMethod } from "./Financecalculations";
+import { FinanceProvider, NpgPeriod, numberToInput } from "./Financecalculations";
 
 /**
  * ไฟล์รวม UI การชำระเงินทั้งหมด
@@ -44,16 +44,6 @@ interface FinanceSectionProps {
   setInterest: (value: string) => void;
   installmentCount: string;
   setInstallmentCount: (value: string) => void;
-
-  // ✅ ผ่อนดาวน์ - ลูกค้าไฟแนนซ์อยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย จะไปขึ้นบัญชี NPG แยกตอน checkout
-  downPaymentInstallment: boolean;
-  setDownPaymentInstallment: (value: boolean) => void;
-  downPaymentInstallmentAmount: number;
-  setDownPaymentInstallmentAmount: (value: number) => void;
-  downPaymentInstallmentCount: string;
-  setDownPaymentInstallmentCount: (value: string) => void;
-  downPaymentInterestRate: string;
-  setDownPaymentInterestRate: (value: string) => void;
 }
 
 export const FinanceSection: React.FC<FinanceSectionProps> = ({
@@ -74,27 +64,7 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
   setInterest,
   installmentCount,
   setInstallmentCount,
-  downPaymentInstallment,
-  setDownPaymentInstallment,
-  downPaymentInstallmentAmount,
-  setDownPaymentInstallmentAmount,
-  downPaymentInstallmentCount,
-  setDownPaymentInstallmentCount,
-  downPaymentInterestRate,
-  setDownPaymentInterestRate,
 }) => {
-  // ✅ คำนวณค่างวดผ่อนดาวน์แบบง่าย (รายเดือนเสมอ)
-  const downPaymentInstallmentPerPeriod = React.useMemo(() => {
-    const amount = downPaymentInstallmentAmount || 0;
-    const count = toNumber(downPaymentInstallmentCount);
-    if (amount <= 0 || count <= 0) return 0;
-
-    const rate = toNumber(downPaymentInterestRate);
-    const interestPerMonth = amount * (rate / 100);
-    const total = amount + interestPerMonth * count;
-    return roundByMethod(total / count, "standard");
-  }, [downPaymentInstallmentAmount, downPaymentInstallmentCount, downPaymentInterestRate]);
-
   return (
     <>
       {/* เลือก Finance Provider */}
@@ -217,81 +187,6 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
               placeholder=""
             />
           </div>
-
-          {/* ✅ ผ่อนดาวน์ - ลูกค้ามีไฟแนนซ์อยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย จะไปขึ้นบัญชี NPG แยกตอน checkout */}
-          <div className="mt-1 flex justify-between items-center p-1">
-            <label className={labelCls}>ผ่อนดาวน์</label>
-            <button
-              type="button"
-              onClick={() => {
-                const next = !downPaymentInstallment;
-                setDownPaymentInstallment(next);
-                // ✅ เปิดครั้งแรก ตั้งค่าเริ่มต้นให้เท่ากับเงินดาวน์ที่กรอกไว้แล้ว (แก้เองทีหลังได้)
-                if (next && downPaymentInstallmentAmount === 0) {
-                  setDownPaymentInstallmentAmount(down_payment || 0);
-                }
-              }}
-              className={`px-4 py-1 rounded-lg text-sm font-semibold border transition-colors ${
-                downPaymentInstallment
-                  ? "bg-orange-500 border-orange-500 text-white"
-                  : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              {downPaymentInstallment ? "เปิดอยู่" : "ปิดอยู่"}
-            </button>
-          </div>
-
-          {downPaymentInstallment && (
-            <div className="mx-1 p-3 bg-orange-50 rounded-lg space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium">เงินดาวน์ที่ผ่อน</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={numberToInput(downPaymentInstallmentAmount || 0)}
-                  onChange={(e) =>
-                    setDownPaymentInstallmentAmount(
-                      e.target.value.trim() === "" ? 0 : Number(e.target.value)
-                    )
-                  }
-                  className="w-32 text-right p-1 text-sm bg-white"
-                />
-              </div>
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium">จำนวนงวด</label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={downPaymentInstallmentCount}
-                  onChange={(e) => setDownPaymentInstallmentCount(e.target.value)}
-                  placeholder="เช่น 3"
-                  className="w-32 text-right p-1 text-sm bg-white"
-                />
-              </div>
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium">ดอกเบี้ย (%/เดือน)</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={downPaymentInterestRate}
-                  onChange={(e) => setDownPaymentInterestRate(e.target.value)}
-                  placeholder="0"
-                  className="w-32 text-right p-1 text-sm bg-white"
-                />
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-orange-200">
-                <span className="text-sm font-semibold">ค่างวดที่ต้องผ่อน</span>
-                <span className="text-sm font-bold text-orange-700">
-                  {downPaymentInstallmentPerPeriod
-                    ? `฿ ${downPaymentInstallmentPerPeriod.toLocaleString()}`
-                    : "-"}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                * บันทึกออเดอร์แล้วระบบจะสร้างบัญชีผ่อนดาวน์ไว้ในเมนู NPG ให้อัตโนมัติ
-              </p>
-            </div>
-          )}
 
           {/* ยอดจัด (readonly) */}
           <div className="mt-1 flex justify-between items-center p-1">
