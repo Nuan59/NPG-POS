@@ -105,6 +105,41 @@ def create_workhours_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: ตรวจสอบสถานะ migration จริง - เทียบไฟล์ migration บน disk กับที่บันทึกไว้ใน DB ว่า apply แล้ว
+# ใช้ดูก่อนตัดสินใจ fake apply/unapply เพื่อไม่ให้เดาผิดฝั่งจนพัง production
+def migration_diagnostics(request):
+    from django.db import connection
+    from django.db.migrations.loader import MigrationLoader
+    from django.apps import apps
+    import os
+
+    try:
+        loader = MigrationLoader(connection)
+        applied_api = sorted([
+            name for (app, name) in loader.applied_migrations if app == 'api'
+        ])
+
+        migrations_dir = os.path.join(apps.get_app_config('api').path, 'migrations')
+        files_on_disk = sorted([
+            f[:-3] for f in os.listdir(migrations_dir)
+            if f.endswith('.py') and f != '__init__.py'
+        ])
+
+        # migration ที่มีไฟล์ แต่ Django "ไม่คิดว่า" apply แล้ว (เสี่ยงโดน migrate จริงซ้ำ)
+        files_not_marked_applied = [f for f in files_on_disk if f not in applied_api]
+        # migration ที่ Django คิดว่า apply แล้ว แต่ไม่มีไฟล์อยู่จริง
+        applied_but_file_missing = [a for a in applied_api if a not in files_on_disk]
+
+        return JsonResponse({
+            'status': 'ok',
+            'applied_in_db': applied_api,
+            'migration_files_on_disk': files_on_disk,
+            'files_not_marked_applied': files_not_marked_applied,
+            'applied_but_file_missing': applied_but_file_missing,
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -128,6 +163,7 @@ urlpatterns = [
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/chassis/', get_all_chassis),
+    path('dev/migration-diagnostics/', migration_diagnostics),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
