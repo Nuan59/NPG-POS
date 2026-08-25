@@ -273,6 +273,14 @@ const SaleOrderForm = ({
             setInterest={setInterest}
             installmentCount={installmentCount}
             setInstallmentCount={setInstallmentCount}
+            downPaymentInstallment={downPaymentInstallment}
+            setDownPaymentInstallment={setDownPaymentInstallment}
+            downPaymentInstallmentAmount={downPaymentInstallmentAmount}
+            setDownPaymentInstallmentAmount={setDownPaymentInstallmentAmount}
+            downPaymentInstallmentCount={downPaymentInstallmentCount}
+            setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
+            downPaymentInterestRate={downPaymentInterestRate}
+            setDownPaymentInterestRate={setDownPaymentInterestRate}
           />
         )}
       </div>

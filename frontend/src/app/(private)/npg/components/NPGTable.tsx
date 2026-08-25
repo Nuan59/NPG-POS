@@ -261,7 +261,15 @@ export default function NPGTable({
                       {getPeriodBadge(account)}
                     </td>
                     <td className="p-3 text-center">
-                      {getStatusBadge(isOverdue ? "overdue" : account.status)}
+                      <div className="flex flex-col items-center gap-1">
+                        {getStatusBadge(isOverdue ? "overdue" : account.status)}
+                        {/* ✅ ป้าย "ผ่อนดาวน์" แยกต่างหาก - ไม่แทนที่ status ปกติ (active/overdue/completed ยังใช้เหมือนเดิม) */}
+                        {account.account_type === "down_payment" && (
+                          <Badge className="bg-amber-100 text-amber-800 text-[10px]">
+                            ผ่อนดาวน์
+                          </Badge>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 text-center">
                       <Link href={`/npg/${account.id}`}>
