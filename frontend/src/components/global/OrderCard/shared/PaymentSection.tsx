@@ -45,11 +45,10 @@ interface FinanceSectionProps {
   installmentCount: string;
   setInstallmentCount: (value: string) => void;
 
-  // ✅ ผ่อนดาวน์ - ลูกค้าไฟแนนซ์อยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย จะไปขึ้นบัญชี NPG แยกตอน checkout
+  // ✅ ผ่อนดาวน์ - ลูกค้าไฟแนนซ์อยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย (ใช้ยอดจากช่อง "เงินดาวน์" ด้านบนตรงๆ
+  // ไม่มีช่องแยกซ้ำ) จะไปขึ้นบัญชี NPG แยกตอน checkout
   downPaymentInstallment: boolean;
   setDownPaymentInstallment: (value: boolean) => void;
-  downPaymentInstallmentAmount: number;
-  setDownPaymentInstallmentAmount: (value: number) => void;
   downPaymentInstallmentCount: string;
   setDownPaymentInstallmentCount: (value: string) => void;
   downPaymentInterestRate: string;
@@ -76,16 +75,14 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
   setInstallmentCount,
   downPaymentInstallment,
   setDownPaymentInstallment,
-  downPaymentInstallmentAmount,
-  setDownPaymentInstallmentAmount,
   downPaymentInstallmentCount,
   setDownPaymentInstallmentCount,
   downPaymentInterestRate,
   setDownPaymentInterestRate,
 }) => {
-  // ✅ ค่างวดแรกที่ต้องชำระวันนี้ (งวดที่เหลือไปขึ้น NPG) - คำนวณแบบง่าย รายเดือนเสมอ
+  // ✅ งวดแรกที่ต้องชำระวันนี้ (งวดที่เหลือไปขึ้น NPG) - ใช้ยอด "เงินดาวน์" ด้านบนตรงๆ
   const downPaymentFirstInstallment = React.useMemo(() => {
-    const amount = downPaymentInstallmentAmount || 0;
+    const amount = down_payment || 0;
     const count = toNumber(downPaymentInstallmentCount);
     if (amount <= 0 || count <= 0) return 0;
 
@@ -93,7 +90,7 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
     const interestPerMonth = amount * (rate / 100);
     const total = amount + interestPerMonth * count;
     return roundByMethod(total / count, "standard");
-  }, [downPaymentInstallmentAmount, downPaymentInstallmentCount, downPaymentInterestRate]);
+  }, [down_payment, downPaymentInstallmentCount, downPaymentInterestRate]);
 
   return (
     <>
@@ -223,14 +220,7 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             <label className={labelCls}>ผ่อนดาวน์</label>
             <button
               type="button"
-              onClick={() => {
-                const next = !downPaymentInstallment;
-                setDownPaymentInstallment(next);
-                // เปิดครั้งแรก ดึงเลขจากช่องเงินดาวน์ที่กรอกไว้แล้วมาตั้งต้นให้ แก้เองทับได้
-                if (next && downPaymentInstallmentAmount === 0) {
-                  setDownPaymentInstallmentAmount(down_payment || 0);
-                }
-              }}
+              onClick={() => setDownPaymentInstallment(!downPaymentInstallment)}
               className={`px-4 py-1 rounded-lg text-sm font-semibold border transition-colors ${
                 downPaymentInstallment
                   ? "bg-orange-500 border-orange-500 text-white"
@@ -244,20 +234,16 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
           {downPaymentInstallment && (
             <div className="mx-1 p-3 bg-orange-50 rounded-lg space-y-2">
               <p className="text-sm font-semibold text-orange-800">รายละเอียดการผ่อนดาวน์</p>
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium">เงินดาวน์ที่ผ่อน</label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={numberToInput(downPaymentInstallmentAmount || 0)}
-                  onChange={(e) =>
-                    setDownPaymentInstallmentAmount(
-                      e.target.value.trim() === "" ? 0 : Number(e.target.value)
-                    )
-                  }
-                  className="w-32 text-right p-1 text-sm bg-white"
-                />
+
+              <div className="flex justify-between items-center pb-2 border-b border-orange-200">
+                <span className="text-sm font-semibold">งวดแรก (ชำระวันนี้)</span>
+                <span className="text-sm font-bold text-orange-700">
+                  {downPaymentFirstInstallment
+                    ? `฿ ${downPaymentFirstInstallment.toLocaleString()}`
+                    : "-"}
+                </span>
               </div>
+
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium">จำนวนงวด</label>
                 <Input
@@ -280,16 +266,9 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
                   className="w-32 text-right p-1 text-sm bg-white"
                 />
               </div>
-              <div className="flex justify-between items-center pt-2 border-t border-orange-200">
-                <span className="text-sm font-semibold">ค่างวดแรกที่ต้องชำระวันนี้</span>
-                <span className="text-sm font-bold text-orange-700">
-                  {downPaymentFirstInstallment
-                    ? `฿ ${downPaymentFirstInstallment.toLocaleString()}`
-                    : "-"}
-                </span>
-              </div>
               <p className="text-xs text-slate-500">
-                * งวดที่เหลือ (งวดที่ 2 เป็นต้นไป) ระบบจะสร้างบัญชีผ่อนดาวน์ไว้ในเมนู NPG ให้อัตโนมัติหลังบันทึกออเดอร์
+                * เงินดาวน์ที่ผ่อนคือยอด "เงินดาวน์" ด้านบน งวดที่เหลือ (งวดที่ 2 เป็นต้นไป)
+                ระบบจะสร้างบัญชีผ่อนดาวน์ไว้ในเมนู NPG ให้อัตโนมัติหลังบันทึกออเดอร์
               </p>
             </div>
           )}

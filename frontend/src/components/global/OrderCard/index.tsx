@@ -95,15 +95,15 @@ const OrderCard = () => {
   // ตั้งค่าเริ่มต้นอัตโนมัติจากชื่อ/รหัสรุ่น แต่ผู้ใช้เลือกเองทับได้เสมอ (เผื่อเดา cc ผิด)
   const [bikeSize, setBikeSize] = useState<"S" | "M" | "L" | "">("");
 
-  // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - ลูกค้าจ่ายแค่ค่างวดแรกวันนี้ ที่เหลือไปขึ้นบัญชี NPG แยกตอน checkout
+  // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - ลูกค้าจ่ายแค่งวดแรกวันนี้ ที่เหลือไปขึ้นบัญชี NPG แยกตอน checkout
+  // ยอด "เงินดาวน์ที่ผ่อน" ใช้ down_payment ตรงๆ ไม่มี state แยกซ้ำ
   const [downPaymentInstallment, setDownPaymentInstallment] = useState<boolean>(false);
-  const [downPaymentInstallmentAmount, setDownPaymentInstallmentAmount] = useState<number>(0);
   const [downPaymentInstallmentCount, setDownPaymentInstallmentCount] = useState<string>("");
   const [downPaymentInterestRate, setDownPaymentInterestRate] = useState<string>("");
 
-  // ✅ ค่างวดแรกของการผ่อนดาวน์ (คำนวณแบบเดียวกับใน FinanceSection - รายเดือนเสมอ)
+  // ✅ งวดแรกของการผ่อนดาวน์ (คำนวณแบบเดียวกับใน FinanceSection - รายเดือนเสมอ)
   const downPaymentFirstInstallment = useMemo(() => {
-    const amount = downPaymentInstallmentAmount || 0;
+    const amount = down_payment || 0;
     const count = toNumber(downPaymentInstallmentCount);
     if (amount <= 0 || count <= 0) return 0;
 
@@ -111,7 +111,7 @@ const OrderCard = () => {
     const interestPerMonth = amount * (rate / 100);
     const total = amount + interestPerMonth * count;
     return roundByMethod(total / count, "standard");
-  }, [downPaymentInstallmentAmount, downPaymentInstallmentCount, downPaymentInterestRate]);
+  }, [down_payment, downPaymentInstallmentCount, downPaymentInterestRate]);
 
   useEffect(() => {
     if (bikeDisplay) {
@@ -203,7 +203,6 @@ const OrderCard = () => {
     totalPayment,
     cashTotal,
     downPaymentInstallment,
-    downPaymentInstallmentAmount,
     downPaymentInstallmentCount,
     downPaymentInterestRate,
     downPaymentFirstInstallment,
@@ -320,8 +319,6 @@ const OrderCard = () => {
             setInstallmentCount={setInstallmentCount}
             downPaymentInstallment={downPaymentInstallment}
             setDownPaymentInstallment={setDownPaymentInstallment}
-            downPaymentInstallmentAmount={downPaymentInstallmentAmount}
-            setDownPaymentInstallmentAmount={setDownPaymentInstallmentAmount}
             downPaymentInstallmentCount={downPaymentInstallmentCount}
             setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
             downPaymentInterestRate={downPaymentInterestRate}

@@ -39,7 +39,6 @@ interface UseSaleOrderCheckoutParams {
 
   // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - ส่งไปให้ backend สร้างบัญชี NPG แยกสำหรับส่วนที่เหลือ
   downPaymentInstallment: boolean;
-  downPaymentInstallmentAmount: number;
   downPaymentInstallmentCount: string;
   downPaymentInterestRate: string;
   downPaymentFirstInstallment: number;
@@ -74,7 +73,6 @@ export const useSaleOrderCheckout = ({
   totalPayment,
   cashTotal,
   downPaymentInstallment,
-  downPaymentInstallmentAmount,
   downPaymentInstallmentCount,
   downPaymentInterestRate,
   downPaymentFirstInstallment,
@@ -139,7 +137,7 @@ export const useSaleOrderCheckout = ({
       down_payment_installment:
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment,
       down_payment_installment_amount:
-        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentInstallmentAmount : 0,
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? down_payment : 0,
       down_payment_installment_count:
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? toNumber(downPaymentInstallmentCount) : 0,
       down_payment_interest_rate:
