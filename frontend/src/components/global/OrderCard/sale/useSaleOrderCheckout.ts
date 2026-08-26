@@ -36,6 +36,13 @@ interface UseSaleOrderCheckoutParams {
 
   totalPayment: number;
   cashTotal: number;
+
+  // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - ส่งไปให้ backend สร้างบัญชี NPG แยกสำหรับส่วนที่เหลือ
+  downPaymentInstallment: boolean;
+  downPaymentInstallmentAmount: number;
+  downPaymentInstallmentCount: string;
+  downPaymentInterestRate: string;
+  downPaymentFirstInstallment: number;
 }
 
 /**
@@ -66,6 +73,11 @@ export const useSaleOrderCheckout = ({
   checkNumber,
   totalPayment,
   cashTotal,
+  downPaymentInstallment,
+  downPaymentInstallmentAmount,
+  downPaymentInstallmentCount,
+  downPaymentInterestRate,
+  downPaymentFirstInstallment,
 }: UseSaleOrderCheckoutParams) => {
   const router = useRouter();
 
@@ -121,6 +133,19 @@ export const useSaleOrderCheckout = ({
         ? `DEPOSIT_RECEIPT:${depositReceiptNo}${notes ? `\n${notes}` : ""}`
         : notes,
       total: paymentMethod === "ไฟแนนซ์" ? totalPayment : cashTotal,
+
+      // ✅ ผ่อนดาวน์ - ส่งข้อมูลไปให้ backend สร้างบัญชี NPG แยกสำหรับงวดที่ 2 เป็นต้นไป
+      // (ยอด "total" ด้านบนถูกปรับให้เป็นแค่ค่างวดแรกแล้วตั้งแต่ index.tsx)
+      down_payment_installment:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment,
+      down_payment_installment_amount:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentInstallmentAmount : 0,
+      down_payment_installment_count:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? toNumber(downPaymentInstallmentCount) : 0,
+      down_payment_interest_rate:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? toNumber(downPaymentInterestRate) : 0,
+      down_payment_first_installment:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentFirstInstallment : 0,
     } as IOrder;
 
     const checkout = await createOrder(payload);

@@ -24,6 +24,8 @@ import {
   calculateCashTotal,
   calculateTotalPayment,
   isBigBike,
+  toNumber,
+  roundByMethod,
 } from "./shared/Financecalculations";
 import {
   PaymentType,
@@ -93,6 +95,24 @@ const OrderCard = () => {
   // ตั้งค่าเริ่มต้นอัตโนมัติจากชื่อ/รหัสรุ่น แต่ผู้ใช้เลือกเองทับได้เสมอ (เผื่อเดา cc ผิด)
   const [bikeSize, setBikeSize] = useState<"S" | "M" | "L" | "">("");
 
+  // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - ลูกค้าจ่ายแค่ค่างวดแรกวันนี้ ที่เหลือไปขึ้นบัญชี NPG แยกตอน checkout
+  const [downPaymentInstallment, setDownPaymentInstallment] = useState<boolean>(false);
+  const [downPaymentInstallmentAmount, setDownPaymentInstallmentAmount] = useState<number>(0);
+  const [downPaymentInstallmentCount, setDownPaymentInstallmentCount] = useState<string>("");
+  const [downPaymentInterestRate, setDownPaymentInterestRate] = useState<string>("");
+
+  // ✅ ค่างวดแรกของการผ่อนดาวน์ (คำนวณแบบเดียวกับใน FinanceSection - รายเดือนเสมอ)
+  const downPaymentFirstInstallment = useMemo(() => {
+    const amount = downPaymentInstallmentAmount || 0;
+    const count = toNumber(downPaymentInstallmentCount);
+    if (amount <= 0 || count <= 0) return 0;
+
+    const rate = toNumber(downPaymentInterestRate);
+    const interestPerMonth = amount * (rate / 100);
+    const total = amount + interestPerMonth * count;
+    return roundByMethod(total / count, "standard");
+  }, [downPaymentInstallmentAmount, downPaymentInstallmentCount, downPaymentInterestRate]);
+
   useEffect(() => {
     if (bikeDisplay) {
       setBikeSize(isBigBike(bikeDisplay.model_name, bikeDisplay.model_code) ? "L" : "S");
@@ -139,10 +159,23 @@ const OrderCard = () => {
     [sellPrice, totalAdditionalFees, discount, deposit]
   );
 
-  const totalPayment = useMemo(
-    () => calculateTotalPayment(down_payment || 0, totalAdditionalFees, discount || 0, deposit),
-    [down_payment, totalAdditionalFees, discount, deposit]
-  );
+  const totalPayment = useMemo(() => {
+    // ✅ ถ้าเปิดผ่อนดาวน์ - วันนี้จ่ายแค่ค่างวดแรกของดาวน์ (ไม่ใช่เงินดาวน์เต็มจำนวน)
+    // ส่วนที่เหลือ (งวด 2 เป็นต้นไป) ไปอยู่ในบัญชี NPG แยกต่างหาก
+    const effectiveDownPayment =
+      downPaymentInstallment && downPaymentFirstInstallment > 0
+        ? downPaymentFirstInstallment
+        : down_payment || 0;
+
+    return calculateTotalPayment(effectiveDownPayment, totalAdditionalFees, discount || 0, deposit);
+  }, [
+    down_payment,
+    totalAdditionalFees,
+    discount,
+    deposit,
+    downPaymentInstallment,
+    downPaymentFirstInstallment,
+  ]);
 
   // ✅ logic checkout แยกไฟล์ตามประเภทธุรกรรม (sale/, service/)
   const { handleOrderCheckout } = useSaleOrderCheckout({
@@ -169,6 +202,11 @@ const OrderCard = () => {
     checkNumber,
     totalPayment,
     cashTotal,
+    downPaymentInstallment,
+    downPaymentInstallmentAmount,
+    downPaymentInstallmentCount,
+    downPaymentInterestRate,
+    downPaymentFirstInstallment,
   });
 
   const { handleServiceCheckout } = useServiceOrderCheckout({
@@ -280,6 +318,14 @@ const OrderCard = () => {
             setInterest={setInterest}
             installmentCount={installmentCount}
             setInstallmentCount={setInstallmentCount}
+            downPaymentInstallment={downPaymentInstallment}
+            setDownPaymentInstallment={setDownPaymentInstallment}
+            downPaymentInstallmentAmount={downPaymentInstallmentAmount}
+            setDownPaymentInstallmentAmount={setDownPaymentInstallmentAmount}
+            downPaymentInstallmentCount={downPaymentInstallmentCount}
+            setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
+            downPaymentInterestRate={downPaymentInterestRate}
+            setDownPaymentInterestRate={setDownPaymentInterestRate}
           />
         )}
 

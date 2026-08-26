@@ -42,6 +42,16 @@ interface SaleOrderFormProps {
   setInterest: (value: string) => void;
   installmentCount: string;
   setInstallmentCount: (value: string) => void;
+
+  // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - จะไปขึ้นเป็นบัญชี NPG แยกต่างหากตอน checkout
+  downPaymentInstallment: boolean;
+  setDownPaymentInstallment: (value: boolean) => void;
+  downPaymentInstallmentAmount: number;
+  setDownPaymentInstallmentAmount: (value: number) => void;
+  downPaymentInstallmentCount: string;
+  setDownPaymentInstallmentCount: (value: string) => void;
+  downPaymentInterestRate: string;
+  setDownPaymentInterestRate: (value: string) => void;
 }
 
 /**
@@ -72,6 +82,14 @@ const SaleOrderForm = ({
   setInterest,
   installmentCount,
   setInstallmentCount,
+  downPaymentInstallment,
+  setDownPaymentInstallment,
+  downPaymentInstallmentAmount,
+  setDownPaymentInstallmentAmount,
+  downPaymentInstallmentCount,
+  setDownPaymentInstallmentCount,
+  downPaymentInterestRate,
+  setDownPaymentInterestRate,
 }: SaleOrderFormProps) => {
   return (
     <>
@@ -174,6 +192,14 @@ const SaleOrderForm = ({
             setInterest={setInterest}
             installmentCount={installmentCount}
             setInstallmentCount={setInstallmentCount}
+            downPaymentInstallment={downPaymentInstallment}
+            setDownPaymentInstallment={setDownPaymentInstallment}
+            downPaymentInstallmentAmount={downPaymentInstallmentAmount}
+            setDownPaymentInstallmentAmount={setDownPaymentInstallmentAmount}
+            downPaymentInstallmentCount={downPaymentInstallmentCount}
+            setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
+            downPaymentInterestRate={downPaymentInterestRate}
+            setDownPaymentInterestRate={setDownPaymentInterestRate}
           />
         )}
       </div>
