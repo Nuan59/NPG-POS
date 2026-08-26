@@ -45,10 +45,12 @@ interface FinanceSectionProps {
   installmentCount: string;
   setInstallmentCount: (value: string) => void;
 
-  // ✅ ผ่อนดาวน์ - ลูกค้าไฟแนนซ์อยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย (ใช้ยอดจากช่อง "เงินดาวน์" ด้านบนตรงๆ
-  // ไม่มีช่องแยกซ้ำ) จะไปขึ้นบัญชี NPG แยกตอน checkout
+  // ✅ ผ่อนดาวน์ - ลูกค้าไฟแนนซ์อยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย จะไปขึ้นบัญชี NPG แยกตอน checkout
+  // งวดแรกให้กรอกเอง (บางคนจ่ายมาก/น้อยกว่าที่คำนวณเป๊ะๆ) ส่วนที่เหลือค่อยหารเป็นงวดๆ ต่อไป
   downPaymentInstallment: boolean;
   setDownPaymentInstallment: (value: boolean) => void;
+  downPaymentFirstPaymentAmount: number;
+  setDownPaymentFirstPaymentAmount: (value: number) => void;
   downPaymentInstallmentCount: string;
   setDownPaymentInstallmentCount: (value: string) => void;
   downPaymentInterestRate: string;
@@ -75,22 +77,30 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
   setInstallmentCount,
   downPaymentInstallment,
   setDownPaymentInstallment,
+  downPaymentFirstPaymentAmount,
+  setDownPaymentFirstPaymentAmount,
   downPaymentInstallmentCount,
   setDownPaymentInstallmentCount,
   downPaymentInterestRate,
   setDownPaymentInterestRate,
 }) => {
-  // ✅ งวดแรกที่ต้องชำระวันนี้ (งวดที่เหลือไปขึ้น NPG) - ใช้ยอด "เงินดาวน์" ด้านบนตรงๆ
-  const downPaymentFirstInstallment = React.useMemo(() => {
-    const amount = down_payment || 0;
+  // ✅ ยอดคงเหลือหลังหักงวดแรกที่กรอกเอง = เงินดาวน์ - งวดแรก (ถ้าติดลบให้เป็น 0)
+  const downPaymentRemainingBalance = React.useMemo(() => {
+    const total = down_payment || 0;
+    const first = downPaymentFirstPaymentAmount || 0;
+    return Math.max(total - first, 0);
+  }, [down_payment, downPaymentFirstPaymentAmount]);
+
+  // ✅ ค่างวดที่เหลือต่องวด (งวดที่ 2 เป็นต้นไป) - หารยอดคงเหลือ + ดอกเบี้ย ตามจำนวนงวดที่เหลือ
+  const downPaymentPerRemainingInstallment = React.useMemo(() => {
     const count = toNumber(downPaymentInstallmentCount);
-    if (amount <= 0 || count <= 0) return 0;
+    if (downPaymentRemainingBalance <= 0 || count <= 0) return 0;
 
     const rate = toNumber(downPaymentInterestRate);
-    const interestPerMonth = amount * (rate / 100);
-    const total = amount + interestPerMonth * count;
+    const interestPerMonth = downPaymentRemainingBalance * (rate / 100);
+    const total = downPaymentRemainingBalance + interestPerMonth * count;
     return roundByMethod(total / count, "standard");
-  }, [down_payment, downPaymentInstallmentCount, downPaymentInterestRate]);
+  }, [downPaymentRemainingBalance, downPaymentInstallmentCount, downPaymentInterestRate]);
 
   return (
     <>
@@ -220,7 +230,14 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             <label className={labelCls}>ผ่อนดาวน์</label>
             <button
               type="button"
-              onClick={() => setDownPaymentInstallment(!downPaymentInstallment)}
+              onClick={() => {
+                const next = !downPaymentInstallment;
+                setDownPaymentInstallment(next);
+                // เปิดครั้งแรก ตั้งงวดแรกเท่ากับเงินดาวน์เต็มจำนวนไว้ก่อน แก้เป็นยอดที่รับจริงได้ทันที
+                if (next && downPaymentFirstPaymentAmount === 0) {
+                  setDownPaymentFirstPaymentAmount(down_payment || 0);
+                }
+              }}
               className={`px-4 py-1 rounded-lg text-sm font-semibold border transition-colors ${
                 downPaymentInstallment
                   ? "bg-orange-500 border-orange-500 text-white"
@@ -235,17 +252,29 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             <div className="mx-1 p-3 bg-orange-50 rounded-lg space-y-2">
               <p className="text-sm font-semibold text-orange-800">รายละเอียดการผ่อนดาวน์</p>
 
-              <div className="flex justify-between items-center pb-2 border-b border-orange-200">
-                <span className="text-sm font-semibold">งวดแรก (ชำระวันนี้)</span>
-                <span className="text-sm font-bold text-orange-700">
-                  {downPaymentFirstInstallment
-                    ? `฿ ${downPaymentFirstInstallment.toLocaleString()}`
-                    : "-"}
-                </span>
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium">งวดแรก (ชำระวันนี้)</label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={numberToInput(downPaymentFirstPaymentAmount || 0)}
+                  onChange={(e) =>
+                    setDownPaymentFirstPaymentAmount(
+                      e.target.value.trim() === "" ? 0 : Number(e.target.value)
+                    )
+                  }
+                  placeholder="กรอกยอดที่รับจริง"
+                  className="w-32 text-right p-1 text-sm bg-white"
+                />
+              </div>
+
+              <div className="flex justify-between items-center text-xs text-slate-500 pb-2 border-b border-orange-200">
+                <span>ยอดคงเหลือหลังงวดแรก</span>
+                <span>฿ {downPaymentRemainingBalance.toLocaleString()}</span>
               </div>
 
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium">จำนวนงวด</label>
+                <label className="text-sm font-medium">จำนวนงวดที่เหลือ</label>
                 <Input
                   type="text"
                   inputMode="numeric"
@@ -266,9 +295,18 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
                   className="w-32 text-right p-1 text-sm bg-white"
                 />
               </div>
+
+              <div className="flex justify-between items-center pt-2 border-t border-orange-200">
+                <span className="text-sm font-semibold">ค่างวดถัดไป (งวดที่ 2 เป็นต้นไป)</span>
+                <span className="text-sm font-bold text-orange-700">
+                  {downPaymentPerRemainingInstallment
+                    ? `฿ ${downPaymentPerRemainingInstallment.toLocaleString()}`
+                    : "-"}
+                </span>
+              </div>
+
               <p className="text-xs text-slate-500">
-                * เงินดาวน์ที่ผ่อนคือยอด "เงินดาวน์" ด้านบน งวดที่เหลือ (งวดที่ 2 เป็นต้นไป)
-                ระบบจะสร้างบัญชีผ่อนดาวน์ไว้ในเมนู NPG ให้อัตโนมัติหลังบันทึกออเดอร์
+                * งวดที่เหลือ (งวดที่ 2 เป็นต้นไป) ระบบจะสร้างบัญชีผ่อนดาวน์ไว้ในเมนู NPG ให้อัตโนมัติหลังบันทึกออเดอร์
               </p>
             </div>
           )}

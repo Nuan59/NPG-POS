@@ -39,9 +39,11 @@ interface UseSaleOrderCheckoutParams {
 
   // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - ส่งไปให้ backend สร้างบัญชี NPG แยกสำหรับส่วนที่เหลือ
   downPaymentInstallment: boolean;
+  downPaymentFirstPaymentAmount: number;
   downPaymentInstallmentCount: string;
   downPaymentInterestRate: string;
-  downPaymentFirstInstallment: number;
+  downPaymentRemainingBalance: number;
+  downPaymentPerRemainingInstallment: number;
 }
 
 /**
@@ -73,9 +75,11 @@ export const useSaleOrderCheckout = ({
   totalPayment,
   cashTotal,
   downPaymentInstallment,
+  downPaymentFirstPaymentAmount,
   downPaymentInstallmentCount,
   downPaymentInterestRate,
-  downPaymentFirstInstallment,
+  downPaymentRemainingBalance,
+  downPaymentPerRemainingInstallment,
 }: UseSaleOrderCheckoutParams) => {
   const router = useRouter();
 
@@ -133,17 +137,19 @@ export const useSaleOrderCheckout = ({
       total: paymentMethod === "ไฟแนนซ์" ? totalPayment : cashTotal,
 
       // ✅ ผ่อนดาวน์ - ส่งข้อมูลไปให้ backend สร้างบัญชี NPG แยกสำหรับงวดที่ 2 เป็นต้นไป
-      // (ยอด "total" ด้านบนถูกปรับให้เป็นแค่ค่างวดแรกแล้วตั้งแต่ index.tsx)
+      // (ยอด "total" ด้านบนถูกปรับให้เป็นแค่งวดแรกที่กรอกเองแล้วตั้งแต่ index.tsx)
       down_payment_installment:
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment,
-      down_payment_installment_amount:
-        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? down_payment : 0,
+      down_payment_first_installment:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentFirstPaymentAmount : 0,
+      down_payment_remaining_balance:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentRemainingBalance : 0,
       down_payment_installment_count:
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? toNumber(downPaymentInstallmentCount) : 0,
       down_payment_interest_rate:
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? toNumber(downPaymentInterestRate) : 0,
-      down_payment_first_installment:
-        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentFirstInstallment : 0,
+      down_payment_per_remaining_installment:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentPerRemainingInstallment : 0,
     } as IOrder;
 
     const checkout = await createOrder(payload);

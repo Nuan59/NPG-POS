@@ -46,6 +46,8 @@ interface SaleOrderFormProps {
   // ✅ ผ่อนดาวน์ (เฉพาะไฟแนนซ์) - จะไปขึ้นเป็นบัญชี NPG แยกต่างหากตอน checkout
   downPaymentInstallment: boolean;
   setDownPaymentInstallment: (value: boolean) => void;
+  downPaymentFirstPaymentAmount: number;
+  setDownPaymentFirstPaymentAmount: (value: number) => void;
   downPaymentInstallmentCount: string;
   setDownPaymentInstallmentCount: (value: string) => void;
   downPaymentInterestRate: string;
@@ -82,6 +84,8 @@ const SaleOrderForm = ({
   setInstallmentCount,
   downPaymentInstallment,
   setDownPaymentInstallment,
+  downPaymentFirstPaymentAmount,
+  setDownPaymentFirstPaymentAmount,
   downPaymentInstallmentCount,
   setDownPaymentInstallmentCount,
   downPaymentInterestRate,
@@ -190,6 +194,8 @@ const SaleOrderForm = ({
             setInstallmentCount={setInstallmentCount}
             downPaymentInstallment={downPaymentInstallment}
             setDownPaymentInstallment={setDownPaymentInstallment}
+            downPaymentFirstPaymentAmount={downPaymentFirstPaymentAmount}
+            setDownPaymentFirstPaymentAmount={setDownPaymentFirstPaymentAmount}
             downPaymentInstallmentCount={downPaymentInstallmentCount}
             setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
             downPaymentInterestRate={downPaymentInterestRate}
