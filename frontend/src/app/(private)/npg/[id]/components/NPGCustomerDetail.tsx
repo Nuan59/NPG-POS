@@ -56,6 +56,9 @@ interface AccountDetail {
   installment_count: number;
   installment_amount: number;
   period_type: "รายเดือน" | "รายปี";
+  // ✅ ค่าจริงจาก Order.npg_period - แม่นกว่า period_type เดิมที่อาจบันทึกผิดในอดีต
+  // (ต้องใช้ตัวนี้ก่อนเสมอ ไม่งั้นจะเจอบั๊กแบบที่เคยเจอ - ตารางโชว์ "รายปี" แต่หน้ารายละเอียดโชว์ "รายเดือน")
+  order_npg_period?: "รายเดือน" | "รายปี" | null;
   paid_count: number;
   total_paid: number;
   remaining_balance: number;
@@ -147,9 +150,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
   const calculateCloseAmount = (data: AccountDetail) => {
     const remainingInstallments = data.installment_count - data.paid_count;
-    
+
+    // ✅ ใช้ order_npg_period ก่อนเสมอ (แม่นกว่า period_type ที่อาจบันทึกผิดในอดีต)
+    const effectivePeriod = data.order_npg_period || data.period_type;
+
     // คำนวณจำนวนเดือนที่เหลือ
-    const remainingMonths = data.period_type === 'รายปี' 
+    const remainingMonths = effectivePeriod === 'รายปี'
       ? remainingInstallments * 12 
       : remainingInstallments;
     
@@ -382,7 +388,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             )}
             <div className="flex justify-between">
               <span className="text-gray-600">ประเภทการชำระ:</span>
-              <span className="font-medium">{account.period_type}</span>
+              {/* ✅ ใช้ order_npg_period ก่อนเสมอ - ตรงกับที่ตาราง NPGTable.tsx ใช้ */}
+              <span className="font-medium">{account.order_npg_period || account.period_type}</span>
             </div>
           </div>
         </div>
