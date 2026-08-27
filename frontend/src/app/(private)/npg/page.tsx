@@ -147,8 +147,14 @@ export default function NPGPage() {
     return matchesSearch && matchesPeriod;
   };
 
+  // ✅ นับ "ชำระครบ" (completed) เป็นบัญชีที่จบแล้วเหมือน "ปิดบัญชี" (closed) - ย้ายไปโชว์รวมกัน
+  // ในส่วน "บัญชีที่ปิดแล้ว" ด้วย เพราะทั้งคู่คือลูกค้าที่ไม่ต้องติดตามแล้ว ต่างกันแค่จ่ายครบเองตามปกติ
+  // หรือปิดก่อนกำหนด (ได้ส่วนลดดอกเบี้ย) - ไม่ได้เปลี่ยนค่า status จริงในฐานข้อมูล แค่จัดกลุ่มตอนแสดงผล
+  const isFinishedAccount = (account: NPGAccount) =>
+    account.status === "closed" || account.status === "completed";
+
   const filteredAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
-    if (account.status === "closed") return false;
+    if (isFinishedAccount(account)) return false;
 
     const isOverdue = account.status === "overdue" || account.is_overdue === true;
     const matchesStatus =
@@ -159,7 +165,7 @@ export default function NPGPage() {
   }) : [];
 
   const closedAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
-    return account.status === "closed" && matchesSearchAndPeriod(account);
+    return isFinishedAccount(account) && matchesSearchAndPeriod(account);
   }) : [];
 
   if (status === "loading" || loading) {

@@ -180,6 +180,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                         # แทนยอดดิบที่มีเศษทศนิยม เพื่อให้จ่ายครบทุกงวดแล้วเหลือ 0 พอดี ไม่มีเศษค้าง
                         remaining_balance_final = installment_amount * installment_count
 
+                        # ✅ งวดแรกครบกำหนดเมื่อไหร่ขึ้นกับรอบชำระ - รายปีต้องรอ 1 ปี (365 วัน) ไม่ใช่ 1 เดือน
+                        # (เดิม hardcode 30 วันเสมอ ทำให้บัญชีรายปีขึ้นเกินกำหนดหลังผ่านไปแค่เดือนเดียว)
+                        first_due_days = 365 if npg_period == 'รายปี' else 30
+
                         NPGAccount.objects.create(
                             order=new_order,
                             status='active',
@@ -193,7 +197,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                             total_paid=0,
                             remaining_balance=remaining_balance_final,
                             start_date=datetime.today().date(),
-                            next_payment_date=datetime.today().date() + timedelta(days=30),
+                            next_payment_date=datetime.today().date() + timedelta(days=first_due_days),
                         )
                         print(f"✅ สร้าง NPG Account สำหรับ Order #{new_order.id} (period={npg_period}, remaining={remaining_balance_final}, raw={total_with_interest_raw})")
                     except Exception as e:
