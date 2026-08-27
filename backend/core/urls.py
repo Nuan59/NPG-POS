@@ -105,6 +105,43 @@ def create_workhours_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+
+# ✅ Temp: แก้ข้อมูลบัญชี NPG ที่เป็น "รายปี" จริง (ตาม Order.npg_period) แต่ตอนสร้างบันทึก
+# period_type / next_payment_date ผิดเป็นรายเดือน (บั๊กเก่าก่อนแก้ OrderViewSet.py)
+# แก้แค่ period_type + next_payment_date เท่านั้น ไม่แตะ remaining_balance/installment_amount
+# เพราะยอดพวกนั้นคำนวณถูกต้องอยู่แล้วตั้งแต่ตอนสร้าง (ไม่ขึ้นกับ period_type)
+def fix_npg_yearly_accounts(request):
+    from api.models import NPGAccount
+    from datetime import timedelta
+
+    try:
+        accounts = NPGAccount.objects.select_related('order').all()
+        fixed = []
+
+        for acc in accounts:
+            order_period = getattr(acc.order, 'npg_period', None) if acc.order else None
+
+            # เฉพาะกรณี Order บอกว่าเป็นรายปีจริง แต่ตัวบัญชีบันทึกผิดเป็นรายเดือน
+            if order_period == 'รายปี' and acc.period_type != 'รายปี':
+                base_date = acc.last_payment_date or acc.start_date
+                acc.period_type = 'รายปี'
+                acc.next_payment_date = base_date + timedelta(days=365)
+                acc.save()
+                fixed.append({
+                    'account_id': acc.id,
+                    'order_id': acc.order.id if acc.order else None,
+                    'new_next_payment_date': acc.next_payment_date.isoformat(),
+                })
+
+        return JsonResponse({
+            'status': 'ok',
+            'fixed_count': len(fixed),
+            'fixed_accounts': fixed,
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -128,6 +165,7 @@ urlpatterns = [
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/chassis/', get_all_chassis),
+    path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
