@@ -11,6 +11,7 @@ import { OrderContext } from "@/context/OrderContext";
 // ✅ shared/ - ใช้ร่วมกันทุกประเภทธุรกรรม
 import OrderCustomer from "./shared/OrderCustomer";
 import OrderBike from "./shared/OrderBike";
+import OrderOwnedBikeSelect from "./shared/OrderOwnedBikeSelect";
 import AdditionalFeeDialog from "./shared/AdditionalFeeDialog";
 import OrderFee from "./shared/OrderFee";
 import OrderGiftDialog from "./shared/OrderGiftDialog";
@@ -261,16 +262,18 @@ const OrderCard = () => {
 
         <OrderCustomer />
 
-        {/* รายการรถ */}
+        {/* รายการรถ - แท็บ "ขาย" เลือกจากคลังสินค้า (รถยังไม่ขาย) / แท็บอื่นเลือกจากรถที่ลูกค้าคนนี้เคยซื้อไปแล้ว */}
         {orderBike && bikeDisplay ? (
           <OrderBike bike={bikeDisplay} onRemove={removeBikeFromOrder} />
-        ) : (
+        ) : transactionType === "ขาย" ? (
           <Link href="/inventory">
             <div className="flex items-center justify-between mt-3 gap-2 text-slate-900 cursor-pointer border-2 border-dashed border-slate-500 rounded-lg p-4 hover:bg-slate-200 transition-colors">
               <ShoppingCart opacity="60%" size={18} />
               <span className="text-base font-semibold">เพิ่มรถ</span>
             </div>
           </Link>
+        ) : (
+          <OrderOwnedBikeSelect />
         )}
 
         {/* ของแถม */}
