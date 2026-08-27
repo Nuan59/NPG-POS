@@ -22,12 +22,15 @@ export interface NPGAccount {
     model_code: string;
   } | null;
   status: "active" | "completed" | "closed" | "overdue";
+  // ✅ แยกประเภทบัญชี - "finance" = ผ่อนไฟแนนซ์ทั้งคันตามปกติ, "down_payment" = ผ่อนเฉพาะเงินดาวน์
+  account_type?: "finance" | "down_payment";
   finance_amount: number;
   interest_rate: number;
   installment_count: number;
   installment_amount: number;
   period_type: "รายเดือน" | "รายปี";
   order_npg_period?: "รายเดือน" | "รายปี" | null;  // ✅ ค่าจริงจาก Order.npg_period (แม่นกว่า period_type เดิม)
+  order_payment_method?: string | null;  // ✅ วิธีชำระเงินหลักของออเดอร์ (ใช้กับบัญชีผ่อนดาวน์)
   paid_count: number;
   total_paid: number;
   remaining_balance: number;
@@ -87,17 +90,12 @@ export default function NPGPage() {
       const token = session.user.accessToken;
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-      console.log("🔍 Fetching NPG data with token:", token.substring(0, 20) + "...");
-      
-      // ✅ เรียก Backend โดยตรง
       const accountsResponse = await fetch(`${baseUrl}/npg/accounts/`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
-      
-      console.log("📡 Accounts response:", accountsResponse.status);
 
       if (!accountsResponse.ok) {
         if (accountsResponse.status === 401 || accountsResponse.status === 403) {
@@ -107,10 +105,9 @@ export default function NPGPage() {
         }
         throw new Error(`HTTP ${accountsResponse.status}`);
       }
-      
+
       const accountsData = await accountsResponse.json();
-      console.log("✅ Accounts data:", Array.isArray(accountsData) ? accountsData.length : "not array");
-      
+
       if (Array.isArray(accountsData)) {
         setAccounts(accountsData);
       } else {
@@ -118,14 +115,13 @@ export default function NPGPage() {
         setAccounts([]);
       }
 
-      // Fetch summary
       const summaryResponse = await fetch(`${baseUrl}/npg/accounts/summary/`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
-      
+
       if (summaryResponse.ok) {
         const summaryData = await summaryResponse.json();
         setSummary(summaryData);
@@ -139,7 +135,6 @@ export default function NPGPage() {
     }
   };
 
-  // ✅ filter ร่วม (search + period) ใช้กับทั้ง 2 ตาราง
   const matchesSearchAndPeriod = (account: NPGAccount) => {
     const matchesSearch =
       account.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -152,9 +147,8 @@ export default function NPGPage() {
     return matchesSearch && matchesPeriod;
   };
 
-  // ✅ ตารางหลัก - เฉพาะบัญชีที่ยังไม่ปิด (active/completed/overdue) + กรองตาม statusFilter ที่เลือก
   const filteredAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
-    if (account.status === "closed") return false; // แยกไปตารางปิดบัญชีเสมอ
+    if (account.status === "closed") return false;
 
     const isOverdue = account.status === "overdue" || account.is_overdue === true;
     const matchesStatus =
@@ -164,7 +158,6 @@ export default function NPGPage() {
     return matchesSearchAndPeriod(account) && matchesStatus;
   }) : [];
 
-  // ✅ ตารางแยก - เฉพาะบัญชีที่ปิดแล้วเท่านั้น (ไม่สนใจ statusFilter เพราะแยกออกมาแล้ว)
   const closedAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
     return account.status === "closed" && matchesSearchAndPeriod(account);
   }) : [];
@@ -215,7 +208,6 @@ export default function NPGPage() {
         <NPGSummary
           summary={{
             ...summary,
-            // ✅ นับจำนวนเกินกำหนดจริงจากรายการบัญชี (is_overdue คำนวณสด) แทนค่าจาก backend ที่อาจยังไม่อัปเดต
             overdue_accounts: Array.isArray(accounts)
               ? accounts.filter((a) => a.status === "overdue" || a.is_overdue === true).length
               : summary.overdue_accounts,
@@ -235,7 +227,6 @@ export default function NPGPage() {
         onRefresh={fetchData}
       />
 
-      {/* ✅ บัญชีที่ปิดแล้ว - แยกออกมาต่างหาก พับเก็บไว้เป็นค่าเริ่มต้น */}
       {closedAccounts.length > 0 && (
         <div className="border rounded-lg">
           <button

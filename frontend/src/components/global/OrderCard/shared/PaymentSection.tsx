@@ -225,30 +225,34 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             />
           </div>
 
-          {/* ✅ ผ่อนดาวน์ - ลูกค้ามีไฟแนนซ์รถอยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย จะไปขึ้นบัญชี NPG แยกตอน checkout */}
-          <div className="mt-1 flex justify-between items-center p-1">
-            <label className={labelCls}>ผ่อนดาวน์</label>
-            <button
-              type="button"
-              onClick={() => {
-                const next = !downPaymentInstallment;
-                setDownPaymentInstallment(next);
-                // เปิดครั้งแรก ตั้งงวดแรกเท่ากับเงินดาวน์เต็มจำนวนไว้ก่อน แก้เป็นยอดที่รับจริงได้ทันที
-                if (next && downPaymentFirstPaymentAmount === 0) {
-                  setDownPaymentFirstPaymentAmount(down_payment || 0);
-                }
-              }}
-              className={`px-4 py-1 rounded-lg text-sm font-semibold border transition-colors ${
-                downPaymentInstallment
-                  ? "bg-orange-500 border-orange-500 text-white"
-                  : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              {downPaymentInstallment ? "เปิดอยู่" : "ปิดอยู่"}
-            </button>
-          </div>
+          {/* ✅ ผ่อนดาวน์ - ลูกค้ามีไฟแนนซ์รถอยู่แล้ว แต่ขอผ่อนเงินดาวน์เองด้วย จะไปขึ้นบัญชี NPG แยกตอน checkout
+              ⚠️ ห้ามให้ใช้กับไฟแนนซ์ NPG เพราะ NPGAccount ผูกกับ Order แบบ OneToOneField (1 order = 1 บัญชี)
+              ถ้าเป็น NPG อยู่แล้วจะชนกับบัญชีไฟแนนซ์หลัก ทำให้ระบบล่มตอน checkout (เคยเกิดขึ้นมาแล้ว) */}
+          {financeProvider !== "NPG" && (
+            <div className="mt-1 flex justify-between items-center p-1">
+              <label className={labelCls}>ผ่อนดาวน์</label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !downPaymentInstallment;
+                  setDownPaymentInstallment(next);
+                  // เปิดครั้งแรก ตั้งงวดแรกเท่ากับเงินดาวน์เต็มจำนวนไว้ก่อน แก้เป็นยอดที่รับจริงได้ทันที
+                  if (next && downPaymentFirstPaymentAmount === 0) {
+                    setDownPaymentFirstPaymentAmount(down_payment || 0);
+                  }
+                }}
+                className={`px-4 py-1 rounded-lg text-sm font-semibold border transition-colors ${
+                  downPaymentInstallment
+                    ? "bg-orange-500 border-orange-500 text-white"
+                    : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {downPaymentInstallment ? "เปิดอยู่" : "ปิดอยู่"}
+              </button>
+            </div>
+          )}
 
-          {downPaymentInstallment && (
+          {financeProvider !== "NPG" && downPaymentInstallment && (
             <div className="mx-1 p-3 bg-orange-50 rounded-lg space-y-2">
               <p className="text-sm font-semibold text-orange-800">รายละเอียดการผ่อนดาวน์</p>
 

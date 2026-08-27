@@ -65,6 +65,12 @@ class OrderViewSet(viewsets.ModelViewSet):
         - transfer_bank: ธนาคารโอน
         - check_number: เลขที่เช็ค
         - notes: หมายเหตุ
+        - down_payment_installment: ผ่อนดาวน์หรือไม่ (true/false)
+        - down_payment_first_installment: งวดแรกที่ชำระวันนี้
+        - down_payment_remaining_balance: ยอดคงเหลือหลังงวดแรก
+        - down_payment_installment_count: จำนวนงวดที่เหลือ
+        - down_payment_interest_rate: ดอกเบี้ยผ่อนดาวน์ (%/เดือน)
+        - down_payment_per_remaining_installment: ค่างวดถัดไป (งวดที่ 2 เป็นต้นไป)
         """
         try:
             customer = Customer.objects.filter(pk=request.data["customer"])[0]
@@ -92,6 +98,9 @@ class OrderViewSet(viewsets.ModelViewSet):
             payment_type = request.data.get('payment_type', '')  # รูปแบบการชำระ
             transfer_bank = request.data.get('transfer_bank', '')
             check_number = request.data.get('check_number', '')
+
+            # ✅ ผ่อนดาวน์
+            down_payment_installment = request.data.get('down_payment_installment', False)
 
             # สร้าง Order
             with transaction.atomic():
@@ -174,6 +183,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                         NPGAccount.objects.create(
                             order=new_order,
                             status='active',
+                            account_type='finance',
                             finance_amount=finance_amount,
                             interest_rate=interest_rate,
                             installment_count=installment_count,
@@ -188,6 +198,41 @@ class OrderViewSet(viewsets.ModelViewSet):
                         print(f"✅ สร้าง NPG Account สำหรับ Order #{new_order.id} (period={npg_period}, remaining={remaining_balance_final}, raw={total_with_interest_raw})")
                     except Exception as e:
                         print(f"❌ ไม่สามารถสร้าง NPG Account: {str(e)}")
+
+                # ✅ สร้างบัญชีผ่อนดาวน์ (account_type='down_payment') - เฉพาะกรณีไฟแนนซ์รถกับเจ้าอื่น
+                # ที่ไม่ใช่ NPG เท่านั้น เพราะ NPGAccount ผูกกับ Order แบบ OneToOneField (1 order = 1 บัญชี)
+                # ถ้า finance_provider เป็น NPG อยู่แล้ว จะชนกับบัญชีไฟแนนซ์หลักด้านบนทันที (unique constraint)
+                # ⚠️ ห้ามลบเงื่อนไข finance_provider != 'NPG' ออก ไม่งั้นจะพังเหมือนที่เคยเกิดมาก่อน
+                if down_payment_installment and finance_provider != 'NPG':
+                    try:
+                        dp_remaining_balance = float(request.data.get('down_payment_remaining_balance', 0))
+                        dp_installment_count = int(request.data.get('down_payment_installment_count', 0))
+                        dp_interest_rate = float(request.data.get('down_payment_interest_rate', 0))
+                        dp_per_installment = float(request.data.get('down_payment_per_remaining_installment', 0))
+
+                        if dp_installment_count > 0 and dp_remaining_balance > 0 and dp_per_installment > 0:
+                            dp_remaining_balance_final = dp_per_installment * dp_installment_count
+
+                            NPGAccount.objects.create(
+                                order=new_order,
+                                status='active',
+                                account_type='down_payment',
+                                finance_amount=dp_remaining_balance,
+                                interest_rate=dp_interest_rate,
+                                installment_count=dp_installment_count,
+                                installment_amount=dp_per_installment,
+                                period_type='รายเดือน',
+                                paid_count=0,
+                                total_paid=0,
+                                remaining_balance=dp_remaining_balance_final,
+                                start_date=datetime.today().date(),
+                                next_payment_date=datetime.today().date() + timedelta(days=30),
+                            )
+                            print(f"✅ สร้างบัญชีผ่อนดาวน์สำหรับ Order #{new_order.id} (remaining={dp_remaining_balance_final})")
+                        else:
+                            print(f"⚠️ ข้ามสร้างบัญชีผ่อนดาวน์ Order #{new_order.id}: ข้อมูลไม่ครบ (count={dp_installment_count}, balance={dp_remaining_balance})")
+                    except Exception as e:
+                        print(f"❌ ไม่สามารถสร้างบัญชีผ่อนดาวน์: {str(e)}")
 
             return Response({"success": True, "data": new_order.id})
         

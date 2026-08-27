@@ -47,6 +47,10 @@ class NPGAccountSerializer(serializers.ModelSerializer):
     # ✅ รอบชำระที่แท้จริงจาก Order.npg_period (แม่นกว่า period_type เดิมที่อาจบันทึกผิดในอดีต)
     order_npg_period = serializers.CharField(source='order.npg_period', read_only=True, default=None)
 
+    # ✅ วิธีชำระเงินหลักของออเดอร์ (Cathay, ทรัพย์สยาม, เงินสด ฯลฯ) - ใช้แยกแสดงผลบัญชีผ่อนดาวน์
+    # ที่เกิดจากไฟแนนซ์เจ้าอื่น (ไม่ใช่ NPG) ให้เห็นว่าตัวรถผ่อนกับใคร
+    order_payment_method = serializers.CharField(source='order.payment_method', read_only=True, default=None)
+
     # ประวัติการชำระ
     payments = NPGPaymentSerializer(many=True, read_only=True)
 
@@ -92,12 +96,14 @@ class NPGAccountSerializer(serializers.ModelSerializer):
             'customer_address',
             'bike_info',
             'status',
+            'account_type',
             'finance_amount',
             'interest_rate',
             'installment_count',
             'installment_amount',
             'period_type',
             'order_npg_period',  # ✅ ค่าจริงจาก Order (ใช้แทน period_type เมื่อมีค่า)
+            'order_payment_method',  # ✅ วิธีชำระเงินหลักของออเดอร์
             'paid_count',
             'total_paid',
             'remaining_balance',

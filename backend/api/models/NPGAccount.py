@@ -19,6 +19,13 @@ class NPGAccount(models.Model):
         ('รายปี', 'รายปี'),
     ]
 
+    # ✅ แยกประเภทบัญชี - "finance" = ผ่อนไฟแนนซ์ทั้งคันตามปกติ, "down_payment" = ผ่อนเฉพาะเงินดาวน์
+    # (ลูกค้าจ่ายสด/ไฟแนนซ์เจ้าอื่นตามปกติ แต่ขอผ่อนเงินดาวน์เองกับร้าน)
+    ACCOUNT_TYPE_CHOICES = [
+        ('finance', 'ไฟแนนซ์'),
+        ('down_payment', 'ผ่อนดาวน์'),
+    ]
+
     order = models.OneToOneField(
         'Order',
         on_delete=models.CASCADE,
@@ -31,6 +38,13 @@ class NPGAccount(models.Model):
         choices=STATUS_CHOICES,
         default='active',
         verbose_name='สถานะ'
+    )
+
+    account_type = models.CharField(
+        max_length=20,
+        choices=ACCOUNT_TYPE_CHOICES,
+        default='finance',
+        verbose_name='ประเภทบัญชี'
     )
     
     finance_amount = models.DecimalField(
@@ -154,42 +168,24 @@ class NPGAccount(models.Model):
     def calculate_close_amount(self):
         """
         คำนวณยอดปิดบัญชี (ลดดอกเบี้ยตามจำนวนเดือนที่เหลือ)
-        
-        Returns:
-            dict: {
-                'remaining_installments': จำนวนงวดที่เหลือ,
-                'remaining_months': จำนวนเดือนที่เหลือ,
-                'principal_per_installment': ต้นเงินต่องวด,
-                'remaining_principal': ต้นเงินที่เหลือ,
-                'interest_per_month': ดอกเบี้ยต่อเดือน,
-                'remaining_interest': ดอกเบี้ยที่เหลือ,
-                'discount': ส่วนลด (ดอกเบี้ยตามเดือนที่เหลือ),
-                'close_amount': ยอดปิดบัญชี
-            }
         """
         remaining_installments = self.installment_count - self.paid_count
         
-        # คำนวณจำนวนเดือนที่เหลือ
         if self.period_type == 'รายปี':
             remaining_months = remaining_installments * 12
         else:
             remaining_months = remaining_installments
         
-        # คำนวณต้นเงินต่องวด
         principal_per_installment = float(self.finance_amount) / self.installment_count
         remaining_principal = principal_per_installment * remaining_installments
         
-        # คำนวณดอกเบี้ยต่อเดือน (ปัดเศษ: < 0.5 ปัดลง, >= 0.5 ปัดขึ้น)
         interest_per_month_raw = float(self.finance_amount) * (float(self.interest_rate) / 100)
         interest_per_month = round(interest_per_month_raw)
         
-        # ดอกเบี้ยที่เหลือ = หนี้คงเหลือ - ต้นเงินที่เหลือ
         remaining_interest = float(self.remaining_balance) - remaining_principal
         
-        # ส่วนลด = (ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ) / 2
         discount = (interest_per_month * remaining_months) / 2
         
-        # ยอดปิดบัญชี = หนี้คงเหลือ - ส่วนลด
         close_amount = float(self.remaining_balance) - discount
         
         return {

@@ -128,6 +128,14 @@ const OrderCard = () => {
     }
   }, [bikeDisplay]);
 
+  // ✅ ปิดผ่อนดาวน์อัตโนมัติถ้าเปลี่ยนไฟแนนซ์เป็น NPG - กันชนกับ NPGAccount หลัก (OneToOneField)
+  // ที่เคยทำให้ระบบล่มตอน checkout เพราะพยายามสร้างบัญชี NPG 2 บัญชีให้ order เดียวกัน
+  useEffect(() => {
+    if (financeProvider === "NPG" && downPaymentInstallment) {
+      setDownPaymentInstallment(false);
+    }
+  }, [financeProvider, downPaymentInstallment]);
+
   const {
     financeAmount,
     interest,
