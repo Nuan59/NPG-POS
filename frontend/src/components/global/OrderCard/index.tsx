@@ -101,6 +101,12 @@ const OrderCard = () => {
   const [downPaymentFirstPaymentAmount, setDownPaymentFirstPaymentAmount] = useState<number>(0);
   const [downPaymentInstallmentCount, setDownPaymentInstallmentCount] = useState<string>("");
   const [downPaymentInterestRate, setDownPaymentInterestRate] = useState<string>("");
+  // ✅ วันครบกำหนดงวดถัดไป - ค่าเริ่มต้น = วันนี้ + 30 วัน แก้เองได้ (ลูกค้าบางคนนัดจ่าย 15 วันหลังซื้อ ไม่ตรง 30 วันเป๊ะ)
+  const [downPaymentNextPaymentDate, setDownPaymentNextPaymentDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
 
   // ✅ ยอดคงเหลือหลังหักงวดแรกที่กรอกเอง
   const downPaymentRemainingBalance = useMemo(() => {
@@ -222,6 +228,7 @@ const OrderCard = () => {
     downPaymentInterestRate,
     downPaymentRemainingBalance,
     downPaymentPerRemainingInstallment,
+    downPaymentNextPaymentDate,
   });
 
   const { handleServiceCheckout } = useServiceOrderCheckout({
@@ -341,6 +348,8 @@ const OrderCard = () => {
             setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
             downPaymentInterestRate={downPaymentInterestRate}
             setDownPaymentInterestRate={setDownPaymentInterestRate}
+            downPaymentNextPaymentDate={downPaymentNextPaymentDate}
+            setDownPaymentNextPaymentDate={setDownPaymentNextPaymentDate}
           />
         )}
 

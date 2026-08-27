@@ -213,6 +213,13 @@ class OrderViewSet(viewsets.ModelViewSet):
                         dp_installment_count = int(request.data.get('down_payment_installment_count', 0))
                         dp_interest_rate = float(request.data.get('down_payment_interest_rate', 0))
                         dp_per_installment = float(request.data.get('down_payment_per_remaining_installment', 0))
+                        # ✅ วันครบกำหนดงวดถัดไป - รับจาก frontend ตรงๆ (แก้เองได้แล้ว ไม่ใช่ +30 วันตายตัว
+                        # เพราะลูกค้าบางคนนัดจ่ายวันอื่น เช่น 15 วันหลังซื้อ) มี fallback +30 วันถ้าไม่ได้ส่งมา
+                        dp_next_payment_date_str = request.data.get('down_payment_next_payment_date', '')
+                        if dp_next_payment_date_str:
+                            dp_next_payment_date = datetime.strptime(dp_next_payment_date_str, '%Y-%m-%d').date()
+                        else:
+                            dp_next_payment_date = datetime.today().date() + timedelta(days=30)
 
                         if dp_installment_count > 0 and dp_remaining_balance > 0 and dp_per_installment > 0:
                             dp_remaining_balance_final = dp_per_installment * dp_installment_count
@@ -230,9 +237,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                                 total_paid=0,
                                 remaining_balance=dp_remaining_balance_final,
                                 start_date=datetime.today().date(),
-                                next_payment_date=datetime.today().date() + timedelta(days=30),
+                                next_payment_date=dp_next_payment_date,
                             )
-                            print(f"✅ สร้างบัญชีผ่อนดาวน์สำหรับ Order #{new_order.id} (remaining={dp_remaining_balance_final})")
+                            print(f"✅ สร้างบัญชีผ่อนดาวน์สำหรับ Order #{new_order.id} (remaining={dp_remaining_balance_final}, next_payment={dp_next_payment_date})")
                         else:
                             print(f"⚠️ ข้ามสร้างบัญชีผ่อนดาวน์ Order #{new_order.id}: ข้อมูลไม่ครบ (count={dp_installment_count}, balance={dp_remaining_balance})")
                     except Exception as e:

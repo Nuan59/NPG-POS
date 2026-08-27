@@ -52,6 +52,8 @@ interface SaleOrderFormProps {
   setDownPaymentInstallmentCount: (value: string) => void;
   downPaymentInterestRate: string;
   setDownPaymentInterestRate: (value: string) => void;
+  downPaymentNextPaymentDate: string;
+  setDownPaymentNextPaymentDate: (value: string) => void;
 }
 
 /**
@@ -90,6 +92,8 @@ const SaleOrderForm = ({
   setDownPaymentInstallmentCount,
   downPaymentInterestRate,
   setDownPaymentInterestRate,
+  downPaymentNextPaymentDate,
+  setDownPaymentNextPaymentDate,
 }: SaleOrderFormProps) => {
   return (
     <>
@@ -200,6 +204,8 @@ const SaleOrderForm = ({
             setDownPaymentInstallmentCount={setDownPaymentInstallmentCount}
             downPaymentInterestRate={downPaymentInterestRate}
             setDownPaymentInterestRate={setDownPaymentInterestRate}
+            downPaymentNextPaymentDate={downPaymentNextPaymentDate}
+            setDownPaymentNextPaymentDate={setDownPaymentNextPaymentDate}
           />
         )}
       </div>

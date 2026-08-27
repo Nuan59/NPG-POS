@@ -55,6 +55,10 @@ interface FinanceSectionProps {
   setDownPaymentInstallmentCount: (value: string) => void;
   downPaymentInterestRate: string;
   setDownPaymentInterestRate: (value: string) => void;
+  // ✅ วันครบกำหนดชำระงวดถัดไป (งวดที่ 2) - แก้เองได้ เพราะลูกค้าไม่ได้จ่ายตรง 30 วันเป๊ะทุกคน
+  // บางคนนัดจ่าย 15 วันหลังซื้อ บางคนนัดจ่ายวันอื่น
+  downPaymentNextPaymentDate: string;
+  setDownPaymentNextPaymentDate: (value: string) => void;
 }
 
 export const FinanceSection: React.FC<FinanceSectionProps> = ({
@@ -83,6 +87,8 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
   setDownPaymentInstallmentCount,
   downPaymentInterestRate,
   setDownPaymentInterestRate,
+  downPaymentNextPaymentDate,
+  setDownPaymentNextPaymentDate,
 }) => {
   // ✅ ยอดคงเหลือหลังหักงวดแรกที่กรอกเอง = เงินดาวน์ - งวดแรก (ถ้าติดลบให้เป็น 0)
   const downPaymentRemainingBalance = React.useMemo(() => {
@@ -297,6 +303,18 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
                   onChange={(e) => setDownPaymentInterestRate(e.target.value)}
                   placeholder="0"
                   className="w-32 text-right p-1 text-sm bg-white"
+                />
+              </div>
+
+              {/* ✅ วันครบกำหนดชำระงวดถัดไป - แก้เองได้ เพราะลูกค้าไม่ได้นัดจ่ายตรง 30 วันเป๊ะทุกคน
+                  (เช่น บางคนนัดจ่าย 15 วันหลังซื้อ) */}
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-medium">วันครบกำหนดงวดถัดไป</label>
+                <Input
+                  type="date"
+                  value={downPaymentNextPaymentDate}
+                  onChange={(e) => setDownPaymentNextPaymentDate(e.target.value)}
+                  className="w-40 text-right p-1 text-sm bg-white"
                 />
               </div>
 

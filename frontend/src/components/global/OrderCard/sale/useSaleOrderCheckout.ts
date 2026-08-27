@@ -44,6 +44,7 @@ interface UseSaleOrderCheckoutParams {
   downPaymentInterestRate: string;
   downPaymentRemainingBalance: number;
   downPaymentPerRemainingInstallment: number;
+  downPaymentNextPaymentDate: string;
 }
 
 /**
@@ -80,6 +81,7 @@ export const useSaleOrderCheckout = ({
   downPaymentInterestRate,
   downPaymentRemainingBalance,
   downPaymentPerRemainingInstallment,
+  downPaymentNextPaymentDate,
 }: UseSaleOrderCheckoutParams) => {
   const router = useRouter();
 
@@ -150,6 +152,9 @@ export const useSaleOrderCheckout = ({
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? toNumber(downPaymentInterestRate) : 0,
       down_payment_per_remaining_installment:
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentPerRemainingInstallment : 0,
+      // ✅ วันครบกำหนดงวดถัดไป (แก้เองได้แล้ว ไม่ใช่ +30 วันตายตัวเสมอไป)
+      down_payment_next_payment_date:
+        paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentNextPaymentDate : "",
     } as IOrder;
 
     const checkout = await createOrder(payload);
