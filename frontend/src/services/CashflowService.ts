@@ -89,19 +89,48 @@ export const getCashflowDay = async (date: string): Promise<CashflowDayData | nu
 
 export const saveCashflowDay = async (payload: CashflowSaveDayPayload) => {
   "use server";
-  const response = await authorizedFetch(`${process.env.API_URL}/cashflow/save_day/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await authorizedFetch(`${process.env.API_URL}/cashflow/save_day/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-  let status = "error";
-  if (response?.status === 200) {
+    if (!response) {
+      console.error("❌ [saveCashflowDay] authorizedFetch คืนค่า null (ไม่มี session/token)");
+      return { status: "error", data: null, error: "ไม่มี session หรือ token กรุณา login ใหม่" };
+    }
+
+    // ✅ อ่าน response แค่ครั้งเดียว แล้ว await .json() ให้ได้ข้อมูลจริง (เดิมส่ง Promise ที่ยังไม่ resolve กลับไป)
+    const bodyText = await response.text();
+    let bodyJson: any = null;
+    try {
+      bodyJson = bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      bodyJson = null;
+    }
+
+    if (!response.ok) {
+      console.error(`❌ [saveCashflowDay] HTTP ${response.status}:`, bodyText);
+      return {
+        status: "error",
+        data: bodyJson,
+        error: bodyJson?.error || bodyJson?.message || `HTTP ${response.status}: ${bodyText || response.statusText}`,
+      };
+    }
+
     revalidatePath("/cashflow");
     revalidateTag("cashflowDay");
-    status = "success";
+
+    return { status: "success", data: bodyJson, error: undefined };
+  } catch (err) {
+    console.error("❌ [saveCashflowDay] เกิดข้อผิดพลาด:", err);
+    return {
+      status: "error",
+      data: null,
+      error: err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+    };
   }
-  return { status, data: response?.json() };
 };
 
 export const getCashflowMonth = async (month: string): Promise<CashflowMonthData | null> => {
