@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
 import { Wallet, X, Plus, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 
@@ -126,16 +125,10 @@ function Section({
   };
   const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
 
-  // สิทธิ์ต่อแถว:
-  // - admin: แก้ไข+ลบได้ทุกแถว
-  // - แถวที่ยังไม่บันทึก (ไม่มี id): เป็นของคนที่กำลังกรอกอยู่ แก้ไข+ลบได้
-  // - แถวที่บันทึกแล้ว และเป็นคนสร้างเอง: แก้ไขได้ ลบไม่ได้
-  // - แถวที่บันทึกแล้ว ของคนอื่น: แก้ไขไม่ได้ ลบไม่ได้
+  // ✅ สิทธิ์แก้ไข/ลบ - เฉพาะ admin เท่านั้น (เดิมพนักงานทั่วไปแก้ไขแถวของตัวเอง/แถวใหม่ได้ด้วย
+  // ตอนนี้ล็อกไว้ให้ admin แก้ได้คนเดียว ตามที่ขอ)
   const getPermission = (row: UIRow) => {
-    if (isAdmin) return { canEdit: true, canDelete: true };
-    if (!row.id) return { canEdit: true, canDelete: true };
-    if (row.createdBy === currentUserName) return { canEdit: true, canDelete: false };
-    return { canEdit: false, canDelete: false };
+    return { canEdit: isAdmin, canDelete: isAdmin };
   };
 
   return (
@@ -209,10 +202,13 @@ function Section({
         <span className="text-orange-600">{fmt(running)}</span>
       </div>
 
-      <button onClick={() => setRows([...rows, blankUIRow(currentUserName)])}
-        className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}>
-        <Plus size={14} /> เพิ่มรายการ
-      </button>
+      {/* ✅ ปุ่มเพิ่มรายการ - เฉพาะ admin (คนอื่นแก้ไขอะไรไม่ได้แล้ว) */}
+      {isAdmin && (
+        <button onClick={() => setRows([...rows, blankUIRow(currentUserName)])}
+          className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}>
+          <Plus size={14} /> เพิ่มรายการ
+        </button>
+      )}
     </div>
   );
 }
@@ -235,8 +231,14 @@ export default function CashflowPage() {
   const [monthOpen, setMonthOpen] = useState(false);
   const [monthData, setMonthData] = useState<CashflowMonthData | null>(null);
 
+  // ✅ ใช้กันไม่ให้ auto-save effect ทำงานตอนเพิ่งโหลดข้อมูลเข้ามาใหม่จาก server
+  // (ไม่งั้นทุกครั้งที่เปลี่ยนวันที่ ระบบจะคิดว่าแก้ไขแล้วรีบเซฟทับทันที)
+  const skipAutoSaveRef = useRef(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+
   const loadDay = useCallback(async (d: string) => {
     setLoading(true);
+    skipAutoSaveRef.current = true;
     const data = await getCashflowDay(d);
     if (data) {
       setCashRows(data.cash.rows.length ? data.cash.rows.map((r) => toUIRow(r, currentUserName)) : []);
@@ -253,7 +255,7 @@ export default function CashflowPage() {
 
   useEffect(() => { loadDay(date); }, [date, loadDay]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async (silent = false) => {
     setSaving(true);
     const payload = {
       date,
@@ -265,9 +267,31 @@ export default function CashflowPage() {
     };
     const result = await saveCashflowDay(payload);
     setSaving(false);
-    if (result.status === "success") { toast.success("บันทึกแล้ว"); loadDay(date); }
-    else toast.error("บันทึกไม่สำเร็จ");
-  };
+    if (result.status === "success") {
+      setLastSavedAt(new Date());
+      if (!silent) toast.success("บันทึกแล้ว");
+    } else {
+      toast.error(result.error || "บันทึกไม่สำเร็จ");
+    }
+  }, [date, cashRows, transferRows, currentUserName]);
+
+  // ✅ Auto-save - เฉพาะ admin เท่านั้น (คนอื่นแก้ไขอะไรไม่ได้อยู่แล้ว) หยุดพิมพ์ 1.2 วิ แล้วเซฟให้เอง
+  // ไม่ต้องกดปุ่ม "บันทึกวันนี้" อีกต่อไป
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (loading) return;
+    if (skipAutoSaveRef.current) {
+      skipAutoSaveRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      handleSave(true);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cashRows, transferRows, cashOpening, transferOpening]);
 
   const openMonth = async () => {
     setMonthOpen(true);
@@ -334,9 +358,21 @@ export default function CashflowPage() {
               <div className="text-sm text-gray-600">
                 ผู้เช็คเงิน: <span className="font-semibold text-gray-800">{currentUserName || "-"}</span>
               </div>
-              <Button onClick={handleSave} disabled={saving} className="bg-orange-600 hover:bg-orange-700 text-white px-6">
-                {saving ? "กำลังบันทึก..." : "💾 บันทึกวันนี้"}
-              </Button>
+              {/* ✅ Auto-save แล้ว ไม่ต้องกดปุ่มบันทึกเองอีกต่อไป (เฉพาะ admin เท่านั้นที่แก้ไขได้)
+                  โชว์สถานะแทนปุ่ม ให้รู้ว่าระบบบันทึกให้เรียบร้อยแล้วหรือกำลังบันทึกอยู่ */}
+              {isAdmin && (
+                <div className="text-sm flex items-center gap-1.5">
+                  {saving ? (
+                    <span className="text-orange-600 font-medium">💾 กำลังบันทึก...</span>
+                  ) : lastSavedAt ? (
+                    <span className="text-emerald-600 font-medium">
+                      ✓ บันทึกอัตโนมัติแล้ว เมื่อ {lastSavedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">แก้ไขแล้วจะบันทึกให้อัตโนมัติ</span>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
