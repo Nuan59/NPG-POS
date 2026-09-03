@@ -1,4 +1,5 @@
 from rest_framework import generics, viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models.deletion import ProtectedError
@@ -82,3 +83,33 @@ class UsersViewset(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @action(detail=True, methods=['post'])
+    def toggle_active(self, request, pk=None):
+        """
+        เปิด/ปิดการใช้งานพนักงาน (แทนการลบ) - ใช้ field is_active ที่มีอยู่แล้วใน AbstractUser
+        ไม่ต้อง migrate เพิ่ม พนักงานที่ is_active=False จะ login ไม่ได้อีก (Django เช็คให้อัตโนมัติ
+        ตอน authenticate()) แต่ประวัติการขายเดิม (Order.seller) ยังอยู่ครบ ไม่ถูกลบ
+
+        POST /employees/{id}/toggle_active/
+        """
+        userToToggle = self.get_object()
+
+        # กันปิดการใช้งานตัวเอง (จะ login เข้าระบบไม่ได้อีกทันที)
+        if userToToggle.pk == request.user.pk:
+            return Response(
+                {'success': False, 'message': 'ไม่สามารถปิดการใช้งานบัญชีของตัวเองได้'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        userToToggle.is_active = not userToToggle.is_active
+        userToToggle.save()
+
+        serializer = UserSerializer(userToToggle)
+        status_text = "เปิดใช้งาน" if userToToggle.is_active else "ปิดใช้งาน"
+
+        return Response({
+            'success': True,
+            'message': f'{status_text}พนักงาน {userToToggle.name} เรียบร้อยแล้ว',
+            'user': serializer.data,
+        })
