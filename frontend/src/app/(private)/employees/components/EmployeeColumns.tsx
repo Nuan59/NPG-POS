@@ -79,7 +79,16 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
         );
 
         if (!res.ok) {
-          alert("ลบไม่สำเร็จ");
+          // ✅ อ่านข้อความ error จริงจาก backend (เช่น "มีประวัติการขายผูกอยู่")
+          // แทนที่จะโชว์ "ลบไม่สำเร็จ" เฉยๆ ทุกกรณีเหมือนเดิม
+          let message = "ลบไม่สำเร็จ";
+          try {
+            const errorData = await res.json();
+            message = errorData.message || message;
+          } catch {
+            // ถ้า response ไม่ใช่ JSON ก็ใช้ข้อความ default ไป
+          }
+          alert(message);
           return;
         }
 
