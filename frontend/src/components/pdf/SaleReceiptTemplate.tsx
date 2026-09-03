@@ -100,12 +100,9 @@ const ReceiptPage: React.FC<{
   const discount = Number(order.discount || 0);
   const afterDeposit = Math.max(0, totalAmount - deposit);
 
-  // ✅ ยอดเงินสุทธิ - คำนวณสดทุกครั้งจากฟิลด์ดิบ (ไม่พึ่ง order.total ที่บันทึกไว้
-  // เพราะออเดอร์เก่าที่สร้างก่อนแก้บั๊กหักส่วนลดซ้ำ จะมีค่า order.total ผิดค้างอยู่ถาวร
-  // สูตรนี้ตรงกับหน้ารายละเอียดออเดอร์ (sales/[sale_id]/page.tsx) ที่คำนวณสดเช่นกัน)
-  const netTotal = isFinance
-    ? Math.max(0, afterDeposit) // ไฟแนนซ์: ส่วนลดถูกหักไปแล้วตอนคำนวณยอดจัด ไม่หักซ้ำที่นี่
-    : Math.max(0, afterDeposit - discount); // เงินสด: หักส่วนลดตรงนี้ได้ตามปกติ
+  // ✅ ยอดเงินสุทธิ = รวมเงินทั้งหมด (รวมส่วนที่ลูกค้าจ่ายมัดจำไปแล้วด้วย) เท่ากับ "รวมเงิน" เป๊ะๆ
+  // ไม่ใช่ยอดที่ต้องจ่ายวันนี้ (ตัวนั้นดูจากแถว "หลังหักมัดจำ" แยกต่างหากอยู่แล้ว)
+  const netTotal = totalAmount;
 
   const totalInWords = numberToThaiText(netTotal);
   const isPayment = (method: string) => isPaymentMethod(method, order);
