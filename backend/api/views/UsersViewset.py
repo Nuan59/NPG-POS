@@ -1,8 +1,10 @@
-from rest_framework import generics, viewsets
-from api.serializers import UserSerializer
-from api.models import User
+from rest_framework import generics, viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.db.models.deletion import ProtectedError
+
+from api.serializers import UserSerializer
+from api.models import User
 
 class UsersViewset(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -58,3 +60,25 @@ class UsersViewset(viewsets.ModelViewSet):
         serializer = UserSerializer(userToEdit)
 
         return Response({'success': True, 'edit_user': serializer.data})
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        ลบพนักงาน
+
+        ✅ Order.seller เป็น ForeignKey(on_delete=models.PROTECT) - ถ้าพนักงานคนนี้เคยเป็น
+        seller ในออเดอร์ไหนก็ตาม Django จะไม่ยอมลบเด็ดขาด (ตั้งใจกันไว้แบบนี้ กันประวัติขาย
+        กลายเป็น "ไม่รู้ใครขาย") เดิมโค้ดไม่ได้ดักจับ error นี้ไว้ ทำให้กลายเป็น 500 เฉยๆ
+        ไม่บอกสาเหตุจริงให้ผู้ใช้เห็น ตอนนี้ดักจับแล้วส่ง error message ที่อ่านเข้าใจได้แทน
+        """
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {
+                    'success': False,
+                    'message': 'ลบพนักงานคนนี้ไม่ได้ เพราะมีประวัติการขายผูกอยู่ในระบบ '
+                                'กรุณาใช้ "ปิดการใช้งาน" แทน เพื่อไม่ให้ login เข้าระบบได้อีก '
+                                'โดยยังเก็บประวัติการขายเดิมไว้ครบ',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
