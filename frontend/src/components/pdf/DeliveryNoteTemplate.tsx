@@ -320,19 +320,19 @@ export default function DeliveryNoteTemplate({
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>นาม</Text>
               <View style={styles.infoValue}>
-                <Text>{sanitizeText(customerName)}</Text>
+                <Text>{sanitizeText(customerName)}{ZWJ}</Text>
               </View>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>ที่{ZWJ}อยู่{ZWJ}</Text>
               <View style={styles.infoValue}>
-                <Text>{sanitizeText(address)}</Text>
+                <Text>{sanitizeText(address)}{ZWJ}</Text>
               </View>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>โทรศั{ZWJ}พท์{ZWJ}</Text>
               <View style={styles.infoValue}>
-                <Text>{sanitizeText(phone)}</Text>
+                <Text>{sanitizeText(phone)}{ZWJ}</Text>
               </View>
             </View>
           </View>
