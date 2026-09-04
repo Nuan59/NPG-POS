@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -292,17 +291,17 @@ export default function PDPAConsentTemplate({
           <View style={styles.customerInfo}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>ชื่{ZWJ}อ-นามสกุ{ZWJ}ล:</Text>
-              <Text style={styles.infoValue}>{customerName}</Text>
+              <Text style={styles.infoValue}>{customerName}{ZWJ}</Text>
             </View>
             
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>ที่{ZWJ}อยู่{ZWJ}:</Text>
-              <Text style={styles.infoValue}>{address}</Text>
+              <Text style={styles.infoValue}>{address}{ZWJ}</Text>
             </View>
             
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>โทร:</Text>
-              <Text style={styles.infoValue}>{phone}</Text>
+              <Text style={styles.infoValue}>{phone}{ZWJ}</Text>
             </View>
           </View>
 
