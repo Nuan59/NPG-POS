@@ -78,14 +78,18 @@ export default function CashflowPage() {
     if (result.status === "success") {
       setLastSavedAt(new Date());
       if (!silent) toast.success("บันทึกแล้ว");
+      // ✅ โหลดข้อมูลใหม่จาก server หลังบันทึกสำเร็จ - สำคัญมาก เพราะแถวที่เพิ่งบันทึกจะได้ "id"
+      // กลับมา ทำให้ระบบล็อกไม่ให้พนักงานทั่วไปแก้ไข/ลบแถวนั้นได้อีก (ไม่งั้น id จะไม่มีวันติดมา
+      // แล้วพนักงานจะแก้แถวเดิมไปเรื่อยๆ ได้ไม่จบ)
+      loadDay(date);
     } else {
       toast.error(result.error || "บันทึกไม่สำเร็จ");
     }
-  }, [date, cashRows, transferRows, currentUserName]);
+  }, [date, cashRows, transferRows, currentUserName, loadDay]);
 
-  // ✅ Auto-save - เฉพาะ admin เท่านั้น หยุดพิมพ์ 1.2 วิ แล้วเซฟให้เอง
+  // ✅ Auto-save - ทำงานให้ทุกคน (ไม่ใช่แค่ admin) เพราะพนักงานทั่วไปก็เพิ่มรายการเองได้แล้ว
+  // หยุดพิมพ์ 1.2 วิ แล้วเซฟให้เอง
   useEffect(() => {
-    if (!isAdmin) return;
     if (loading) return;
     if (skipAutoSaveRef.current) {
       skipAutoSaveRef.current = false;
@@ -143,18 +147,20 @@ export default function CashflowPage() {
                 opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
             </div>
 
-            {isAdmin && <CashflowSummaryCards cashClosing={cashClosing} transferClosing={transferClosing} />}
+            {/* ✅ การ์ดสรุปยอด - โชว์ให้ทุกคนเห็นเหมือนกันแล้ว (พนักงานเห็นเหมือน admin) */}
+            <CashflowSummaryCards cashClosing={cashClosing} transferClosing={transferClosing} />
 
-            {isAdmin && (
-              <CashReconciliation
-                date={date}
-                countedCash={countedCash}
-                setCountedCash={setCountedCash}
-                cashClosing={cashClosing}
-                cashCount={cashCount}
-                onRecorded={() => loadDay(date)}
-              />
-            )}
+            {/* ✅ ตรวจนับเงินสด - พนักงานบันทึกได้เหมือนกัน แต่ตัวเลข/ประวัติหลังบันทึกเห็นได้เฉพาะ admin
+                (ส่ง isAdmin เข้าไปให้ component จัดการเงื่อนไขล็อก/ซ่อนเอง) */}
+            <CashReconciliation
+              date={date}
+              countedCash={countedCash}
+              setCountedCash={setCountedCash}
+              cashClosing={cashClosing}
+              cashCount={cashCount}
+              onRecorded={() => loadDay(date)}
+              isAdmin={isAdmin}
+            />
 
             <CashflowSaveStatus
               currentUserName={currentUserName}

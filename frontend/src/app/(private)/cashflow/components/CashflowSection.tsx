@@ -38,8 +38,14 @@ const CashflowSection = ({
   };
   const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
 
-  // ✅ สิทธิ์แก้ไข/ลบ - เฉพาะ admin เท่านั้น
-  const getPermission = () => ({ canEdit: isAdmin, canDelete: isAdmin });
+  // ✅ สิทธิ์แก้ไข/ลบ:
+  // - admin: แก้ไข/ลบได้ทุกแถว ไม่ว่าจะบันทึกไปแล้วหรือยัง
+  // - พนักงานทั่วไป: แก้ไข/ลบได้เฉพาะแถวที่ "ยังไม่บันทึก" (ไม่มี id) เท่านั้น
+  //   พอ auto-save ไปแล้ว (ได้ id จาก server) จะแก้ไข/ลบไม่ได้อีกต่อไป
+  const getPermission = (row: UIRow) => {
+    const editable = isAdmin || !row.id;
+    return { canEdit: editable, canDelete: editable };
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
@@ -52,7 +58,7 @@ const CashflowSection = ({
           </div>
         )}
         {computed.map((row, idx) => {
-          const { canEdit, canDelete } = getPermission();
+          const { canEdit, canDelete } = getPermission(row);
           return (
             <div key={idx} className={`flex items-start gap-2 border rounded-lg p-2 ${canEdit ? "hover:bg-gray-50" : "bg-gray-50/60"}`}>
               <div className="flex-1 min-w-0 space-y-1.5">
@@ -89,14 +95,9 @@ const CashflowSection = ({
                 </div>
               </div>
               <div className="text-right shrink-0 pt-1">
-                {/* ✅ ยอดคงเหลือ (running balance) เป็นข้อมูลอ่อนไหว - โชว์ให้เฉพาะ admin
-                    พนักงานทั่วไปเห็นได้แค่รายการที่บันทึกไว้ ไม่เห็นว่ารวมแล้วเหลือเท่าไหร่ */}
-                {isAdmin && (
-                  <>
-                    <div className="text-[10px] text-gray-400">คงเหลือ</div>
-                    <div className="font-semibold text-orange-600 text-sm whitespace-nowrap">{fmt(row.balance)}</div>
-                  </>
-                )}
+                {/* ✅ ทุกคนเห็นยอดคงเหลือได้เหมือนกันแล้ว (พนักงานเห็นเหมือน admin) */}
+                <div className="text-[10px] text-gray-400">คงเหลือ</div>
+                <div className="font-semibold text-orange-600 text-sm whitespace-nowrap">{fmt(row.balance)}</div>
               </div>
               {canDelete && (
                 <button onClick={() => removeRow(idx)} className="text-gray-300 hover:text-rose-500 mt-1">
@@ -108,26 +109,22 @@ const CashflowSection = ({
         })}
       </div>
 
-      {/* ✅ แถวสรุป "รวมเงิน" เปิดเผยยอดรวมปัจจุบันในลิ้นชัก - โชว์ให้เฉพาะ admin เหมือนกัน */}
-      {isAdmin && (
-        <div className="flex justify-between items-center border-t-2 mt-3 pt-2 px-1 text-sm font-bold text-gray-800">
-          <span>รวมเงิน</span>
-          <span className="flex gap-3 text-xs font-semibold flex-wrap justify-end">
-            {TYPE_FIELDS.filter((t) => totals[t] > 0).map((t) => (
-              <span key={t} className={TYPE_COLOR[t].split(" ")[0]}>{TYPE_LABEL[t]}: {fmt(totals[t])}</span>
-            ))}
-          </span>
-          <span className="text-orange-600">{fmt(running)}</span>
-        </div>
-      )}
+      {/* ✅ แถวสรุป "รวมเงิน" - ทุกคนเห็นได้เหมือนกันแล้ว */}
+      <div className="flex justify-between items-center border-t-2 mt-3 pt-2 px-1 text-sm font-bold text-gray-800">
+        <span>รวมเงิน</span>
+        <span className="flex gap-3 text-xs font-semibold flex-wrap justify-end">
+          {TYPE_FIELDS.filter((t) => totals[t] > 0).map((t) => (
+            <span key={t} className={TYPE_COLOR[t].split(" ")[0]}>{TYPE_LABEL[t]}: {fmt(totals[t])}</span>
+          ))}
+        </span>
+        <span className="text-orange-600">{fmt(running)}</span>
+      </div>
 
-      {/* ✅ ปุ่มเพิ่มรายการ - เฉพาะ admin */}
-      {isAdmin && (
-        <button onClick={() => setRows([...rows, blankUIRow(currentUserName)])}
-          className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}>
-          <Plus size={14} /> เพิ่มรายการ
-        </button>
-      )}
+      {/* ✅ ปุ่มเพิ่มรายการ - ทุกคนเพิ่มได้ (แค่แก้ไข/ลบแถวที่บันทึกแล้วไม่ได้ ถ้าไม่ใช่ admin) */}
+      <button onClick={() => setRows([...rows, blankUIRow(currentUserName)])}
+        className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}>
+        <Plus size={14} /> เพิ่มรายการ
+      </button>
     </div>
   );
 };
