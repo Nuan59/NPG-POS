@@ -19,8 +19,6 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.CashflowView import CashflowViewSet
-from api.views.CustomerBikeViewSet import CustomerBikeViewSet
-from api.views.DepositViewSet import DepositViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView
@@ -109,8 +107,7 @@ def create_workhours_table(request):
 
 
 # ✅ Temp: สร้างตาราง cashflow_entry / cashflow_day_meta ตรงๆ ด้วย raw SQL แทนการรัน migrate
-# (แพทเทิร์นเดียวกับ create_workhours_table ด้านบน) - ตาราง 2 ตัวนี้มีอยู่ใน model (Cashflow.py)
-# มานานแล้วแต่ไม่เคย migrate จริง ทำให้ save_day error "relation does not exist"
+# (แพทเทิร์นเดียวกับ create_workhours_table ด้านบน)
 def create_cashflow_tables(request):
     from django.db import connection
     try:
@@ -155,13 +152,6 @@ def create_cashflow_tables(request):
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS cashflow_day_meta_date_idx
                     ON cashflow_day_meta (date);
-            """)
-            # ✅ บอก Django ว่า migration นี้ทำไปแล้ว กัน /dev/migrate/ (ที่รัน makemigrations ด้วย)
-            # พยายามสร้างตารางซ้ำแล้วชนกัน แบบเดียวกับที่เคยเกิดกับ WorkHours
-            cursor.execute("""
-                INSERT INTO django_migrations (app, name, applied)
-                VALUES ('api', '0025_cashflowentry_cashflowdaymeta', NOW())
-                ON CONFLICT DO NOTHING;
             """)
         return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง cashflow_entry และ cashflow_day_meta เรียบร้อยแล้ว'})
     except Exception as e:
@@ -216,8 +206,6 @@ router.register(r'npg/payments', NPGPaymentViewSet, basename='npg-payment')
 router.register(r'issues', IssueViewSet, basename='issue')
 router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 router.register(r'cashflow', CashflowViewSet, basename='cashflow')
-router.register(r'customer-bikes', CustomerBikeViewSet, basename='customer-bike')
-router.register(r'deposits', DepositViewSet, basename='deposit')
 
 urlpatterns = [
     path("admin/", admin.site.urls),
