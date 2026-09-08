@@ -89,8 +89,14 @@ const CashflowSection = ({
                 </div>
               </div>
               <div className="text-right shrink-0 pt-1">
-                <div className="text-[10px] text-gray-400">คงเหลือ</div>
-                <div className="font-semibold text-orange-600 text-sm whitespace-nowrap">{fmt(row.balance)}</div>
+                {/* ✅ ยอดคงเหลือ (running balance) เป็นข้อมูลอ่อนไหว - โชว์ให้เฉพาะ admin
+                    พนักงานทั่วไปเห็นได้แค่รายการที่บันทึกไว้ ไม่เห็นว่ารวมแล้วเหลือเท่าไหร่ */}
+                {isAdmin && (
+                  <>
+                    <div className="text-[10px] text-gray-400">คงเหลือ</div>
+                    <div className="font-semibold text-orange-600 text-sm whitespace-nowrap">{fmt(row.balance)}</div>
+                  </>
+                )}
               </div>
               {canDelete && (
                 <button onClick={() => removeRow(idx)} className="text-gray-300 hover:text-rose-500 mt-1">
@@ -102,15 +108,18 @@ const CashflowSection = ({
         })}
       </div>
 
-      <div className="flex justify-between items-center border-t-2 mt-3 pt-2 px-1 text-sm font-bold text-gray-800">
-        <span>รวมเงิน</span>
-        <span className="flex gap-3 text-xs font-semibold flex-wrap justify-end">
-          {TYPE_FIELDS.filter((t) => totals[t] > 0).map((t) => (
-            <span key={t} className={TYPE_COLOR[t].split(" ")[0]}>{TYPE_LABEL[t]}: {fmt(totals[t])}</span>
-          ))}
-        </span>
-        <span className="text-orange-600">{fmt(running)}</span>
-      </div>
+      {/* ✅ แถวสรุป "รวมเงิน" เปิดเผยยอดรวมปัจจุบันในลิ้นชัก - โชว์ให้เฉพาะ admin เหมือนกัน */}
+      {isAdmin && (
+        <div className="flex justify-between items-center border-t-2 mt-3 pt-2 px-1 text-sm font-bold text-gray-800">
+          <span>รวมเงิน</span>
+          <span className="flex gap-3 text-xs font-semibold flex-wrap justify-end">
+            {TYPE_FIELDS.filter((t) => totals[t] > 0).map((t) => (
+              <span key={t} className={TYPE_COLOR[t].split(" ")[0]}>{TYPE_LABEL[t]}: {fmt(totals[t])}</span>
+            ))}
+          </span>
+          <span className="text-orange-600">{fmt(running)}</span>
+        </div>
+      )}
 
       {/* ✅ ปุ่มเพิ่มรายการ - เฉพาะ admin */}
       {isAdmin && (
