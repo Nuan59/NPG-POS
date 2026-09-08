@@ -120,11 +120,29 @@ const CashflowSection = ({
         <span className="text-orange-600">{fmt(running)}</span>
       </div>
 
-      {/* ✅ ปุ่มเพิ่มรายการ - ทุกคนเพิ่มได้ (แค่แก้ไข/ลบแถวที่บันทึกแล้วไม่ได้ ถ้าไม่ใช่ admin) */}
-      <button onClick={() => setRows([...rows, blankUIRow(currentUserName)])}
-        className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}>
-        <Plus size={14} /> เพิ่มรายการ
-      </button>
+      {/* ✅ กดเพิ่มรายการแล้วขึ้นเมนูเลือกประเภทให้เลือกทันที (ไม่ใช่เพิ่มแถวเปล่าแล้วต้องมาเลือกทีหลัง)
+          ทุกคนเพิ่มได้ (แค่แก้ไข/ลบแถวที่บันทึกแล้วไม่ได้ ถ้าไม่ใช่ admin) */}
+      <details className="mt-3 relative group">
+        <summary className={`list-none cursor-pointer w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 select-none ${style.addBtn}`}>
+          <Plus size={14} className="inline-block" /> เพิ่มรายการ
+        </summary>
+        <div className="absolute z-20 mt-1 left-0 right-0 bg-white border rounded-lg shadow-lg p-2 grid grid-cols-2 gap-1.5">
+          {TYPE_FIELDS.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={(e) => {
+                setRows([...rows, { ...blankUIRow(currentUserName), type: t }]);
+                // ปิดเมนูหลังเลือก
+                (e.currentTarget.closest("details") as HTMLDetailsElement | null)?.removeAttribute("open");
+              }}
+              className={`text-xs font-semibold rounded-md border px-2 py-2 hover:opacity-80 ${TYPE_COLOR[t]}`}
+            >
+              {TYPE_LABEL[t]}
+            </button>
+          ))}
+        </div>
+      </details>
     </div>
   );
 };
