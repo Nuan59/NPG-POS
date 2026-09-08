@@ -1,217 +1,18 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Wallet, X, Plus, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import { Wallet, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  getCashflowDay,
-  saveCashflowDay,
-  getCashflowMonth,
-  CashflowMonthData,
-  CashflowRow,
-} from "@/services/CashflowService";
+import { getCashflowDay, saveCashflowDay, getCashflowMonth, CashflowMonthData } from "@/services/CashflowService";
+import { UIRow, toUIRow, toApiRow, todayStr, shiftDate, netOf } from "./util/cashflowUtil";
 
-// ================== ประเภทรายการ ==================
-
-const TYPE_FIELDS = ["income", "sent", "expense", "change", "depositReturn"] as const;
-type RowType = (typeof TYPE_FIELDS)[number];
-
-const TYPE_LABEL: Record<RowType, string> = {
-  income: "รายรับ",
-  sent: "ส่งเงิน",
-  expense: "รายจ่าย",
-  change: "ทอนเงิน",
-  depositReturn: "คืนมัดจำ",
-};
-
-const TYPE_COLOR: Record<RowType, string> = {
-  income: "text-emerald-700 bg-emerald-50 border-emerald-300",
-  sent: "text-gray-700 bg-gray-50 border-gray-300",
-  expense: "text-rose-700 bg-rose-50 border-rose-300",
-  change: "text-sky-700 bg-sky-50 border-sky-300",
-  depositReturn: "text-violet-700 bg-violet-50 border-violet-300",
-};
-
-// แถวหนึ่งใน UI จะมี field `type`/`amount` เพิ่มมา เพื่อรู้ว่าเงินก้อนนี้ผูกกับคอลัมน์ไหน (ไม่ส่งขึ้น backend ตรงๆ)
-type UIRow = CashflowRow & { type: RowType; amount: number };
-
-const inferType = (row: CashflowRow): RowType => {
-  for (const f of TYPE_FIELDS) if (Number(row[f])) return f;
-  return "income";
-};
-
-const toUIRow = (row: CashflowRow, defaultCreatedBy: string): UIRow => {
-  const type = inferType(row);
-  return {
-    ...row,
-    type,
-    amount: Number(row[type]) || 0,
-    createdBy: row.createdBy || defaultCreatedBy,
-  };
-};
-
-const toApiRow = (row: UIRow): CashflowRow => {
-  const base: CashflowRow = {
-    description: row.description,
-    income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0,
-    createdBy: row.createdBy,
-  };
-  base[row.type] = Number(row.amount) || 0;
-  return base;
-};
-
-const blankUIRow = (createdBy: string): UIRow => ({
-  description: "", income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0,
-  type: "income", amount: 0, createdBy,
-});
-
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
-const fmt = (n: number | undefined | null) =>
-  (Number(n) || 0).toLocaleString("th-TH", { maximumFractionDigits: 2 });
-
-const shiftDate = (dateStr: string, days: number) => {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
-const ACCENT = {
-  emerald: { title: "text-emerald-700", box: "bg-emerald-50 border-emerald-200", addBtn: "border-emerald-300 text-emerald-600 hover:bg-emerald-50" },
-  sky: { title: "text-sky-700", box: "bg-sky-50 border-sky-200", addBtn: "border-sky-300 text-sky-600 hover:bg-sky-50" },
-} as const;
-
-function signedAmount(row: UIRow) {
-  const amt = Number(row.amount) || 0;
-  return row.type === "income" ? amt : -amt;
-}
-
-function netOf(rows: UIRow[], opening: number) {
-  let running = opening;
-  rows.forEach((r) => { running += signedAmount(r); });
-  return running;
-}
-
-function Section({
-  title, accent, rows, setRows, opening, currentUserName, isAdmin,
-}: {
-  title: string;
-  accent: "emerald" | "sky";
-  rows: UIRow[];
-  setRows: (rows: UIRow[]) => void;
-  opening: number;
-  currentUserName: string;
-  isAdmin: boolean;
-}) {
-  const style = ACCENT[accent];
-  let running = opening;
-  const totals: Record<RowType, number> = { income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0 };
-
-  const computed = rows.map((r) => {
-    running += signedAmount(r);
-    totals[r.type] += Number(r.amount) || 0;
-    return { ...r, balance: running };
-  });
-
-  const updateRow = (idx: number, patch: Partial<UIRow>) => {
-    const next = [...rows];
-    next[idx] = { ...next[idx], ...patch };
-    setRows(next);
-  };
-  const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
-
-  // ✅ สิทธิ์แก้ไข/ลบ - เฉพาะ admin เท่านั้น (เดิมพนักงานทั่วไปแก้ไขแถวของตัวเอง/แถวใหม่ได้ด้วย
-  // ตอนนี้ล็อกไว้ให้ admin แก้ได้คนเดียว ตามที่ขอ)
-  const getPermission = (row: UIRow) => {
-    return { canEdit: isAdmin, canDelete: isAdmin };
-  };
-
-  return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-      <h3 className={`text-lg font-bold mb-3 ${style.title}`}>{title}</h3>
-
-      <div className="space-y-2">
-        {computed.length === 0 && (
-          <div className="text-center text-sm text-gray-400 py-6 border border-dashed rounded-lg">
-            ยังไม่มีรายการ กด &quot;เพิ่มรายการ&quot; ด้านล่างเพื่อเริ่มบันทึก
-          </div>
-        )}
-        {computed.map((row, idx) => {
-          const { canEdit, canDelete } = getPermission(row);
-          return (
-          <div key={idx} className={`flex items-start gap-2 border rounded-lg p-2 ${canEdit ? "hover:bg-gray-50" : "bg-gray-50/60"}`}>
-            <div className="flex-1 min-w-0 space-y-1.5">
-              <input
-                className="w-full bg-transparent outline-none text-sm font-medium border-b border-dashed border-gray-200 pb-1 disabled:text-gray-500"
-                value={row.description}
-                onChange={(e) => updateRow(idx, { description: e.target.value })}
-                placeholder="รายการ เช่น ค่าน้ำมัน, ขายอะไหล่..."
-                disabled={!canEdit}
-              />
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  value={row.type}
-                  onChange={(e) => updateRow(idx, { type: e.target.value as RowType })}
-                  className={`text-xs font-semibold rounded-md border px-2 py-1 disabled:opacity-60 ${TYPE_COLOR[row.type]}`}
-                  disabled={!canEdit}
-                >
-                  {TYPE_FIELDS.map((t) => (
-                    <option key={t} value={t}>{TYPE_LABEL[t]}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  className="w-28 text-right text-sm border rounded-md px-2 py-1 border-gray-200 outline-none focus:border-orange-400 disabled:text-gray-500"
-                  value={row.amount || ""}
-                  onChange={(e) => updateRow(idx, { amount: Number(e.target.value) })}
-                  placeholder="จำนวนเงิน"
-                  disabled={!canEdit}
-                />
-                <span className="text-xs text-gray-400">บาท</span>
-                {row.createdBy && (
-                  <span className="text-[11px] text-gray-400 ml-auto">โดย {row.createdBy}</span>
-                )}
-              </div>
-            </div>
-            <div className="text-right shrink-0 pt-1">
-              <div className="text-[10px] text-gray-400">คงเหลือ</div>
-              <div className="font-semibold text-orange-600 text-sm whitespace-nowrap">{fmt(row.balance)}</div>
-            </div>
-            {canDelete && (
-              <button onClick={() => removeRow(idx)} className="text-gray-300 hover:text-rose-500 mt-1">
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          );
-        })}
-      </div>
-
-      <div className="flex justify-between items-center border-t-2 mt-3 pt-2 px-1 text-sm font-bold text-gray-800">
-        <span>รวมเงิน</span>
-        <span className="flex gap-3 text-xs font-semibold flex-wrap justify-end">
-          {TYPE_FIELDS.filter((t) => totals[t] > 0).map((t) => (
-            <span key={t} className={TYPE_COLOR[t].split(" ")[0]}>{TYPE_LABEL[t]}: {fmt(totals[t])}</span>
-          ))}
-        </span>
-        <span className="text-orange-600">{fmt(running)}</span>
-      </div>
-
-      {/* ✅ ปุ่มเพิ่มรายการ - เฉพาะ admin (คนอื่นแก้ไขอะไรไม่ได้แล้ว) */}
-      {isAdmin && (
-        <button onClick={() => setRows([...rows, blankUIRow(currentUserName)])}
-          className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}>
-          <Plus size={14} /> เพิ่มรายการ
-        </button>
-      )}
-    </div>
-  );
-}
+import CashflowSection from "./components/CashflowSection";
+import CashflowSummaryCards from "./components/CashflowSummaryCards";
+import CashReconciliation from "./components/CashReconciliation";
+import CashflowSaveStatus from "./components/CashflowSaveStatus";
+import CashflowMonthDialog from "./components/CashflowMonthDialog";
 
 export default function CashflowPage() {
   const { data: session } = useSession();
@@ -232,12 +33,9 @@ export default function CashflowPage() {
   const [monthData, setMonthData] = useState<CashflowMonthData | null>(null);
 
   // ✅ ตรวจนับเงินสดปลายวัน - เก็บแค่ในหน้าจอ (ไม่ส่งขึ้น backend/ไม่ override อะไร)
-  // เทียบยอดที่นับได้จริงกับยอดที่ระบบคำนวณจากรายรับ-รายจ่ายเฉยๆ เพื่อตรวจสอบ
-  // (ไม่ให้พนักงานพิมพ์ยอดเข้าไปเปลี่ยนยอดจริงในระบบได้ ป้องกันการโกง)
   const [countedCash, setCountedCash] = useState<string>("");
 
   // ✅ ใช้กันไม่ให้ auto-save effect ทำงานตอนเพิ่งโหลดข้อมูลเข้ามาใหม่จาก server
-  // (ไม่งั้นทุกครั้งที่เปลี่ยนวันที่ ระบบจะคิดว่าแก้ไขแล้วรีบเซฟทับทันที)
   const skipAutoSaveRef = useRef(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
@@ -269,7 +67,6 @@ export default function CashflowPage() {
       date,
       cashRows: cashRows.filter((r) => r.description || r.amount).map(toApiRow),
       transferRows: transferRows.filter((r) => r.description || r.amount).map(toApiRow),
-      // ผู้เช็คเงิน = ผู้ใช้ที่ล็อกอินอยู่ตอนกดบันทึก ไม่ต้องพิมพ์เอง
       checkerName: currentUserName,
       checkerDate: date,
     };
@@ -283,8 +80,7 @@ export default function CashflowPage() {
     }
   }, [date, cashRows, transferRows, currentUserName]);
 
-  // ✅ Auto-save - เฉพาะ admin เท่านั้น (คนอื่นแก้ไขอะไรไม่ได้อยู่แล้ว) หยุดพิมพ์ 1.2 วิ แล้วเซฟให้เอง
-  // ไม่ต้องกดปุ่ม "บันทึกวันนี้" อีกต่อไป
+  // ✅ Auto-save - เฉพาะ admin เท่านั้น หยุดพิมพ์ 1.2 วิ แล้วเซฟให้เอง
   useEffect(() => {
     if (!isAdmin) return;
     if (loading) return;
@@ -338,146 +134,38 @@ export default function CashflowPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <Section title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={setCashRows}
+              <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={setCashRows}
                 opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
-              <Section title="🏦 โอน" accent="sky" rows={transferRows} setRows={setTransferRows}
+              <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={setTransferRows}
                 opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
             </div>
 
-            {/* สรุปยอด — เฉพาะ admin */}
+            {isAdmin && <CashflowSummaryCards cashClosing={cashClosing} transferClosing={transferClosing} />}
+
             {isAdmin && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                  <div className="text-xs text-orange-600 font-medium mb-1">สรุปยอดรวมทั้งหมด (เงินสด+โอน)</div>
-                  <div className="text-2xl font-bold text-orange-700">{fmt(cashClosing + transferClosing)} บาท</div>
-                </div>
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                  <div className="text-xs text-emerald-600 font-medium mb-1">ยอดคงเหลือเงินสด</div>
-                  <div className="text-2xl font-bold text-emerald-700">{fmt(cashClosing)} บาท</div>
-                  {/* ✅ อธิบายว่ายอดนี้ยกไปวันถัดไปให้อัตโนมัติ ไม่ต้องทำอะไรเพิ่ม */}
-                  <div className="text-[11px] text-emerald-600/70 mt-1">ยกยอดไปวันถัดไปให้อัตโนมัติ</div>
-                </div>
-                <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
-                  <div className="text-xs text-sky-600 font-medium mb-1">ยอดคงเหลือโอน</div>
-                  <div className="text-2xl font-bold text-sky-700">{fmt(transferClosing)} บาท</div>
-                  <div className="text-[11px] text-sky-600/70 mt-1">ยกยอดไปวันถัดไปให้อัตโนมัติ</div>
-                </div>
-              </div>
+              <CashReconciliation
+                countedCash={countedCash}
+                setCountedCash={setCountedCash}
+                cashClosing={cashClosing}
+              />
             )}
 
-            {/* ✅ ตรวจนับเงินสดปลายวัน - เทียบยอดที่นับได้จริงในลิ้นชักกับยอดที่ระบบคำนวณจากรายรับ-รายจ่าย
-                (คำนวณล้วนๆ ไม่มีการ override ยอดในระบบ กันพนักงานพิมพ์ยอดเข้าไปเปลี่ยนของจริงได้) */}
-            {isAdmin && (
-              <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-                <h3 className="text-base font-bold mb-3 text-gray-800">🧮 ตรวจนับเงินสดปลายวัน</h3>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="text-sm text-gray-600 shrink-0">นับเงินสดในลิ้นชักได้จริง</label>
-                  <input
-                    type="number"
-                    value={countedCash}
-                    onChange={(e) => setCountedCash(e.target.value)}
-                    placeholder="กรอกยอดที่นับได้"
-                    className="w-40 text-right text-sm border rounded-md px-2 py-1.5 border-gray-300 outline-none focus:border-orange-400"
-                  />
-                  <span className="text-xs text-gray-400">บาท</span>
-
-                  {countedCash !== "" && (
-                    (() => {
-                      const counted = Number(countedCash) || 0;
-                      const diff = counted - cashClosing;
-                      if (diff === 0) {
-                        return (
-                          <span className="text-sm font-semibold text-emerald-600 flex items-center gap-1">
-                            ✓ ตรงกับระบบพอดี
-                          </span>
-                        );
-                      }
-                      return (
-                        <span className="text-sm font-semibold text-rose-600 flex items-center gap-1">
-                          ⚠ {diff > 0 ? "เกินระบบ" : "ขาดจากระบบ"} {fmt(Math.abs(diff))} บาท
-                        </span>
-                      );
-                    })()
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  * ใช้ตรวจสอบเฉยๆ ไม่มีผลกับยอดในระบบ ยอดจริงคำนวณจากรายรับ-รายจ่ายเสมอ
-                </p>
-              </div>
-            )}
-
-            <div className="bg-white rounded-xl shadow-md p-4 flex items-center justify-between flex-wrap gap-3">
-              <div className="text-sm text-gray-600">
-                ผู้เช็คเงิน: <span className="font-semibold text-gray-800">{currentUserName || "-"}</span>
-              </div>
-              {/* ✅ Auto-save แล้ว ไม่ต้องกดปุ่มบันทึกเองอีกต่อไป (เฉพาะ admin เท่านั้นที่แก้ไขได้)
-                  โชว์สถานะแทนปุ่ม ให้รู้ว่าระบบบันทึกให้เรียบร้อยแล้วหรือกำลังบันทึกอยู่ */}
-              {isAdmin && (
-                <div className="text-sm flex items-center gap-1.5">
-                  {saving ? (
-                    <span className="text-orange-600 font-medium">💾 กำลังบันทึก...</span>
-                  ) : lastSavedAt ? (
-                    <span className="text-emerald-600 font-medium">
-                      ✓ บันทึกอัตโนมัติแล้ว เมื่อ {lastSavedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">แก้ไขแล้วจะบันทึกให้อัตโนมัติ</span>
-                  )}
-                </div>
-              )}
-            </div>
+            <CashflowSaveStatus
+              currentUserName={currentUserName}
+              isAdmin={isAdmin}
+              saving={saving}
+              lastSavedAt={lastSavedAt}
+            />
           </>
         )}
 
         {monthOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setMonthOpen(false)}>
-            <div className="bg-white rounded-xl shadow-2xl p-5 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-800">สรุปเดือน {monthData?.month || date.slice(0, 7)}</h3>
-                <button onClick={() => setMonthOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={20} /></button>
-              </div>
-              {!isAdmin ? (
-                <div className="text-center text-gray-400 py-8 text-sm">สรุปยอดดูได้เฉพาะผู้ดูแลระบบ</div>
-              ) : !monthData ? (
-                <div className="text-center text-gray-400 py-8">กำลังโหลด...</div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                      <div className="text-xs text-emerald-600 mb-1">รวมสุทธิ (เงินสด)</div>
-                      <div className="text-lg font-bold text-emerald-700">
-                        {fmt(monthData.cashTotals.income - monthData.cashTotals.sent - monthData.cashTotals.expense - monthData.cashTotals.change - monthData.cashTotals.deposit_return)} บาท
-                      </div>
-                    </div>
-                    <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
-                      <div className="text-xs text-sky-600 mb-1">รวมสุทธิ (โอน)</div>
-                      <div className="text-lg font-bold text-sky-700">
-                        {fmt(monthData.transferTotals.income - monthData.transferTotals.sent - monthData.transferTotals.expense - monthData.transferTotals.change - monthData.transferTotals.deposit_return)} บาท
-                      </div>
-                    </div>
-                  </div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-gray-500 border-b">
-                        <th className="text-left py-1">วันที่</th>
-                        <th className="text-right py-1">คงเหลือเงินสด</th>
-                        <th className="text-right py-1">คงเหลือโอน</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {monthData.days.map((d) => (
-                        <tr key={d.date} className="border-b last:border-b-0">
-                          <td className="py-1">{d.date}</td>
-                          <td className="py-1 text-right">{fmt(d.cashClosing)}</td>
-                          <td className="py-1 text-right">{fmt(d.transferClosing)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              )}
-            </div>
-          </div>
+          <CashflowMonthDialog
+            isAdmin={isAdmin}
+            date={date}
+            monthData={monthData}
+            onClose={() => setMonthOpen(false)}
+          />
         )}
       </div>
     </div>
