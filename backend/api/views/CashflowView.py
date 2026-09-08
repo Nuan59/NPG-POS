@@ -1,5 +1,6 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from datetime import date
+import traceback
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -120,52 +121,66 @@ class CashflowViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["post"], url_path="save_day")
     def save_day(self, request):
-        data = request.data
-        date_str = data.get("date")
-        if not date_str:
-            return Response({"error": "ต้องระบุ date"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # ผู้ใช้ปัจจุบัน (เผื่อแถวไหนไม่ได้แนบ createdBy มาจาก frontend ให้ fallback มาใช้อันนี้)
+        # ✅ ครอบทั้งฟังก์ชันด้วย try/except ชั่วคราว - production ปิด DEBUG ทำให้ error 500 จริง
+        # ไม่โชว์รายละเอียดกลับมาที่ browser เลย (เห็นแค่หน้า HTML ทั่วไป) ครอบแบบนี้จะได้เห็น
+        # ข้อความ error จริงใน response ตรงๆ ไม่ต้องไปงมใน Railway logs
         try:
-            current_user_name = getattr(request.user, "name", None) or getattr(request.user, "username", "") or ""
-        except Exception:
-            current_user_name = ""
+            data = request.data
+            date_str = data.get("date")
+            if not date_str:
+                return Response({"error": "ต้องระบุ date"}, status=status.HTTP_400_BAD_REQUEST)
 
-        CashflowEntry.objects.filter(date=date_str).delete()
+            # ผู้ใช้ปัจจุบัน (เผื่อแถวไหนไม่ได้แนบ createdBy มาจาก frontend ให้ fallback มาใช้อันนี้)
+            try:
+                current_user_name = getattr(request.user, "name", None) or getattr(request.user, "username", "") or ""
+            except Exception:
+                current_user_name = ""
 
-        objs = []
-        for idx, row in enumerate(data.get("cashRows", []) or []):
-            objs.append(CashflowEntry(
-                date=date_str, section="cash", seq=idx,
-                description=row.get("description", "") or "",
-                income=row.get("income") or 0, sent=row.get("sent") or 0,
-                expense=row.get("expense") or 0, change=row.get("change") or 0,
-                deposit_return=row.get("depositReturn") or 0,
-                created_by=row.get("createdBy") or current_user_name,
-            ))
-        for idx, row in enumerate(data.get("transferRows", []) or []):
-            objs.append(CashflowEntry(
-                date=date_str, section="transfer", seq=idx,
-                description=row.get("description", "") or "",
-                income=row.get("income") or 0, sent=row.get("sent") or 0,
-                expense=row.get("expense") or 0, change=row.get("change") or 0,
-                deposit_return=row.get("depositReturn") or 0,
-                created_by=row.get("createdBy") or current_user_name,
-            ))
-        if objs:
-            CashflowEntry.objects.bulk_create(objs)
+            CashflowEntry.objects.filter(date=date_str).delete()
 
-        cash_override = data.get("cashOpeningOverride")
-        transfer_override = data.get("transferOpeningOverride")
+            objs = []
+            for idx, row in enumerate(data.get("cashRows", []) or []):
+                objs.append(CashflowEntry(
+                    date=date_str, section="cash", seq=idx,
+                    description=row.get("description", "") or "",
+                    income=row.get("income") or 0, sent=row.get("sent") or 0,
+                    expense=row.get("expense") or 0, change=row.get("change") or 0,
+                    deposit_return=row.get("depositReturn") or 0,
+                    created_by=row.get("createdBy") or current_user_name,
+                ))
+            for idx, row in enumerate(data.get("transferRows", []) or []):
+                objs.append(CashflowEntry(
+                    date=date_str, section="transfer", seq=idx,
+                    description=row.get("description", "") or "",
+                    income=row.get("income") or 0, sent=row.get("sent") or 0,
+                    expense=row.get("expense") or 0, change=row.get("change") or 0,
+                    deposit_return=row.get("depositReturn") or 0,
+                    created_by=row.get("createdBy") or current_user_name,
+                ))
+            if objs:
+                CashflowEntry.objects.bulk_create(objs)
 
-        meta, _created = CashflowDayMeta.objects.get_or_create(date=date_str)
-        meta.cash_opening_override = cash_override if cash_override not in ("", None) else None
-        meta.transfer_opening_override = transfer_override if transfer_override not in ("", None) else None
-        meta.checker_name = data.get("checkerName", "") or ""
-        meta.checker_date = data.get("checkerDate") or None
-        meta.save()
+            cash_override = data.get("cashOpeningOverride")
+            transfer_override = data.get("transferOpeningOverride")
 
-        return Response(_build_day_payload(date_str))
+            meta, _created = CashflowDayMeta.objects.get_or_create(date=date_str)
+            meta.cash_opening_override = cash_override if cash_override not in ("", None) else None
+            meta.transfer_opening_override = transfer_override if transfer_override not in ("", None) else None
+            meta.checker_name = data.get("checkerName", "") or ""
+            meta.checker_date = data.get("checkerDate") or None
+            meta.save()
+
+            return Response(_build_day_payload(date_str))
+        except Exception as e:
+            # ✅ พิมพ์ traceback เต็มลง Railway logs ด้วย (เผื่อจะดูย้อนหลังทีหลัง)
+            traceback.print_exc()
+            return Response(
+                {
+                    "error": f"{type(e).__name__}: {str(e)}",
+                    "received_payload_keys": list(request.data.keys()) if hasattr(request.data, "keys") else None,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["get"], url_path="month")
     def month(self, request):
