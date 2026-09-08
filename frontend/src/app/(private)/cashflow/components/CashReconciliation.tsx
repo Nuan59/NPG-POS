@@ -2,19 +2,43 @@
 // วางไฟล์นี้ใน: src/app/(private)/cashflow/components/CashReconciliation.tsx
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
+import { CashflowCountInfo, recordCashCount } from "@/services/CashflowService";
 import { fmt } from "../util/cashflowUtil";
 
 interface CashReconciliationProps {
+  date: string;
   countedCash: string;
   setCountedCash: (value: string) => void;
   cashClosing: number;
+  cashCount: CashflowCountInfo | null | undefined;
+  onRecorded: () => void;
 }
 
-// ✅ ตรวจนับเงินสดปลายวัน - เทียบยอดที่นับได้จริงในลิ้นชักกับยอดที่ระบบคำนวณจากรายรับ-รายจ่าย
-// (คำนวณล้วนๆ ไม่มีการ override ยอดในระบบ กันพนักงานพิมพ์ยอดเข้าไปเปลี่ยนของจริงได้)
-const CashReconciliation = ({ countedCash, setCountedCash, cashClosing }: CashReconciliationProps) => {
+const CashReconciliation = ({
+  date, countedCash, setCountedCash, cashClosing, cashCount, onRecorded,
+}: CashReconciliationProps) => {
+  const [recording, setRecording] = useState(false);
+
   const counted = countedCash !== "" ? Number(countedCash) || 0 : null;
   const diff = counted !== null ? counted - cashClosing : null;
+
+  const handleRecord = async () => {
+    if (counted === null) {
+      toast.error("กรุณากรอกยอดที่นับได้ก่อน");
+      return;
+    }
+    setRecording(true);
+    const result = await recordCashCount(date, counted);
+    setRecording(false);
+    if (result.status === "success") {
+      toast.success("บันทึกรายการนับเงินแล้ว");
+      onRecorded();
+    } else {
+      toast.error(result.error || "บันทึกไม่สำเร็จ");
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
@@ -41,10 +65,39 @@ const CashReconciliation = ({ countedCash, setCountedCash, cashClosing }: CashRe
             </span>
           )
         )}
+
+        <button
+          onClick={handleRecord}
+          disabled={recording || counted === null}
+          className="ml-auto bg-orange-600 hover:bg-orange-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-1.5 rounded-lg"
+        >
+          {recording ? "กำลังบันทึก..." : "บันทึกรายการนับเงิน"}
+        </button>
       </div>
       <p className="text-xs text-gray-400 mt-2">
-        * ใช้ตรวจสอบเฉยๆ ไม่มีผลกับยอดในระบบ ยอดจริงคำนวณจากรายรับ-รายจ่ายเสมอ
+        * ใช้ตรวจสอบและเก็บเป็นประวัติ ไม่มีผลกับยอดในระบบ ยอดจริงคำนวณจากรายรับ-รายจ่ายเสมอ
       </p>
+
+      {cashCount?.countedAmount != null && (
+        <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 flex items-center gap-3 flex-wrap">
+          <span>
+            บันทึกล่าสุด: นับได้ <span className="font-semibold text-gray-700">{fmt(cashCount.countedAmount)}</span> บาท
+          </span>
+          {cashCount.countedBy && <span>โดย {cashCount.countedBy}</span>}
+          {cashCount.countedAt && (
+            <span>
+              เมื่อ {new Date(cashCount.countedAt).toLocaleString("th-TH", {
+                day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+              })}
+            </span>
+          )}
+          {cashCount.diff !== null && cashCount.diff !== undefined && (
+            <span className={cashCount.diff === 0 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"}>
+              {cashCount.diff === 0 ? "ตรงกับระบบ" : `ต่างจากระบบ ${fmt(Math.abs(cashCount.diff))} บาท`}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

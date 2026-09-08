@@ -158,6 +158,23 @@ def create_cashflow_tables(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+# ✅ Temp: เพิ่มคอลัมน์บันทึกการนับเงินสดปลายวัน เข้าตาราง cashflow_day_meta ที่มีอยู่แล้ว
+# (ตารางมีอยู่แล้ว แค่เพิ่มคอลัมน์ใหม่ - ปลอดภัยกว่าสร้างตารางใหม่ทั้งตาราง)
+def add_cashflow_count_columns(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                ALTER TABLE cashflow_day_meta
+                    ADD COLUMN IF NOT EXISTS counted_cash_amount NUMERIC(12, 2) NULL,
+                    ADD COLUMN IF NOT EXISTS counted_by VARCHAR(255) NOT NULL DEFAULT '',
+                    ADD COLUMN IF NOT EXISTS counted_at TIMESTAMP WITH TIME ZONE NULL;
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์บันทึกการนับเงินสดเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 # ✅ Temp: แก้ข้อมูลบัญชี NPG ที่เป็น "รายปี" จริง (ตาม Order.npg_period) แต่ตอนสร้างบันทึก
 # period_type / next_payment_date ผิดเป็นรายเดือน (บั๊กเก่าก่อนแก้ OrderViewSet.py)
 # แก้แค่ period_type + next_payment_date เท่านั้น ไม่แตะ remaining_balance/installment_amount
@@ -217,6 +234,7 @@ urlpatterns = [
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
+    path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
 

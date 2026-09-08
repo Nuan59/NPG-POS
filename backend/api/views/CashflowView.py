@@ -100,6 +100,14 @@ def _build_day_payload(date_str: str) -> dict:
         },
         "checkerName": meta.checker_name if meta else "",
         "checkerDate": meta.checker_date if meta else None,
+        # ✅ ประวัติการนับเงินสดปลายวัน (ถ้าเคยบันทึกไว้) - แค่บันทึกไว้ดู ไม่มีผลกับยอดคำนวณ
+        "cashCount": {
+            "countedAmount": meta.counted_cash_amount if meta else None,
+            "countedBy": meta.counted_by if meta else "",
+            "countedAt": meta.counted_at if meta else None,
+            "systemAmount": cash_closing,
+            "diff": (meta.counted_cash_amount - cash_closing) if (meta and meta.counted_cash_amount is not None) else None,
+        },
     }
 
 
@@ -118,6 +126,45 @@ class CashflowViewSet(viewsets.ViewSet):
         if not date_str:
             return Response({"error": "ต้องระบุ date"}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_build_day_payload(date_str))
+
+    @action(detail=False, methods=["post"], url_path="record_count")
+    def record_count(self, request):
+        """
+        บันทึกการนับเงินสดปลายวัน - แค่บันทึกไว้เป็นประวัติเฉยๆ ไม่มีผลกับยอดคำนวณในระบบเลย
+        body: { date, countedAmount }
+        """
+        try:
+            data = request.data
+            date_str = data.get("date")
+            if not date_str:
+                return Response({"error": "ต้องระบุ date"}, status=status.HTTP_400_BAD_REQUEST)
+
+            counted_amount_raw = data.get("countedAmount")
+            if counted_amount_raw in ("", None):
+                return Response({"error": "ต้องระบุยอดที่นับได้"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                counted_amount = Decimal(str(counted_amount_raw))
+            except InvalidOperation:
+                return Response({"error": "ยอดที่นับได้ไม่ใช่ตัวเลขที่ถูกต้อง"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                counted_by = getattr(request.user, "name", None) or getattr(request.user, "username", "") or ""
+            except Exception:
+                counted_by = ""
+
+            from django.utils import timezone
+
+            meta, _created = CashflowDayMeta.objects.get_or_create(date=date_str)
+            meta.counted_cash_amount = counted_amount
+            meta.counted_by = counted_by
+            meta.counted_at = timezone.now()
+            meta.save()
+
+            return Response(_build_day_payload(date_str))
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"error": f"{type(e).__name__}: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=["post"], url_path="save_day")
     def save_day(self, request):

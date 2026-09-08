@@ -43,6 +43,13 @@ class CashflowDayMeta(models.Model):
     transfer_opening_override = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     checker_name = models.CharField(max_length=255, blank=True, default="")  # ผู้เช็คเงิน
     checker_date = models.DateField(null=True, blank=True)
+
+    # ✅ บันทึกการนับเงินสดปลายวัน - แค่บันทึกไว้เป็นประวัติ ไม่มีผลกับยอดคำนวณในระบบเลย
+    # (ยอดจริงคำนวณจากรายรับ-รายจ่ายเสมอ นี่แค่เก็บว่า "วันนี้นับได้เท่าไหร่ ต่างจากระบบเท่าไหร่")
+    counted_cash_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="ยอดเงินสดที่นับได้จริง")
+    counted_by = models.CharField(max_length=255, blank=True, default="", verbose_name="ผู้นับเงิน")
+    counted_at = models.DateTimeField(null=True, blank=True, verbose_name="เวลาที่นับเงิน")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

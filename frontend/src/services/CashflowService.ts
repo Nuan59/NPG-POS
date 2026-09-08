@@ -32,12 +32,22 @@ export interface CashflowSectionData {
   closing: number;
 }
 
+// ✅ ประวัติการนับเงินสดปลายวัน (ถ้าเคยบันทึกไว้) - แสดงผลอย่างเดียว ไม่มีผลกับยอดคำนวณ
+export interface CashflowCountInfo {
+  countedAmount: number | null;
+  countedBy: string;
+  countedAt: string | null;
+  systemAmount: number;
+  diff: number | null;
+}
+
 export interface CashflowDayData {
   date: string;
   cash: CashflowSectionData;
   transfer: CashflowSectionData;
   checkerName: string;
   checkerDate: string | null;
+  cashCount: CashflowCountInfo;
 }
 
 export interface CashflowMonthDay {
@@ -125,6 +135,49 @@ export const saveCashflowDay = async (payload: CashflowSaveDayPayload) => {
     return { status: "success", data: bodyJson, error: undefined };
   } catch (err) {
     console.error("❌ [saveCashflowDay] เกิดข้อผิดพลาด:", err);
+    return {
+      status: "error",
+      data: null,
+      error: err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+    };
+  }
+};
+
+// ✅ บันทึกการนับเงินสดปลายวัน - แค่บันทึกไว้เป็นประวัติ ไม่กระทบยอดคำนวณในระบบเลย
+export const recordCashCount = async (date: string, countedAmount: number) => {
+  "use server";
+  try {
+    const response = await authorizedFetch(`${process.env.API_URL}/cashflow/record_count/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, countedAmount }),
+    });
+
+    if (!response) {
+      return { status: "error", data: null, error: "ไม่มี session หรือ token กรุณา login ใหม่" };
+    }
+
+    const bodyText = await response.text();
+    let bodyJson: any = null;
+    try {
+      bodyJson = bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      bodyJson = null;
+    }
+
+    if (!response.ok) {
+      return {
+        status: "error",
+        data: bodyJson,
+        error: bodyJson?.error || bodyJson?.message || `HTTP ${response.status}: ${bodyText || response.statusText}`,
+      };
+    }
+
+    revalidatePath("/cashflow");
+    revalidateTag("cashflowDay");
+
+    return { status: "success", data: bodyJson as CashflowDayData, error: undefined };
+  } catch (err) {
     return {
       status: "error",
       data: null,

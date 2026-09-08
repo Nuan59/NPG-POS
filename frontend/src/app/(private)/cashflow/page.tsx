@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Wallet, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCashflowDay, saveCashflowDay, getCashflowMonth, CashflowMonthData } from "@/services/CashflowService";
+import { getCashflowDay, saveCashflowDay, getCashflowMonth, CashflowMonthData, CashflowCountInfo } from "@/services/CashflowService";
 import { UIRow, toUIRow, toApiRow, todayStr, shiftDate, netOf } from "./util/cashflowUtil";
 
 import CashflowSection from "./components/CashflowSection";
@@ -32,8 +32,9 @@ export default function CashflowPage() {
   const [monthOpen, setMonthOpen] = useState(false);
   const [monthData, setMonthData] = useState<CashflowMonthData | null>(null);
 
-  // ✅ ตรวจนับเงินสดปลายวัน - เก็บแค่ในหน้าจอ (ไม่ส่งขึ้น backend/ไม่ override อะไร)
+  // ✅ ตรวจนับเงินสดปลายวัน - ค่าที่กำลังกรอก + ประวัติล่าสุดที่เคยบันทึกไว้ (มาจาก server)
   const [countedCash, setCountedCash] = useState<string>("");
+  const [cashCount, setCashCount] = useState<CashflowCountInfo | null>(null);
 
   // ✅ ใช้กันไม่ให้ auto-save effect ทำงานตอนเพิ่งโหลดข้อมูลเข้ามาใหม่จาก server
   const skipAutoSaveRef = useRef(false);
@@ -48,9 +49,11 @@ export default function CashflowPage() {
       setTransferRows(data.transfer.rows.length ? data.transfer.rows.map((r) => toUIRow(r, currentUserName)) : []);
       setCashOpening(data.cash.opening);
       setTransferOpening(data.transfer.opening);
+      setCashCount(data.cashCount || null);
     } else {
       setCashRows([]); setTransferRows([]);
       setCashOpening(0); setTransferOpening(0);
+      setCashCount(null);
     }
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,9 +147,12 @@ export default function CashflowPage() {
 
             {isAdmin && (
               <CashReconciliation
+                date={date}
                 countedCash={countedCash}
                 setCountedCash={setCountedCash}
                 cashClosing={cashClosing}
+                cashCount={cashCount}
+                onRecorded={() => loadDay(date)}
               />
             )}
 
