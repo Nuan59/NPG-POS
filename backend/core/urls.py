@@ -189,6 +189,34 @@ def add_cashflow_cash_in_column(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+# ✅ Temp: ดูข้อมูลดิบทั้งหมดในตาราง cashflow_entry ตรงๆ (ไม่ผ่าน filter วันที่ใดๆ)
+# ใช้เช็คว่าข้อมูลยังอยู่ในฐานข้อมูลจริงไหม หรือหายไปจริงๆ
+def debug_list_cashflow_entries(request):
+    from api.models.Cashflow import CashflowEntry, CashflowDayMeta
+    from django.core.serializers.json import DjangoJSONEncoder
+    try:
+        entries = list(CashflowEntry.objects.all().order_by('-date', 'section', 'seq').values(
+            'id', 'date', 'section', 'seq', 'description',
+            'income', 'sent', 'expense', 'change', 'deposit_return', 'cash_in',
+            'created_by', 'created_at',
+        ))
+        metas = list(CashflowDayMeta.objects.all().order_by('-date').values(
+            'id', 'date', 'cash_opening_override', 'transfer_opening_override',
+            'checker_name', 'checker_date', 'counted_cash_amount', 'counted_by', 'counted_at',
+        ))
+        return JsonResponse({
+            'status': 'ok',
+            'total_entries': len(entries),
+            'entries': entries,
+            'total_day_meta': len(metas),
+            'day_meta': metas,
+        }, encoder=DjangoJSONEncoder)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 # ✅ Temp: แก้ข้อมูลบัญชี NPG ที่เป็น "รายปี" จริง (ตาม Order.npg_period) แต่ตอนสร้างบันทึก
 # period_type / next_payment_date ผิดเป็นรายเดือน (บั๊กเก่าก่อนแก้ OrderViewSet.py)
 # แก้แค่ period_type + next_payment_date เท่านั้น ไม่แตะ remaining_balance/installment_amount
@@ -250,6 +278,7 @@ urlpatterns = [
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
     path('dev/add-cashflow-cash-in-column/', add_cashflow_cash_in_column),
+    path('dev/debug-list-cashflow-entries/', debug_list_cashflow_entries),
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
 
