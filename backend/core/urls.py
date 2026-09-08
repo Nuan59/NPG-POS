@@ -175,6 +175,20 @@ def add_cashflow_count_columns(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+# ✅ Temp: เพิ่มคอลัมน์ cash_in (เปิดบิล) เข้าตาราง cashflow_entry ที่มีอยู่แล้ว
+def add_cashflow_cash_in_column(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                ALTER TABLE cashflow_entry
+                    ADD COLUMN IF NOT EXISTS cash_in NUMERIC(12, 2) NOT NULL DEFAULT 0;
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์ cash_in (เปิดบิล) เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 # ✅ Temp: แก้ข้อมูลบัญชี NPG ที่เป็น "รายปี" จริง (ตาม Order.npg_period) แต่ตอนสร้างบันทึก
 # period_type / next_payment_date ผิดเป็นรายเดือน (บั๊กเก่าก่อนแก้ OrderViewSet.py)
 # แก้แค่ period_type + next_payment_date เท่านั้น ไม่แตะ remaining_balance/installment_amount
@@ -235,6 +249,7 @@ urlpatterns = [
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
+    path('dev/add-cashflow-cash-in-column/', add_cashflow_cash_in_column),
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
 

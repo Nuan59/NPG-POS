@@ -4,7 +4,7 @@ import { CashflowRow } from "@/services/CashflowService";
 
 // ================== ประเภทรายการ ==================
 
-export const TYPE_FIELDS = ["income", "sent", "expense", "change", "depositReturn"] as const;
+export const TYPE_FIELDS = ["income", "sent", "expense", "change", "depositReturn", "cashIn"] as const;
 export type RowType = (typeof TYPE_FIELDS)[number];
 
 export const TYPE_LABEL: Record<RowType, string> = {
@@ -13,6 +13,8 @@ export const TYPE_LABEL: Record<RowType, string> = {
   expense: "รายจ่าย",
   change: "ทอนเงิน",
   depositReturn: "คืนมัดจำ",
+  // ✅ เอาเงินเข้าลิ้นชัก (ยอดเพิ่มขึ้นเหมือนรายรับ) แต่ไม่ใช่รายได้จริง แยกจาก "รายรับ" เสมอ
+  cashIn: "เปิดบิล",
 };
 
 export const TYPE_COLOR: Record<RowType, string> = {
@@ -21,6 +23,7 @@ export const TYPE_COLOR: Record<RowType, string> = {
   expense: "text-rose-700 bg-rose-50 border-rose-300",
   change: "text-sky-700 bg-sky-50 border-sky-300",
   depositReturn: "text-violet-700 bg-violet-50 border-violet-300",
+  cashIn: "text-amber-700 bg-amber-50 border-amber-300",
 };
 
 // แถวหนึ่งใน UI จะมี field `type`/`amount` เพิ่มมา เพื่อรู้ว่าเงินก้อนนี้ผูกกับคอลัมน์ไหน (ไม่ส่งขึ้น backend ตรงๆ)
@@ -49,7 +52,7 @@ export const toUIRow = (row: CashflowRow, defaultCreatedBy: string): UIRow => {
 export const toApiRow = (row: UIRow): CashflowRow => {
   const base: CashflowRow = {
     description: row.description,
-    income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0,
+    income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0, cashIn: 0,
     createdBy: row.createdBy,
   };
   base[row.type] = Number(row.amount) || 0;
@@ -57,7 +60,7 @@ export const toApiRow = (row: UIRow): CashflowRow => {
 };
 
 export const blankUIRow = (createdBy: string): UIRow => ({
-  description: "", income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0,
+  description: "", income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0, cashIn: 0,
   type: "income", amount: 0, createdBy,
 });
 
@@ -75,9 +78,10 @@ export const shiftDate = (dateStr: string, days: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+// ✅ "เปิดบิล" บวกยอดคงเหลือเหมือน "รายรับ" (เงินเข้าลิ้นชักจริง) แต่แยกคอลัมน์กัน ไม่นับเป็นรายได้
 export function signedAmount(row: UIRow) {
   const amt = Number(row.amount) || 0;
-  return row.type === "income" ? amt : -amt;
+  return row.type === "income" || row.type === "cashIn" ? amt : -amt;
 }
 
 export function netOf(rows: UIRow[], opening: number) {

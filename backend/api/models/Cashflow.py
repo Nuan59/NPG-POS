@@ -20,6 +20,9 @@ class CashflowEntry(models.Model):
     expense = models.DecimalField(max_digits=12, decimal_places=2, default=0)         # รายจ่าย
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)          # ทอนเงิน
     deposit_return = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # คืนมัดจำ
+    # ✅ เปิดบิล - เอาเงินเข้าลิ้นชัก (เพิ่มยอดคงเหลือเหมือน income) แต่ "ไม่ใช่รายรับ/รายได้จริง"
+    # แยกคอลัมน์ต่างหาก ไม่ให้ปนกับ income เพื่อไม่ให้รายงานรายได้เพี้ยน
+    cash_in = models.DecimalField(max_digits=12, decimal_places=2, default=0)         # เปิดบิล
 
     created_by = models.CharField(max_length=255, blank=True, default="")  # ชื่อพนักงานที่บันทึกรายการนี้
 

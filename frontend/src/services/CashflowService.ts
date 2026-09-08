@@ -12,6 +12,8 @@ export interface CashflowRow {
   expense: number;
   change: number;
   depositReturn: number;
+  // ✅ เปิดบิล - เอาเงินเข้าลิ้นชัก ไม่ใช่รายรับ
+  cashIn: number;
   createdBy?: string;   // ชื่อพนักงานที่บันทึกรายการนี้
   balance?: number;
 }
@@ -22,6 +24,7 @@ export interface CashflowTotals {
   expense: number;
   change: number;
   deposit_return: number;
+  cash_in: number;
 }
 
 export interface CashflowSectionData {

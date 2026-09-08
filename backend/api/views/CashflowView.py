@@ -11,7 +11,8 @@ from api.models.Cashflow import CashflowEntry, CashflowDayMeta
 
 
 def _net_expr():
-    return F("income") - F("sent") - F("expense") - F("change") - F("deposit_return")
+    # ✅ cash_in (เปิดบิล) บวกเข้ายอดคงเหลือเหมือน income แต่แยกคอลัมน์เพื่อไม่ให้ปนกับรายได้จริง
+    return F("income") - F("sent") - F("expense") - F("change") - F("deposit_return") + F("cash_in")
 
 
 def _section_opening(section: str, date_str: str) -> Decimal:
@@ -51,15 +52,16 @@ def _calc_section(entries, opening: Decimal):
     rows = []
     totals = {
         "income": Decimal("0"), "sent": Decimal("0"), "expense": Decimal("0"),
-        "change": Decimal("0"), "deposit_return": Decimal("0"),
+        "change": Decimal("0"), "deposit_return": Decimal("0"), "cash_in": Decimal("0"),
     }
     for e in entries:
-        running = running + e.income - e.sent - e.expense - e.change - e.deposit_return
+        running = running + e.income - e.sent - e.expense - e.change - e.deposit_return + e.cash_in
         totals["income"] += e.income
         totals["sent"] += e.sent
         totals["expense"] += e.expense
         totals["change"] += e.change
         totals["deposit_return"] += e.deposit_return
+        totals["cash_in"] += e.cash_in
         rows.append({
             "id": e.id,
             "description": e.description,
@@ -68,6 +70,7 @@ def _calc_section(entries, opening: Decimal):
             "expense": e.expense,
             "change": e.change,
             "depositReturn": e.deposit_return,
+            "cashIn": e.cash_in,
             "createdBy": e.created_by,
             "balance": running,
         })
@@ -193,6 +196,7 @@ class CashflowViewSet(viewsets.ViewSet):
                     income=row.get("income") or 0, sent=row.get("sent") or 0,
                     expense=row.get("expense") or 0, change=row.get("change") or 0,
                     deposit_return=row.get("depositReturn") or 0,
+                    cash_in=row.get("cashIn") or 0,
                     created_by=row.get("createdBy") or current_user_name,
                 ))
             for idx, row in enumerate(data.get("transferRows", []) or []):
@@ -202,6 +206,7 @@ class CashflowViewSet(viewsets.ViewSet):
                     income=row.get("income") or 0, sent=row.get("sent") or 0,
                     expense=row.get("expense") or 0, change=row.get("change") or 0,
                     deposit_return=row.get("depositReturn") or 0,
+                    cash_in=row.get("cashIn") or 0,
                     created_by=row.get("createdBy") or current_user_name,
                 ))
             if objs:
@@ -240,7 +245,7 @@ class CashflowViewSet(viewsets.ViewSet):
         def sum_totals(qs):
             agg = qs.aggregate(
                 income=Sum("income"), sent=Sum("sent"), expense=Sum("expense"),
-                change=Sum("change"), deposit_return=Sum("deposit_return"),
+                change=Sum("change"), deposit_return=Sum("deposit_return"), cash_in=Sum("cash_in"),
             )
             return {k: (v or Decimal("0")) for k, v in agg.items()}
 

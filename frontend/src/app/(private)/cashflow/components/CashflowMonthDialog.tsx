@@ -31,13 +31,13 @@ const CashflowMonthDialog = ({ isAdmin, date, monthData, onClose }: CashflowMont
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                 <div className="text-xs text-emerald-600 mb-1">รวมสุทธิ (เงินสด)</div>
                 <div className="text-lg font-bold text-emerald-700">
-                  {fmt(monthData.cashTotals.income - monthData.cashTotals.sent - monthData.cashTotals.expense - monthData.cashTotals.change - monthData.cashTotals.deposit_return)} บาท
+                  {fmt(monthData.cashTotals.income - monthData.cashTotals.sent - monthData.cashTotals.expense - monthData.cashTotals.change - monthData.cashTotals.deposit_return + monthData.cashTotals.cash_in)} บาท
                 </div>
               </div>
               <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
                 <div className="text-xs text-sky-600 mb-1">รวมสุทธิ (โอน)</div>
                 <div className="text-lg font-bold text-sky-700">
-                  {fmt(monthData.transferTotals.income - monthData.transferTotals.sent - monthData.transferTotals.expense - monthData.transferTotals.change - monthData.transferTotals.deposit_return)} บาท
+                  {fmt(monthData.transferTotals.income - monthData.transferTotals.sent - monthData.transferTotals.expense - monthData.transferTotals.change - monthData.transferTotals.deposit_return + monthData.transferTotals.cash_in)} บาท
                 </div>
               </div>
             </div>
