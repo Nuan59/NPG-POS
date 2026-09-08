@@ -231,6 +231,11 @@ export default function CashflowPage() {
   const [monthOpen, setMonthOpen] = useState(false);
   const [monthData, setMonthData] = useState<CashflowMonthData | null>(null);
 
+  // ✅ ตรวจนับเงินสดปลายวัน - เก็บแค่ในหน้าจอ (ไม่ส่งขึ้น backend/ไม่ override อะไร)
+  // เทียบยอดที่นับได้จริงกับยอดที่ระบบคำนวณจากรายรับ-รายจ่ายเฉยๆ เพื่อตรวจสอบ
+  // (ไม่ให้พนักงานพิมพ์ยอดเข้าไปเปลี่ยนยอดจริงในระบบได้ ป้องกันการโกง)
+  const [countedCash, setCountedCash] = useState<string>("");
+
   // ✅ ใช้กันไม่ให้ auto-save effect ทำงานตอนเพิ่งโหลดข้อมูลเข้ามาใหม่จาก server
   // (ไม่งั้นทุกครั้งที่เปลี่ยนวันที่ ระบบจะคิดว่าแก้ไขแล้วรีบเซฟทับทันที)
   const skipAutoSaveRef = useRef(false);
@@ -253,7 +258,10 @@ export default function CashflowPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserName]);
 
-  useEffect(() => { loadDay(date); }, [date, loadDay]);
+  useEffect(() => {
+    loadDay(date);
+    setCountedCash(""); // ✅ เปลี่ยนวันแล้วล้างค่านับเงินเก่าทิ้ง กันเอายอดวันก่อนมาเทียบผิดวัน
+  }, [date, loadDay]);
 
   const handleSave = useCallback(async (silent = false) => {
     setSaving(true);
@@ -346,11 +354,55 @@ export default function CashflowPage() {
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                   <div className="text-xs text-emerald-600 font-medium mb-1">ยอดคงเหลือเงินสด</div>
                   <div className="text-2xl font-bold text-emerald-700">{fmt(cashClosing)} บาท</div>
+                  {/* ✅ อธิบายว่ายอดนี้ยกไปวันถัดไปให้อัตโนมัติ ไม่ต้องทำอะไรเพิ่ม */}
+                  <div className="text-[11px] text-emerald-600/70 mt-1">ยกยอดไปวันถัดไปให้อัตโนมัติ</div>
                 </div>
                 <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
                   <div className="text-xs text-sky-600 font-medium mb-1">ยอดคงเหลือโอน</div>
                   <div className="text-2xl font-bold text-sky-700">{fmt(transferClosing)} บาท</div>
+                  <div className="text-[11px] text-sky-600/70 mt-1">ยกยอดไปวันถัดไปให้อัตโนมัติ</div>
                 </div>
+              </div>
+            )}
+
+            {/* ✅ ตรวจนับเงินสดปลายวัน - เทียบยอดที่นับได้จริงในลิ้นชักกับยอดที่ระบบคำนวณจากรายรับ-รายจ่าย
+                (คำนวณล้วนๆ ไม่มีการ override ยอดในระบบ กันพนักงานพิมพ์ยอดเข้าไปเปลี่ยนของจริงได้) */}
+            {isAdmin && (
+              <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
+                <h3 className="text-base font-bold mb-3 text-gray-800">🧮 ตรวจนับเงินสดปลายวัน</h3>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="text-sm text-gray-600 shrink-0">นับเงินสดในลิ้นชักได้จริง</label>
+                  <input
+                    type="number"
+                    value={countedCash}
+                    onChange={(e) => setCountedCash(e.target.value)}
+                    placeholder="กรอกยอดที่นับได้"
+                    className="w-40 text-right text-sm border rounded-md px-2 py-1.5 border-gray-300 outline-none focus:border-orange-400"
+                  />
+                  <span className="text-xs text-gray-400">บาท</span>
+
+                  {countedCash !== "" && (
+                    (() => {
+                      const counted = Number(countedCash) || 0;
+                      const diff = counted - cashClosing;
+                      if (diff === 0) {
+                        return (
+                          <span className="text-sm font-semibold text-emerald-600 flex items-center gap-1">
+                            ✓ ตรงกับระบบพอดี
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-sm font-semibold text-rose-600 flex items-center gap-1">
+                          ⚠ {diff > 0 ? "เกินระบบ" : "ขาดจากระบบ"} {fmt(Math.abs(diff))} บาท
+                        </span>
+                      );
+                    })()
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  * ใช้ตรวจสอบเฉยๆ ไม่มีผลกับยอดในระบบ ยอดจริงคำนวณจากรายรับ-รายจ่ายเสมอ
+                </p>
               </div>
             )}
 
