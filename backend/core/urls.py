@@ -19,6 +19,8 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.CashflowView import CashflowViewSet
+from api.views.CustomerBikeViewSet import CustomerBikeViewSet
+from api.views.DepositViewSet import DepositViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView
@@ -106,6 +108,66 @@ def create_workhours_table(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+# ✅ Temp: สร้างตาราง cashflow_entry / cashflow_day_meta ตรงๆ ด้วย raw SQL แทนการรัน migrate
+# (แพทเทิร์นเดียวกับ create_workhours_table ด้านบน) - ตาราง 2 ตัวนี้มีอยู่ใน model (Cashflow.py)
+# มานานแล้วแต่ไม่เคย migrate จริง ทำให้ save_day error "relation does not exist"
+def create_cashflow_tables(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cashflow_entry (
+                    id BIGSERIAL PRIMARY KEY,
+                    date DATE NOT NULL,
+                    section VARCHAR(10) NOT NULL,
+                    seq INTEGER NOT NULL DEFAULT 0,
+                    description VARCHAR(255) NOT NULL DEFAULT '',
+                    income NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    sent NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    expense NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    change NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    deposit_return NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    created_by VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS cashflow_entry_date_idx
+                    ON cashflow_entry (date);
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS cashflow_date_section_idx
+                    ON cashflow_entry (date, section);
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cashflow_day_meta (
+                    id BIGSERIAL PRIMARY KEY,
+                    date DATE NOT NULL UNIQUE,
+                    cash_opening_override NUMERIC(12, 2) NULL,
+                    transfer_opening_override NUMERIC(12, 2) NULL,
+                    checker_name VARCHAR(255) NOT NULL DEFAULT '',
+                    checker_date DATE NULL,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS cashflow_day_meta_date_idx
+                    ON cashflow_day_meta (date);
+            """)
+            # ✅ บอก Django ว่า migration นี้ทำไปแล้ว กัน /dev/migrate/ (ที่รัน makemigrations ด้วย)
+            # พยายามสร้างตารางซ้ำแล้วชนกัน แบบเดียวกับที่เคยเกิดกับ WorkHours
+            cursor.execute("""
+                INSERT INTO django_migrations (app, name, applied)
+                VALUES ('api', '0025_cashflowentry_cashflowdaymeta', NOW())
+                ON CONFLICT DO NOTHING;
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง cashflow_entry และ cashflow_day_meta เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 # ✅ Temp: แก้ข้อมูลบัญชี NPG ที่เป็น "รายปี" จริง (ตาม Order.npg_period) แต่ตอนสร้างบันทึก
 # period_type / next_payment_date ผิดเป็นรายเดือน (บั๊กเก่าก่อนแก้ OrderViewSet.py)
 # แก้แค่ period_type + next_payment_date เท่านั้น ไม่แตะ remaining_balance/installment_amount
@@ -154,6 +216,8 @@ router.register(r'npg/payments', NPGPaymentViewSet, basename='npg-payment')
 router.register(r'issues', IssueViewSet, basename='issue')
 router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 router.register(r'cashflow', CashflowViewSet, basename='cashflow')
+router.register(r'customer-bikes', CustomerBikeViewSet, basename='customer-bike')
+router.register(r'deposits', DepositViewSet, basename='deposit')
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -164,6 +228,7 @@ urlpatterns = [
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/create-workhours/', create_workhours_table),
+    path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
 
