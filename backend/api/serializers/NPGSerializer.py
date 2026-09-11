@@ -19,7 +19,6 @@ class NPGPaymentSerializer(serializers.ModelSerializer):
             'amount_paid',
             'installment_number',
             'remaining_balance_after',
-            'late_fee',
             'note',
             'created_by',
             'created_by_name',
@@ -83,9 +82,6 @@ class NPGAccountSerializer(serializers.ModelSerializer):
     progress_percentage = serializers.SerializerMethodField()
     is_overdue = serializers.SerializerMethodField()
     days_until_payment = serializers.SerializerMethodField()
-    # ✅ ค่าปรับถ้าจ่ายวันนี้ - โชว์ล่วงหน้าให้พนักงานรู้ก่อนกดบันทึกจริง (จ่ายภายใน 3 วันหลังครบกำหนด
-    # ไม่ปรับ เกินนั้นปรับวันละ 50 บาท นับรวมทุกวันตั้งแต่วันครบกำหนดถึงวันนี้)
-    estimated_late_fee = serializers.SerializerMethodField()
     
     class Meta:
         model = NPGAccount
@@ -120,7 +116,6 @@ class NPGAccountSerializer(serializers.ModelSerializer):
             'progress_percentage',
             'is_overdue',
             'days_until_payment',
-            'estimated_late_fee',
             'created_at',
             'updated_at'
         ]
@@ -147,8 +142,6 @@ class NPGAccountSerializer(serializers.ModelSerializer):
     def get_is_overdue(self, obj):
         """ตรวจสอบว่าเกินกำหนดหรือไม่"""
         from django.utils import timezone
-        if not obj.next_payment_date:
-            return False
         return obj.status == 'active' and obj.next_payment_date < timezone.now().date()
     
     def get_days_until_payment(self, obj):
@@ -156,27 +149,9 @@ class NPGAccountSerializer(serializers.ModelSerializer):
         from django.utils import timezone
         if obj.status in ['completed', 'closed']:
             return None
-        if not obj.next_payment_date:
-            return None
         
         delta = obj.next_payment_date - timezone.now().date()
         return delta.days
-
-    def get_estimated_late_fee(self, obj):
-        """
-        ค่าปรับถ้าจ่ายวันนี้ - จ่ายภายใน 3 วันหลังครบกำหนดไม่ปรับ เกินนั้นปรับวันละ 50 บาท
-        นับทุกวันตั้งแต่วันครบกำหนดถึงวันนี้ (ใช้โชว์ล่วงหน้าเฉยๆ ค่าจริงคำนวณตอนบันทึกชำระอีกที)
-        """
-        from django.utils import timezone
-        if obj.status in ['completed', 'closed']:
-            return 0
-        if not obj.next_payment_date:
-            return 0
-
-        days_late = (timezone.now().date() - obj.next_payment_date).days
-        if days_late <= 3:
-            return 0
-        return days_late * 50
 
 
 class NPGAccountSummarySerializer(serializers.Serializer):

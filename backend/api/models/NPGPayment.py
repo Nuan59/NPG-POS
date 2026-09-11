@@ -50,15 +50,6 @@ class NPGPayment(models.Model):
     transfer_bank = models.CharField(max_length=20, blank=True, default="", verbose_name='ธนาคาร (กรณีโอน)')
     check_number = models.CharField(max_length=50, blank=True, default="", verbose_name='เลขที่เช็ค (กรณีเช็ค)')
 
-    # ✅ ค่าปรับจ่ายล่าช้า - คำนวณอัตโนมัติตอนบันทึกการชำระ ไม่นับรวมเป็นส่วนหนึ่งของหนี้/ค่างวด
-    # (แยกเก็บไว้เฉยๆ เพื่อโชว์ในใบเสร็จ/รายงาน ไม่กระทบยอดหนี้คงเหลือที่คำนวณจาก amount_paid เท่านั้น)
-    late_fee = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0,
-        verbose_name='ค่าปรับจ่ายล่าช้า'
-    )
-
     note = models.TextField(
         blank=True,
         null=True,
