@@ -147,12 +147,16 @@ class NPGAccountSerializer(serializers.ModelSerializer):
     def get_is_overdue(self, obj):
         """ตรวจสอบว่าเกินกำหนดหรือไม่"""
         from django.utils import timezone
+        if not obj.next_payment_date:
+            return False
         return obj.status == 'active' and obj.next_payment_date < timezone.now().date()
     
     def get_days_until_payment(self, obj):
         """คำนวณจำนวนวันจนถึงวันชำระถัดไป"""
         from django.utils import timezone
         if obj.status in ['completed', 'closed']:
+            return None
+        if not obj.next_payment_date:
             return None
         
         delta = obj.next_payment_date - timezone.now().date()
