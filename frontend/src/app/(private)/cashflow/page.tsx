@@ -2,17 +2,27 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Wallet, ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Wallet, ChevronLeft, ChevronRight, CalendarRange, FileSpreadsheet, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCashflowDay, saveCashflowDay, getCashflowMonth, CashflowMonthData, CashflowCountInfo } from "@/services/CashflowService";
-import { UIRow, toUIRow, toApiRow, todayStr, shiftDate, netOf } from "./util/cashflowUtil";
+import { UIRow, toUIRow, toApiRow, todayStr, shiftDate, netOf, DayCashflowData } from "./util/cashflowUtil";
+import { exportDailyExcel, exportRangeExcel } from "./util/exportReport";
 
 import CashflowSection from "./components/CashflowSection";
 import CashflowSummaryCards from "./components/CashflowSummaryCards";
 import CashReconciliation from "./components/CashReconciliation";
 import CashflowSaveStatus from "./components/CashflowSaveStatus";
 import CashflowMonthDialog from "./components/CashflowMonthDialog";
+import { DailyReportPdf, RangeReportPdf } from "@/components/pdf/CashflowReportPdf";
+
+import { pdf } from "@react-pdf/renderer";
+
+const PDFDownloadLink = dynamic(
+  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+  { ssr: false, loading: () => <span className="text-xs text-gray-400">กำลังเตรียม PDF...</span> }
+);
 
 export default function CashflowPage() {
   const { data: session } = useSession();
@@ -39,6 +49,65 @@ export default function CashflowPage() {
   // ✅ ใช้กันไม่ให้ auto-save effect ทำงานตอนเพิ่งโหลดข้อมูลเข้ามาใหม่จาก server
   const skipAutoSaveRef = useRef(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+
+  // ✅ Export ช่วงวันที่ (รวมหลายวันในรายงานเดียว)
+  const [rangeFrom, setRangeFrom] = useState(() => todayStr().slice(0, 7) + "-01");
+  const [rangeTo, setRangeTo] = useState(todayStr());
+  const [rangeLoading, setRangeLoading] = useState<"excel" | "pdf" | null>(null);
+  const MAX_RANGE_DAYS = 62;
+
+  const fetchRangeData = async (from: string, to: string): Promise<DayCashflowData[]> => {
+    const days: DayCashflowData[] = [];
+    let cursor = from;
+    let count = 0;
+    while (cursor <= to && count < MAX_RANGE_DAYS) {
+      const data = await getCashflowDay(cursor);
+      const cashRows = data?.cash.rows.length ? data.cash.rows.map((r) => toUIRow(r, "")) : [];
+      const transferRows = data?.transfer.rows.length ? data.transfer.rows.map((r) => toUIRow(r, "")) : [];
+      const cashOpening = data?.cash.opening || 0;
+      const transferOpening = data?.transfer.opening || 0;
+      days.push({
+        date: cursor,
+        cashRows, cashOpening, cashClosing: netOf(cashRows, cashOpening),
+        transferRows, transferOpening, transferClosing: netOf(transferRows, transferOpening),
+      });
+      cursor = shiftDate(cursor, 1);
+      count++;
+    }
+    return days;
+  };
+
+  const handleExportRangeExcel = async () => {
+    if (rangeFrom > rangeTo) { toast.error("วันเริ่มต้องไม่เกินวันสิ้นสุด"); return; }
+    setRangeLoading("excel");
+    try {
+      const days = await fetchRangeData(rangeFrom, rangeTo);
+      exportRangeExcel(days);
+    } catch {
+      toast.error("โหลดข้อมูลช่วงวันที่ไม่สำเร็จ");
+    } finally {
+      setRangeLoading(null);
+    }
+  };
+
+  const handleExportRangePdf = async () => {
+    if (rangeFrom > rangeTo) { toast.error("วันเริ่มต้องไม่เกินวันสิ้นสุด"); return; }
+    setRangeLoading("pdf");
+    try {
+      const days = await fetchRangeData(rangeFrom, rangeTo);
+      const blob = await pdf(<RangeReportPdf fromDate={rangeFrom} toDate={rangeTo} days={days} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `รายรับรายจ่าย-${rangeFrom}_ถึง_${rangeTo}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("สร้าง PDF ไม่สำเร็จ");
+    } finally {
+      setRangeLoading(null);
+    }
+  };
 
   const loadDay = useCallback(async (d: string) => {
     setLoading(true);
@@ -136,6 +205,48 @@ export default function CashflowPage() {
           </div>
         </div>
 
+        {/* ✅ Export ช่วงวันที่ - เลือกจาก-ถึง รวมหลายวันในรายงานเดียว */}
+        <div className="bg-white rounded-xl shadow-md p-4 flex flex-wrap items-end gap-3">
+          <div className="text-sm font-semibold text-gray-700 w-full sm:w-auto">
+            📅 Export รายงานช่วงวันที่
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">จากวันที่</label>
+            <input
+              type="date"
+              value={rangeFrom}
+              onChange={(e) => setRangeFrom(e.target.value)}
+              className="border rounded-lg px-2 py-1.5 text-sm border-gray-300 outline-none focus:border-orange-400"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">ถึงวันที่</label>
+            <input
+              type="date"
+              value={rangeTo}
+              onChange={(e) => setRangeTo(e.target.value)}
+              className="border rounded-lg px-2 py-1.5 text-sm border-gray-300 outline-none focus:border-orange-400"
+            />
+          </div>
+          <button
+            onClick={handleExportRangeExcel}
+            disabled={!!rangeLoading}
+            className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <FileSpreadsheet size={15} /> {rangeLoading === "excel" ? "กำลังโหลด..." : "Export Excel"}
+          </button>
+          <button
+            onClick={handleExportRangePdf}
+            disabled={!!rangeLoading}
+            className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <FileText size={15} /> {rangeLoading === "pdf" ? "กำลังโหลด..." : "Export PDF"}
+          </button>
+          <span className="text-xs text-gray-400 w-full">
+            เลือกได้สูงสุด {MAX_RANGE_DAYS} วันต่อรายงาน
+          </span>
+        </div>
+
         {loading ? (
           <div className="text-center text-gray-400 py-10">กำลังโหลด...</div>
         ) : (
@@ -161,6 +272,33 @@ export default function CashflowPage() {
               onRecorded={() => loadDay(date)}
               isAdmin={isAdmin}
             />
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() =>
+                  exportDailyExcel({
+                    date, cashRows, cashOpening, cashClosing,
+                    transferRows, transferOpening, transferClosing,
+                  })
+                }
+                className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50"
+              >
+                <FileSpreadsheet size={15} /> Export Excel
+              </button>
+              <PDFDownloadLink
+                document={
+                  <DailyReportPdf
+                    date={date} cashRows={cashRows} cashOpening={cashOpening} cashClosing={cashClosing}
+                    transferRows={transferRows} transferOpening={transferOpening} transferClosing={transferClosing}
+                  />
+                }
+                fileName={`รายรับรายจ่าย-${date}.pdf`}
+              >
+                <button className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50">
+                  <FileText size={15} /> Export PDF
+                </button>
+              </PDFDownloadLink>
+            </div>
 
             <CashflowSaveStatus
               currentUserName={currentUserName}

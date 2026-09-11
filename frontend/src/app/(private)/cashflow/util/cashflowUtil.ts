@@ -89,3 +89,14 @@ export function netOf(rows: UIRow[], opening: number) {
   rows.forEach((r) => { running += signedAmount(r); });
   return running;
 }
+
+// ✅ ข้อมูล 1 วัน ใช้ร่วมกันระหว่างรายงานรายวันเดี่ยว และรายงานแบบเลือกช่วงวันที่ (หลายวันรวมในรายงานเดียว)
+export interface DayCashflowData {
+  date: string;
+  cashRows: UIRow[];
+  cashOpening: number;
+  cashClosing: number;
+  transferRows: UIRow[];
+  transferOpening: number;
+  transferClosing: number;
+}

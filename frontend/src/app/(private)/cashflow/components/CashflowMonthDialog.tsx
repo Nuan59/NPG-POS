@@ -2,9 +2,17 @@
 // วางไฟล์นี้ใน: src/app/(private)/cashflow/components/CashflowMonthDialog.tsx
 "use client";
 
-import { X } from "lucide-react";
+import { X, FileSpreadsheet, FileText } from "lucide-react";
+import dynamic from "next/dynamic";
 import { CashflowMonthData } from "@/services/CashflowService";
 import { fmt } from "../util/cashflowUtil";
+import { exportMonthlyExcel } from "../util/exportReport";
+import { MonthlyReportPdf } from "@/components/pdf/CashflowReportPdf";
+
+const PDFDownloadLink = dynamic(
+  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+  { ssr: false, loading: () => <span className="text-xs text-gray-400">กำลังเตรียม PDF...</span> }
+);
 
 interface CashflowMonthDialogProps {
   isAdmin: boolean;
@@ -27,6 +35,22 @@ const CashflowMonthDialog = ({ isAdmin, date, monthData, onClose }: CashflowMont
           <div className="text-center text-gray-400 py-8">กำลังโหลด...</div>
         ) : (
           <>
+            <div className="flex items-center justify-end gap-2 mb-3">
+              <button
+                onClick={() => exportMonthlyExcel(monthData)}
+                className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50"
+              >
+                <FileSpreadsheet size={15} /> Export Excel
+              </button>
+              <PDFDownloadLink
+                document={<MonthlyReportPdf monthData={monthData} />}
+                fileName={`สรุปรายเดือน-${monthData.month}.pdf`}
+              >
+                <button className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50">
+                  <FileText size={15} /> Export PDF
+                </button>
+              </PDFDownloadLink>
+            </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                 <div className="text-xs text-emerald-600 mb-1">รวมสุทธิ (เงินสด)</div>
