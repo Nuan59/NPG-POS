@@ -32,6 +32,22 @@ def _payment_method_label(payment):
     return payment.payment_method or "-"
 
 
+def _calculate_late_fee(due_date, payment_date):
+    """
+    ค่าปรับจ่ายล่าช้า - จ่ายภายใน 3 วันหลังครบกำหนดไม่ปรับ
+    เกิน 3 วัน ปรับวันละ 50 บาท นับทุกวันตั้งแต่วันครบกำหนดจนถึงวันที่จ่ายจริง (รวมวันที่จ่ายด้วย)
+    เช่น นัดวันที่ 10 จ่ายวันที่ 14 = ล่าช้า 4 วัน (เกิน 3 วัน) = 4 x 50 = 200 บาท
+    """
+    if not due_date or not payment_date:
+        return 0, 0
+
+    days_late = (payment_date - due_date).days
+    if days_late <= 3:
+        return 0, max(days_late, 0)
+
+    return days_late * 50, days_late
+
+
 def _build_receipt(payment, account, items, total):
     """
     สร้างข้อมูลใบเสร็จรับเงินชั่วคราว สำหรับส่งกลับให้ frontend ไปเรนเดอร์เป็น PDF
@@ -189,16 +205,22 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             return Response({
                 'error': f'จำนวนเงินเกินกว่าหนี้คงเหลือ ({account.remaining_balance} บาท)'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # เก็บวันครบกำหนดเดิมไว้ก่อน เพราะ update_next_payment_date() ด้านล่างจะเปลี่ยนค่านี้ทับ
+        due_date = account.next_payment_date
+        payment_date = timezone.now().date()
+        late_fee, days_late = _calculate_late_fee(due_date, payment_date)
+
         payment = NPGPayment.objects.create(
             account=account,
-            payment_date=timezone.now().date(),
+            payment_date=payment_date,
             amount_paid=amount_paid,
             installment_number=account.paid_count + 1,  # จะถูกคำนวณใหม่ให้ถูกต้องใน _recalc_account อยู่ดี
             remaining_balance_after=0,  # จะถูกคำนวณใหม่ให้ถูกต้องใน _recalc_account อยู่ดี
             payment_method=payment_method,
             transfer_bank=transfer_bank,
             check_number=check_number,
+            late_fee=late_fee,
             note=note,
             created_by=request.user
         )
@@ -209,20 +231,31 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
 
         bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
         bike_desc = f" ({bike.model_name})" if bike else ""
+        receipt_items = [{
+            "description": f"ชำระค่างวดที่ {payment.installment_number}/{account.installment_count}{bike_desc}",
+            "amount": amount_paid,
+        }]
+        receipt_total = amount_paid
+        if late_fee:
+            receipt_items.append({
+                "description": f"ค่าปรับจ่ายล่าช้า ({days_late} วัน)",
+                "amount": late_fee,
+            })
+            receipt_total += late_fee
+
         receipt = _build_receipt(
             payment=payment,
             account=account,
-            items=[{
-                "description": f"ชำระค่างวดที่ {payment.installment_number}/{account.installment_count}{bike_desc}",
-                "amount": amount_paid,
-            }],
-            total=amount_paid,
+            items=receipt_items,
+            total=receipt_total,
         )
 
         serializer = self.get_serializer(account)
         return Response({
             'message': 'บันทึกการชำระเงินสำเร็จ',
             'payment_id': payment.id,
+            'late_fee': late_fee,
+            'days_late': days_late,
             'account': serializer.data,
             'receipt': receipt,
         })
