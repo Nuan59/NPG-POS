@@ -186,31 +186,45 @@ class CashflowViewSet(viewsets.ViewSet):
             except Exception:
                 current_user_name = ""
 
-            CashflowEntry.objects.filter(date=date_str).delete()
+            # ✅ เดิมใช้วิธี "ลบทั้งวันแล้วสร้างใหม่ทั้งหมดจากสิ่งที่ browser ส่งมา" ซึ่งถ้ามีหลายคน
+            # เปิดวันเดียวกันพร้อมกัน (auto-save คนละเครื่อง/แท็บ) ฝั่งที่บันทึกทีหลังจะลบรายการที่
+            # อีกฝั่งเพิ่งเพิ่มไปทิ้งหมด เพราะไม่รู้ว่ามีรายการใหม่เกิดขึ้นระหว่างนั้น
+            # เปลี่ยนเป็น: อัปเดตรายการที่มี id อยู่แล้ว / สร้างใหม่เฉพาะที่ไม่มี id / ลบเฉพาะ id ที่
+            # frontend "สั่งลบจริง" (กดกากบาทลบแถว) เท่านั้น - รายการของฝั่งอื่นที่เรายังไม่รู้จักจะไม่ถูกแตะ
+            def sync_section(rows_data, section, deleted_ids):
+                existing = {
+                    e.id: e for e in CashflowEntry.objects.filter(date=date_str, section=section)
+                }
 
-            objs = []
-            for idx, row in enumerate(data.get("cashRows", []) or []):
-                objs.append(CashflowEntry(
-                    date=date_str, section="cash", seq=idx,
-                    description=row.get("description", "") or "",
-                    income=row.get("income") or 0, sent=row.get("sent") or 0,
-                    expense=row.get("expense") or 0, change=row.get("change") or 0,
-                    deposit_return=row.get("depositReturn") or 0,
-                    cash_in=row.get("cashIn") or 0,
-                    created_by=row.get("createdBy") or current_user_name,
-                ))
-            for idx, row in enumerate(data.get("transferRows", []) or []):
-                objs.append(CashflowEntry(
-                    date=date_str, section="transfer", seq=idx,
-                    description=row.get("description", "") or "",
-                    income=row.get("income") or 0, sent=row.get("sent") or 0,
-                    expense=row.get("expense") or 0, change=row.get("change") or 0,
-                    deposit_return=row.get("depositReturn") or 0,
-                    cash_in=row.get("cashIn") or 0,
-                    created_by=row.get("createdBy") or current_user_name,
-                ))
-            if objs:
-                CashflowEntry.objects.bulk_create(objs)
+                ids_to_delete = [i for i in (deleted_ids or []) if i in existing]
+                if ids_to_delete:
+                    CashflowEntry.objects.filter(id__in=ids_to_delete).delete()
+                    for i in ids_to_delete:
+                        existing.pop(i, None)
+
+                next_seq = (max([e.seq for e in existing.values()], default=-1)) + 1
+
+                for row in rows_data:
+                    row_id = row.get("id")
+                    fields = dict(
+                        description=row.get("description", "") or "",
+                        income=row.get("income") or 0, sent=row.get("sent") or 0,
+                        expense=row.get("expense") or 0, change=row.get("change") or 0,
+                        deposit_return=row.get("depositReturn") or 0,
+                        cash_in=row.get("cashIn") or 0,
+                        created_by=row.get("createdBy") or current_user_name,
+                    )
+                    if row_id and row_id in existing:
+                        entry = existing[row_id]
+                        for k, v in fields.items():
+                            setattr(entry, k, v)
+                        entry.save()
+                    else:
+                        CashflowEntry.objects.create(date=date_str, section=section, seq=next_seq, **fields)
+                        next_seq += 1
+
+            sync_section(data.get("cashRows", []) or [], "cash", data.get("deletedCashIds"))
+            sync_section(data.get("transferRows", []) or [], "transfer", data.get("deletedTransferIds"))
 
             cash_override = data.get("cashOpeningOverride")
             transfer_override = data.get("transferOpeningOverride")

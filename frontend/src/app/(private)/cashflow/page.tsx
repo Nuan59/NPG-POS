@@ -50,6 +50,11 @@ export default function CashflowPage() {
   const skipAutoSaveRef = useRef(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
+  // ✅ เก็บ id ของแถวที่ "สั่งลบจริง" (กดกากบาทลบ) แยกไว้ต่างหาก แทนที่จะให้ backend เดาจากสิ่งที่
+  // หายไปจาก state ทั้งวัน - กันไม่ให้แถวที่อีกฝั่ง (คนละแท็บ/เครื่อง) เพิ่งเพิ่มมาโดนลบทิ้งไปด้วย
+  const deletedCashIdsRef = useRef<number[]>([]);
+  const deletedTransferIdsRef = useRef<number[]>([]);
+
   // ✅ Export ช่วงวันที่ (รวมหลายวันในรายงานเดียว)
   const [rangeFrom, setRangeFrom] = useState(() => todayStr().slice(0, 7) + "-01");
   const [rangeTo, setRangeTo] = useState(todayStr());
@@ -131,6 +136,8 @@ export default function CashflowPage() {
   useEffect(() => {
     loadDay(date);
     setCountedCash(""); // ✅ เปลี่ยนวันแล้วล้างค่านับเงินเก่าทิ้ง กันเอายอดวันก่อนมาเทียบผิดวัน
+    deletedCashIdsRef.current = [];
+    deletedTransferIdsRef.current = [];
   }, [date, loadDay]);
 
   const handleSave = useCallback(async (silent = false) => {
@@ -139,6 +146,8 @@ export default function CashflowPage() {
       date,
       cashRows: cashRows.filter((r) => r.description || r.amount).map(toApiRow),
       transferRows: transferRows.filter((r) => r.description || r.amount).map(toApiRow),
+      deletedCashIds: deletedCashIdsRef.current,
+      deletedTransferIds: deletedTransferIdsRef.current,
       checkerName: currentUserName,
       checkerDate: date,
     };
@@ -147,6 +156,9 @@ export default function CashflowPage() {
     if (result.status === "success") {
       setLastSavedAt(new Date());
       if (!silent) toast.success("บันทึกแล้ว");
+      // ✅ ลบสำเร็จแล้ว ล้าง id ที่เคยสั่งลบทิ้งได้ ไม่งั้น save รอบถัดไปจะพยายามลบซ้ำ (ไม่ error แต่ไม่จำเป็น)
+      deletedCashIdsRef.current = [];
+      deletedTransferIdsRef.current = [];
       // ✅ โหลดข้อมูลใหม่จาก server หลังบันทึกสำเร็จ - สำคัญมาก เพราะแถวที่เพิ่งบันทึกจะได้ "id"
       // กลับมา ทำให้ระบบล็อกไม่ให้พนักงานทั่วไปแก้ไข/ลบแถวนั้นได้อีก (ไม่งั้น id จะไม่มีวันติดมา
       // แล้วพนักงานจะแก้แถวเดิมไปเรื่อยๆ ได้ไม่จบ)
@@ -253,9 +265,11 @@ export default function CashflowPage() {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={setCashRows}
-                opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
+                opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin}
+                onRowDeleted={(row) => { if (row.id) deletedCashIdsRef.current.push(row.id); }} />
               <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={setTransferRows}
-                opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} />
+                opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin}
+                onRowDeleted={(row) => { if (row.id) deletedTransferIdsRef.current.push(row.id); }} />
             </div>
 
             {/* ✅ การ์ดสรุปยอด - โชว์ให้ทุกคนเห็นเหมือนกันแล้ว (พนักงานเห็นเหมือน admin) */}

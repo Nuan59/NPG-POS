@@ -51,6 +51,7 @@ export const toUIRow = (row: CashflowRow, defaultCreatedBy: string): UIRow => {
 
 export const toApiRow = (row: UIRow): CashflowRow => {
   const base: CashflowRow = {
+    id: row.id,
     description: row.description,
     income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0, cashIn: 0,
     createdBy: row.createdBy,

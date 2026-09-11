@@ -18,10 +18,11 @@ interface CashflowSectionProps {
   opening: number;
   currentUserName: string;
   isAdmin: boolean;
+  onRowDeleted?: (row: UIRow) => void;
 }
 
 const CashflowSection = ({
-  title, accent, rows, setRows, opening, currentUserName, isAdmin,
+  title, accent, rows, setRows, opening, currentUserName, isAdmin, onRowDeleted,
 }: CashflowSectionProps) => {
   const style = ACCENT[accent];
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -39,7 +40,10 @@ const CashflowSection = ({
     next[idx] = { ...next[idx], ...patch };
     setRows(next);
   };
-  const removeRow = (idx: number) => setRows(rows.filter((_, i) => i !== idx));
+  const removeRow = (idx: number) => {
+    onRowDeleted?.(rows[idx]);
+    setRows(rows.filter((_, i) => i !== idx));
+  };
 
   // ✅ สิทธิ์แก้ไข/ลบ:
   // - admin: แก้ไข/ลบได้ทุกแถว ไม่ว่าจะบันทึกไปแล้วหรือยัง
