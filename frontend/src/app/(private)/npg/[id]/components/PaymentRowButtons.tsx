@@ -29,6 +29,7 @@ export interface Payment {
   payment_method?: string;
   transfer_bank?: string;
   check_number?: string;
+  late_fee?: number;
   note: string;
 }
 
@@ -148,6 +149,14 @@ const PaymentRowButtons = ({ payment, accountId, isAdmin, onEdit, onDeleted }: P
                     {payment.amount_paid.toLocaleString()} ฿
                   </span>
                 </div>
+                {!!payment.late_fee && payment.late_fee > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">ค่าปรับล่าช้า</span>
+                    <span className="font-medium text-red-600">
+                      {payment.late_fee.toLocaleString()} ฿
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-500">คงเหลือหลังชำระ</span>
                   <span className="font-medium">

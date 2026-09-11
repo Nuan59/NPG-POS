@@ -67,6 +67,7 @@ interface AccountDetail {
   last_payment_date: string | null;
   progress_percentage: number;
   is_overdue?: boolean; // ✅ คำนวณสดจาก backend (status active + วันครบกำหนดผ่านมาแล้ว)
+  estimated_late_fee?: number; // ✅ ค่าปรับโดยประมาณถ้าจ่ายวันนี้ (ยังไม่ได้บันทึกจริง)
   payments: Payment[];
 }
 
@@ -79,6 +80,7 @@ interface Payment {
   payment_method?: string;
   transfer_bank?: string;
   check_number?: string;
+  late_fee?: number; // ✅ ค่าปรับจ่ายล่าช้าจริงที่คิดตอนบันทึกรายการนี้
   note: string;
 }
 
@@ -524,6 +526,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                 ค่างวดปกติ: {account.installment_amount.toLocaleString()} ฿
               </p>
             </div>
+            {!!account.estimated_late_fee && account.estimated_late_fee > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700 flex items-center gap-2">
+                <AlertTriangle size={16} className="shrink-0" />
+                จ่ายวันนี้จะมีค่าปรับล่าช้าเพิ่ม {account.estimated_late_fee.toLocaleString()} ฿
+                (ระบบจะคิดค่าปรับให้อัตโนมัติตอนกดบันทึก)
+              </div>
+            )}
             <div>
               <Label>วิธีการชำระ</Label>
               <div className="grid grid-cols-3 gap-2 mt-1">
@@ -748,6 +757,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
               <TableHead>วันที่ชำระ</TableHead>
               <TableHead>งวดที่</TableHead>
               <TableHead className="text-right">จำนวนเงิน</TableHead>
+              <TableHead className="text-right">ค่าปรับ</TableHead>
               <TableHead className="text-right">คงเหลือหลังชำระ</TableHead>
               <TableHead>วิธีชำระ</TableHead>
               <TableHead>หมายเหตุ</TableHead>
@@ -757,7 +767,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           <TableBody>
             {!account.payments || account.payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   ยังไม่มีประวัติการชำระเงิน
                 </TableCell>
               </TableRow>
@@ -774,6 +784,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   <TableCell>งวดที่ {payment.installment_number}</TableCell>
                   <TableCell className="text-right text-green-600 font-medium">
                     {payment.amount_paid.toLocaleString()} ฿
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {payment.late_fee && payment.late_fee > 0 ? (
+                      <span className="text-red-600 font-medium">{payment.late_fee.toLocaleString()} ฿</span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {payment.remaining_balance_after.toLocaleString()} ฿
