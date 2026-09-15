@@ -228,7 +228,8 @@ export default function CashflowPage() {
           </div>
         </div>
 
-        {/* ✅ Export ช่วงวันที่ - เลือกจาก-ถึง รวมหลายวันในรายงานเดียว */}
+        {/* ✅ Export ช่วงวันที่ - เลือกจาก-ถึง รวมหลายวันในรายงานเดียว (เฉพาะ admin) */}
+        {isAdmin && (
         <div className="bg-white rounded-xl shadow-md p-4 flex flex-wrap items-end gap-3">
           <div className="text-sm font-semibold text-gray-700 w-full sm:w-auto">
             📅 Export รายงานช่วงวันที่
@@ -269,6 +270,7 @@ export default function CashflowPage() {
             เลือกได้สูงสุด {MAX_RANGE_DAYS} วันต่อรายงาน
           </span>
         </div>
+        )}
 
         {loading ? (
           <div className="text-center text-gray-400 py-10">กำลังโหลด...</div>
@@ -298,6 +300,7 @@ export default function CashflowPage() {
               isAdmin={isAdmin}
             />
 
+            {isAdmin && (
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() =>
@@ -324,6 +327,7 @@ export default function CashflowPage() {
                 </button>
               </PDFDownloadLink>
             </div>
+            )}
 
             <CashflowSaveStatus
               currentUserName={currentUserName}
