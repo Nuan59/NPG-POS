@@ -78,10 +78,6 @@ export interface CashflowSaveDayPayload {
   date: string;
   cashRows: CashflowRow[];
   transferRows: CashflowRow[];
-  // ✅ id ของแถวที่ "สั่งลบจริง" (กดกากบาทลบ) แยกจากรายการปกติ - กันข้อมูลของอีกฝั่ง
-  // (คนละแท็บ/เครื่อง) โดนลบทิ้งไปด้วยตอนมีหลายคนกรอกวันเดียวกันพร้อมกัน
-  deletedCashIds?: number[];
-  deletedTransferIds?: number[];
   cashOpeningOverride?: string | number;
   transferOpeningOverride?: string | number;
   checkerName?: string;
