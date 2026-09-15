@@ -217,20 +217,6 @@ def debug_list_cashflow_entries(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-# ✅ Temp: เพิ่มคอลัมน์ late_fee (ค่าปรับจ่ายล่าช้า) เข้าตาราง npg_payments ที่มีอยู่แล้ว
-def add_npg_late_fee_column(request):
-    from django.db import connection
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                ALTER TABLE npg_payments
-                    ADD COLUMN IF NOT EXISTS late_fee NUMERIC(10, 2) NOT NULL DEFAULT 0;
-            """)
-        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์ late_fee เรียบร้อยแล้ว'})
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)})
-
-
 # ✅ Temp: แก้ข้อมูลบัญชี NPG ที่เป็น "รายปี" จริง (ตาม Order.npg_period) แต่ตอนสร้างบันทึก
 # period_type / next_payment_date ผิดเป็นรายเดือน (บั๊กเก่าก่อนแก้ OrderViewSet.py)
 # แก้แค่ period_type + next_payment_date เท่านั้น ไม่แตะ remaining_balance/installment_amount
@@ -267,6 +253,45 @@ def fix_npg_yearly_accounts(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+# ✅ Temp: ลบรายการ cashflow ที่ซ้ำกัน (เกิดจากบั๊ก auto-save วนไม่หยุด) สำหรับวันที่ระบุ
+# เรียกผ่าน: /dev/cleanup-cashflow-duplicates/?date=YYYY-MM-DD
+# เก็บไว้แค่ 1 รายการต่อกลุ่มที่ข้อมูลเหมือนกันทุก field (เอาอันที่ id น้อยสุด/สร้างก่อน)
+# ใช้ raw SQL เพราะจำนวนซ้ำอาจมีหลักแสน-ล้านแถว ทำผ่าน Django ORM ทีละแถวจะช้าเกินไป
+def cleanup_cashflow_duplicates(request):
+    from django.db import connection
+    date_str = request.GET.get("date")
+    if not date_str:
+        return JsonResponse({'status': 'error', 'message': 'ต้องระบุ ?date=YYYY-MM-DD'})
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM cashflow_entry WHERE date = %s", [date_str])
+            before_count = cursor.fetchone()[0]
+
+            cursor.execute(
+                """
+                DELETE FROM cashflow_entry
+                WHERE date = %s
+                AND id NOT IN (
+                    SELECT MIN(id) FROM cashflow_entry
+                    WHERE date = %s
+                    GROUP BY section, description, income, sent, expense, change, deposit_return, cash_in, created_by
+                )
+                """,
+                [date_str, date_str],
+            )
+            deleted_count = cursor.rowcount
+
+            cursor.execute("SELECT COUNT(*) FROM cashflow_entry WHERE date = %s", [date_str])
+            after_count = cursor.fetchone()[0]
+
+        return JsonResponse({
+            'status': 'ok', 'date': date_str,
+            'before': before_count, 'deleted': deleted_count, 'after': after_count,
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -293,7 +318,6 @@ urlpatterns = [
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
     path('dev/add-cashflow-cash-in-column/', add_cashflow_cash_in_column),
     path('dev/debug-list-cashflow-entries/', debug_list_cashflow_entries),
-    path('dev/add-npg-late-fee-column/', add_npg_late_fee_column),
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
 
@@ -331,4 +355,6 @@ urlpatterns = [
     path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
+
+    path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),
 ]
