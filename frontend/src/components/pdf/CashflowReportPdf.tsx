@@ -4,7 +4,7 @@
 
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { CashflowMonthData } from "@/services/CashflowService";
-import { UIRow, TYPE_LABEL, fmt, signedAmount, DayCashflowData } from "../util/cashflowUtil";
+import { UIRow, TYPE_LABEL, fmt, signedAmount, DayCashflowData } from "@/app/(private)/cashflow/util/cashflowUtil";
 
 const styles = StyleSheet.create({
   page: { padding: 28, fontSize: 10 },
