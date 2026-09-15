@@ -50,6 +50,15 @@ export default function CashflowPage() {
   const skipAutoSaveRef = useRef(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
+  // ✅ แก้บั๊ก auto-save วนไม่หยุด: เดิม effect จับ "มีการเปลี่ยนแปลง" จาก reference ของ
+  // cashRows/transferRows ทั้งก้อน ซึ่งพอ save เสร็จแล้ว loadDay() โหลดข้อมูลใหม่จาก server
+  // มันสร้าง array ก้อนใหม่ขึ้นมาเสมอ (แม้ข้อมูลเหมือนเดิม) ทำให้ effect เข้าใจผิดว่ามีการแก้ไข
+  // แล้ว save วนไม่จบ ตอนนี้ auto-save จะทำงานเฉพาะตอนคนแก้ไขเองผ่าน updateCashRows/
+  // updateTransferRows เท่านั้น การโหลดข้อมูลใหม่จาก server (loadDay) จะไม่ไปกระตุ้น auto-save อีก
+  const [dirtyTick, setDirtyTick] = useState(0);
+  const updateCashRows = (rows: UIRow[]) => { setCashRows(rows); setDirtyTick((t) => t + 1); };
+  const updateTransferRows = (rows: UIRow[]) => { setTransferRows(rows); setDirtyTick((t) => t + 1); };
+
   // ✅ เก็บ id ของแถวที่ "สั่งลบจริง" (กดกากบาทลบ) แยกไว้ต่างหาก แทนที่จะให้ backend เดาจากสิ่งที่
   // หายไปจาก state ทั้งวัน - กันไม่ให้แถวที่อีกฝั่ง (คนละแท็บ/เครื่อง) เพิ่งเพิ่มมาโดนลบทิ้งไปด้วย
   const deletedCashIdsRef = useRef<number[]>([]);
@@ -138,6 +147,7 @@ export default function CashflowPage() {
     setCountedCash(""); // ✅ เปลี่ยนวันแล้วล้างค่านับเงินเก่าทิ้ง กันเอายอดวันก่อนมาเทียบผิดวัน
     deletedCashIdsRef.current = [];
     deletedTransferIdsRef.current = [];
+    setDirtyTick(0);
   }, [date, loadDay]);
 
   const handleSave = useCallback(async (silent = false) => {
@@ -176,6 +186,7 @@ export default function CashflowPage() {
       skipAutoSaveRef.current = false;
       return;
     }
+    if (dirtyTick === 0) return; // ยังไม่มีการแก้ไขเองเลยตั้งแต่โหลดหน้า - ไม่ต้อง save
 
     const timer = setTimeout(() => {
       handleSave(true);
@@ -183,7 +194,7 @@ export default function CashflowPage() {
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cashRows, transferRows, cashOpening, transferOpening]);
+  }, [dirtyTick]);
 
   const openMonth = async () => {
     setMonthOpen(true);
@@ -264,10 +275,10 @@ export default function CashflowPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={setCashRows}
+              <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={updateCashRows}
                 opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin}
                 onRowDeleted={(row) => { if (row.id) deletedCashIdsRef.current.push(row.id); }} />
-              <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={setTransferRows}
+              <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={updateTransferRows}
                 opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin}
                 onRowDeleted={(row) => { if (row.id) deletedTransferIdsRef.current.push(row.id); }} />
             </div>
