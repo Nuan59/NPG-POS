@@ -19,6 +19,7 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.CashflowView import CashflowViewSet
+from api.views.TaskViewSet import TaskPostViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView
@@ -304,6 +305,7 @@ router.register(r'npg/payments', NPGPaymentViewSet, basename='npg-payment')
 router.register(r'issues', IssueViewSet, basename='issue')
 router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 router.register(r'cashflow', CashflowViewSet, basename='cashflow')
+router.register(r'tasks/posts', TaskPostViewSet, basename='task-posts')
 
 urlpatterns = [
     path("admin/", admin.site.urls),

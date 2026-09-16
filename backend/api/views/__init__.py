@@ -10,4 +10,5 @@ from .CustomerMapView import CustomerMapView
 from .PostalCodeLookupView import PostalCodeLookupView
 from .NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from .IssueViewSet import IssueViewSet, IssueUpdateViewSet
+from .TaskViewSet import TaskPostViewSet
 from . import ReportsView
