@@ -169,7 +169,7 @@ export default function NPGTable({
                     ยอดจัด
                   </th>
                   <th className="text-right p-3 font-semibold text-gray-600">
-                    ชำระแล้ว
+                    งวดต่อไป
                   </th>
                   <th className="text-right p-3 font-semibold text-gray-600">
                     คงเหลือ
@@ -234,7 +234,7 @@ export default function NPGTable({
                     </td>
                     <td className="p-3 text-right">
                       <span className="text-green-600 font-semibold">
-                        ฿{formatCurrency(account.total_paid)}
+                        ฿{formatCurrency(account.installment_amount)}
                       </span>
                     </td>
                     <td className="p-3 text-right">
