@@ -10,6 +10,7 @@ export interface TaskAssignment {
   employee_name: string;
   employee_username: string;
   status: "pending" | "in_progress" | "issue" | "done";
+  note: string;
   completed_at: string | null;
 }
 
@@ -18,6 +19,7 @@ export interface TaskPost {
   content: string;
   post_type: "general" | "assigned";
   created_by: string;
+  created_by_username: string;
   created_at: string;
   assignments: TaskAssignment[];
 }
@@ -94,6 +96,7 @@ export const deleteTaskPost = async (id: number) => {
 export const setTaskStatus = async (
   postId: number,
   taskStatus: "pending" | "in_progress" | "issue" | "done",
+  note?: string,
   employeeId?: number
 ) => {
   "use server";
@@ -101,7 +104,11 @@ export const setTaskStatus = async (
     const response = await authorizedFetch(`${process.env.API_URL}/tasks/posts/${postId}/set_status/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(employeeId ? { status: taskStatus, employee_id: employeeId } : { status: taskStatus }),
+      body: JSON.stringify({
+        status: taskStatus,
+        note: note ?? "",
+        ...(employeeId ? { employee_id: employeeId } : {}),
+      }),
     });
     if (!response?.ok) {
       return { status: "error", error: "อัปเดตสถานะไม่สำเร็จ" };

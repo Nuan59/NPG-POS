@@ -56,6 +56,11 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // ✅ แก้สถานะ+หมายเหตุแบบ inline ต่อ assignment
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draftStatus, setDraftStatus] = useState<"pending" | "in_progress" | "issue" | "done">("pending");
+  const [draftNote, setDraftNote] = useState("");
+
   const loadPosts = async () => {
     const data = await getTaskPosts();
     setPosts(data);
@@ -110,13 +115,16 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     }
   };
 
-  const handleSetStatus = async (
-    postId: number,
-    newStatus: "pending" | "in_progress" | "issue" | "done",
-    employeeIdForAdmin?: number
-  ) => {
-    const result = await setTaskStatus(postId, newStatus, employeeIdForAdmin);
+  const startEdit = (a: TaskPost["assignments"][number]) => {
+    setEditingId(a.id);
+    setDraftStatus(a.status);
+    setDraftNote(a.note || "");
+  };
+
+  const saveEdit = async (postId: number, employeeIdForAdmin?: number) => {
+    const result = await setTaskStatus(postId, draftStatus, draftNote, employeeIdForAdmin);
     if (result.status === "success") {
+      setEditingId(null);
       loadPosts();
     } else {
       toast.error(result.error || "อัปเดตไม่สำเร็จ");
@@ -147,7 +155,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
           <h3 className="font-semibold text-slate-800 text-sm">ประกาศ / มอบหมายงาน</h3>
         </div>
 
-        {isAdmin && (
+        {status === "authenticated" && (
           <Dialog
             open={dialogOpen}
             onOpenChange={(o) => {
@@ -201,17 +209,18 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
 
                 {postType === "assigned" && (
                   <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                    {employees
-                      .filter((e) => e.role !== "adm")
-                      .map((emp) => (
-                        <label key={emp.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Checkbox
-                            checked={selectedEmployees.includes(emp.id!)}
-                            onCheckedChange={() => toggleEmployeeSelect(emp.id!)}
-                          />
-                          {emp.name}
-                        </label>
-                      ))}
+                    {employees.map((emp) => (
+                      <label key={emp.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={selectedEmployees.includes(emp.id!)}
+                          onCheckedChange={() => toggleEmployeeSelect(emp.id!)}
+                        />
+                        {emp.name}
+                        {emp.role === "adm" && (
+                          <span className="text-[10px] text-orange-500 font-semibold">(ผู้ดูแลระบบ)</span>
+                        )}
+                      </label>
+                    ))}
                   </div>
                 )}
               </div>
@@ -242,7 +251,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                     โดย {post.created_by} • {formatDate(post.created_at)}
                   </p>
                 </div>
-                {isAdmin && (
+                {(isAdmin || post.created_by_username === myUsername) && (
                   <button
                     onClick={() => handleDelete(post.id)}
                     className="text-gray-300 hover:text-rose-500 shrink-0"
@@ -266,34 +275,61 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                           className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 ${meta.className} opacity-80`}
                         >
                           {a.employee_name}: {meta.label}
+                          {a.note && <span className="font-normal"> — {a.note}</span>}
                         </span>
                       );
                     }
 
+                    if (editingId === a.id) {
+                      return (
+                        <div key={a.id} className={`rounded-lg border-2 p-2.5 space-y-1.5 w-full sm:w-72 ${meta.className}`}>
+                          <div className="flex items-center gap-1.5 text-sm font-medium">
+                            <span>{a.employee_name}:</span>
+                            <select
+                              value={draftStatus}
+                              onChange={(e) => setDraftStatus(e.target.value as typeof draftStatus)}
+                              className="bg-transparent font-semibold outline-none cursor-pointer"
+                            >
+                              {Object.entries(STATUS_META).map(([value, m]) => (
+                                <option key={value} value={value}>
+                                  {m.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <input
+                            value={draftNote}
+                            onChange={(e) => setDraftNote(e.target.value)}
+                            placeholder="หมายเหตุ (ถ้ามี)"
+                            className="text-xs border rounded px-2 py-1.5 w-full bg-white/70 outline-none"
+                          />
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => saveEdit(post.id, isAdmin ? a.employee_id : undefined)}
+                              className="text-xs bg-gray-900 text-white rounded px-2.5 py-1 font-medium"
+                            >
+                              บันทึก
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="text-xs border rounded px-2.5 py-1 bg-white/70"
+                            >
+                              ยกเลิก
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div
+                      <button
                         key={a.id}
-                        className={`flex items-center gap-1.5 text-sm font-medium pl-3.5 pr-1.5 py-1.5 rounded-lg border-2 ${meta.className}`}
+                        onClick={() => startEdit(a)}
+                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 hover:shadow-md transition-all ${meta.className}`}
                       >
-                        <span>{a.employee_name}:</span>
-                        <select
-                          value={a.status}
-                          onChange={(e) =>
-                            handleSetStatus(
-                              post.id,
-                              e.target.value as "pending" | "in_progress" | "issue" | "done",
-                              isAdmin ? a.employee_id : undefined
-                            )
-                          }
-                          className="bg-transparent font-semibold outline-none cursor-pointer pr-1"
-                        >
-                          {Object.entries(STATUS_META).map(([value, m]) => (
-                            <option key={value} value={value}>
-                              {m.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                        <span>{a.employee_name}: {meta.label}</span>
+                        {a.note && <span className="text-xs font-normal opacity-80">📝 {a.note}</span>}
+                      </button>
                     );
                   })}
                 </div>
