@@ -3,6 +3,7 @@
 // วางไฟล์นี้ใน: frontend/src/app/(private)/employees/components/TaskBoard.tsx
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,10 +30,16 @@ interface TaskBoardProps {
 }
 
 const TaskBoard = ({ employees }: TaskBoardProps) => {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const userInfo = session?.user as any;
   const isAdmin = userInfo?.role === "adm";
   const myUsername = userInfo?.username as string | undefined;
+
+  useEffect(() => {
+    if (status === "unauthenticated") router.push("/login");
+  }, [status, router]);
+
 
   const [posts, setPosts] = useState<TaskPost[]>([]);
   const [loading, setLoading] = useState(true);
