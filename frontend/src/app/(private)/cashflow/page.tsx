@@ -63,6 +63,7 @@ export default function CashflowPage() {
   // หายไปจาก state ทั้งวัน - กันไม่ให้แถวที่อีกฝั่ง (คนละแท็บ/เครื่อง) เพิ่งเพิ่มมาโดนลบทิ้งไปด้วย
   const deletedCashIdsRef = useRef<number[]>([]);
   const deletedTransferIdsRef = useRef<number[]>([]);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ✅ Export ช่วงวันที่ (รวมหลายวันในรายงานเดียว)
   const [rangeFrom, setRangeFrom] = useState(() => todayStr().slice(0, 7) + "-01");
@@ -178,6 +179,45 @@ export default function CashflowPage() {
     }
   }, [date, cashRows, transferRows, currentUserName, loadDay]);
 
+  // ✅ ลบแถวแล้วบันทึกทันที (ไม่รอ debounce 1.2 วิ) เพราะถ้าผู้ใช้กดลบแล้วรีบสลับไปหน้าอื่นก่อน
+  // ครบเวลา การ auto-save ที่ค้างจะถูกยกเลิกไปเฉยๆ (component unmount เคลียร์ timer ทิ้ง) ทำให้
+  // การลบไม่ถูกบันทึกจริง พอกลับมาแถวจะโผล่กลับมาเหมือนเดิม (เหมือนลบไม่ติด)
+  const deleteRowNow = async (row: UIRow, section: "cash" | "transfer") => {
+    if (!row.id) return; // แถวที่ยังไม่เคยบันทึก - setRows ลบออกจากเครื่องพอแล้ว ไม่ต้องยิง API
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    if (section === "cash") deletedCashIdsRef.current.push(row.id);
+    else deletedTransferIdsRef.current.push(row.id);
+
+    const nextCashRows = section === "cash" ? cashRows.filter((r) => r.id !== row.id) : cashRows;
+    const nextTransferRows = section === "transfer" ? transferRows.filter((r) => r.id !== row.id) : transferRows;
+
+    setSaving(true);
+    const payload = {
+      date,
+      cashRows: nextCashRows.filter((r) => r.description || r.amount).map(toApiRow),
+      transferRows: nextTransferRows.filter((r) => r.description || r.amount).map(toApiRow),
+      deletedCashIds: deletedCashIdsRef.current,
+      deletedTransferIds: deletedTransferIdsRef.current,
+      checkerName: currentUserName,
+      checkerDate: date,
+    };
+    const result = await saveCashflowDay(payload);
+    setSaving(false);
+    if (result.status === "success") {
+      setLastSavedAt(new Date());
+      deletedCashIdsRef.current = [];
+      deletedTransferIdsRef.current = [];
+      loadDay(date);
+    } else {
+      toast.error(result.error || "ลบไม่สำเร็จ");
+    }
+  };
+
   // ✅ Auto-save - ทำงานให้ทุกคน (ไม่ใช่แค่ admin) เพราะพนักงานทั่วไปก็เพิ่มรายการเองได้แล้ว
   // หยุดพิมพ์ 1.2 วิ แล้วเซฟให้เอง
   useEffect(() => {
@@ -190,7 +230,9 @@ export default function CashflowPage() {
 
     const timer = setTimeout(() => {
       handleSave(true);
+      debounceTimerRef.current = null;
     }, 1200);
+    debounceTimerRef.current = timer;
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,10 +321,10 @@ export default function CashflowPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={updateCashRows}
                 opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin}
-                onRowDeleted={(row) => { if (row.id) deletedCashIdsRef.current.push(row.id); }} />
+                onRowDeleted={(row) => deleteRowNow(row, "cash")} />
               <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={updateTransferRows}
                 opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin}
-                onRowDeleted={(row) => { if (row.id) deletedTransferIdsRef.current.push(row.id); }} />
+                onRowDeleted={(row) => deleteRowNow(row, "transfer")} />
             </div>
 
             {/* ✅ การ์ดสรุปยอด - โชว์ให้ทุกคนเห็นเหมือนกันแล้ว (พนักงานเห็นเหมือน admin) */}
