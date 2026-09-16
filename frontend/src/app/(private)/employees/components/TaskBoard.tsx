@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2, Check } from "lucide-react";
+import { Megaphone, Plus, Trash2, Check, Square } from "lucide-react";
 import { IEmployee } from "@/types/IEmployee";
 import {
   TaskPost,
@@ -221,13 +221,13 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
       {posts.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-6">ยังไม่มีประกาศ</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {posts.map((post) => (
-            <div key={post.id} className="border rounded-lg p-3">
-              <div className="flex items-start justify-between gap-2">
+            <div key={post.id} className="border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm whitespace-pre-wrap">{post.content}</p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-base whitespace-pre-wrap leading-relaxed">{post.content}</p>
+                  <p className="text-xs text-gray-400 mt-2">
                     โดย {post.created_by} • {formatDate(post.created_at)}
                   </p>
                 </div>
@@ -236,13 +236,13 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                     onClick={() => handleDelete(post.id)}
                     className="text-gray-300 hover:text-rose-500 shrink-0"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={18} />
                   </button>
                 )}
               </div>
 
               {post.post_type === "assigned" && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {post.assignments.map((a) => {
                     const isMine = a.employee_username === myUsername;
                     const canToggle = isAdmin || isMine;
@@ -251,14 +251,21 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                         key={a.id}
                         disabled={!canToggle}
                         onClick={() => canToggle && handleToggle(post.id, isAdmin ? a.employee_id : undefined)}
-                        className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 ${
+                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex items-center gap-1.5 transition-all ${
                           a.status === "done"
-                            ? "bg-emerald-50 border-emerald-300 text-emerald-700"
-                            : "bg-amber-50 border-amber-300 text-amber-700"
-                        } ${canToggle ? "cursor-pointer hover:opacity-80" : "cursor-default opacity-70"}`}
+                            ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                            : "bg-amber-50 border-amber-400 text-amber-700"
+                        } ${
+                          canToggle
+                            ? "cursor-pointer hover:shadow-md hover:scale-[1.02]"
+                            : "cursor-default opacity-70"
+                        }`}
                       >
-                        {a.status === "done" && <Check size={12} />}
+                        {a.status === "done" ? <Check size={16} /> : <Square size={16} />}
                         {a.employee_name}: {a.status === "done" ? "ทำแล้ว" : "ยังไม่ทำ"}
+                        {isMine && !isAdmin && (
+                          <span className="text-[10px] opacity-70">(กดเปลี่ยนสถานะได้)</span>
+                        )}
                       </button>
                     );
                   })}
