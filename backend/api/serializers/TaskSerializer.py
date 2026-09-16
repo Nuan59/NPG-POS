@@ -13,7 +13,7 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskAssignment
-        fields = ["id", "employee_id", "employee_name", "employee_username", "status", "completed_at"]
+        fields = ["id", "employee_id", "employee_name", "employee_username", "status", "note", "completed_at"]
 
 
 class TaskPostSerializer(serializers.ModelSerializer):
@@ -21,5 +21,5 @@ class TaskPostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskPost
-        fields = ["id", "content", "post_type", "created_by", "created_at", "assignments"]
-        read_only_fields = ["id", "created_by", "created_at"]
+        fields = ["id", "content", "post_type", "created_by", "created_by_username", "created_at", "assignments"]
+        read_only_fields = ["id", "created_by", "created_by_username", "created_at"]

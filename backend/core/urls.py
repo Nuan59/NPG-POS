@@ -335,6 +335,17 @@ def fix_task_migration(request):
 
 
 router = routers.DefaultRouter()
+
+# ✅ Temp: เพิ่มคอลัมน์ created_by_username / note ที่ตาราง Task (พนักงานโพสต์กันเองได้ + ใส่หมายเหตุตอนเปลี่ยนสถานะ)
+def add_task_note_columns(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("ALTER TABLE task_post ADD COLUMN IF NOT EXISTS created_by_username VARCHAR(255) NOT NULL DEFAULT '';")
+            cursor.execute("ALTER TABLE task_assignment ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '';")
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -357,6 +368,7 @@ urlpatterns = [
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/fix-task-migration/', fix_task_migration),
+    path('dev/add-task-note-columns/', add_task_note_columns),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),

@@ -34,7 +34,9 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             return qs
         username = getattr(self.request.user, "username", None)
         return qs.filter(
-            Q(post_type="general") | Q(assignments__employee__username=username)
+            Q(post_type="general")
+            | Q(assignments__employee__username=username)
+            | Q(created_by_username=username)
         ).distinct()
 
     def _is_admin(self, request):
@@ -44,9 +46,6 @@ class TaskPostViewSet(viewsets.ModelViewSet):
         return getattr(request.user, "name", None) or getattr(request.user, "username", "") or ""
 
     def create(self, request, *args, **kwargs):
-        if not self._is_admin(request):
-            return Response({"error": "เฉพาะผู้ดูแลระบบเท่านั้นที่ประกาศได้"}, status=status.HTTP_403_FORBIDDEN)
-
         content = (request.data.get("content") or "").strip()
         if not content:
             return Response({"error": "กรุณากรอกเนื้อหา"}, status=status.HTTP_400_BAD_REQUEST)
@@ -55,12 +54,13 @@ class TaskPostViewSet(viewsets.ModelViewSet):
         employee_ids = request.data.get("employee_ids") or []
 
         if post_type == "assigned" and not employee_ids:
-            return Response({"error": "กรุณาเลือกพนักงานที่จะมอบหมาย"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "กรุณาเลือกคนที่จะมอบหมาย"}, status=status.HTTP_400_BAD_REQUEST)
 
         post = TaskPost.objects.create(
             content=content,
             post_type=post_type,
             created_by=self._display_name(request),
+            created_by_username=getattr(request.user, "username", "") or "",
         )
 
         if post_type == "assigned":
@@ -73,8 +73,10 @@ class TaskPostViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(post).data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, *args, **kwargs):
-        if not self._is_admin(request):
-            return Response({"error": "เฉพาะผู้ดูแลระบบเท่านั้นที่ลบได้"}, status=status.HTTP_403_FORBIDDEN)
+        post = self.get_object()
+        is_owner = post.created_by_username == getattr(request.user, "username", None)
+        if not (self._is_admin(request) or is_owner):
+            return Response({"error": "ลบได้เฉพาะ admin หรือคนที่โพสต์เองเท่านั้น"}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], url_path="set_status")
@@ -96,6 +98,8 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             return Response({"error": "ไม่พบงานที่มอบหมายให้คนนี้"}, status=status.HTTP_404_NOT_FOUND)
 
         assignment.status = new_status
+        if "note" in request.data:
+            assignment.note = request.data.get("note") or ""
         assignment.completed_at = timezone.now() if new_status == "done" else None
         assignment.save()
 

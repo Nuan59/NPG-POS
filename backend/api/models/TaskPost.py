@@ -18,7 +18,8 @@ class TaskPost(models.Model):
 
     content = models.TextField(verbose_name="เนื้อหา")
     post_type = models.CharField(max_length=20, choices=POST_TYPE_CHOICES, default="general")
-    created_by = models.CharField(max_length=255, blank=True, default="")  # ชื่อ admin ที่โพสต์
+    created_by = models.CharField(max_length=255, blank=True, default="")  # ชื่อที่โชว์ (คนโพสต์)
+    created_by_username = models.CharField(max_length=255, blank=True, default="")  # username จริง (เช็คสิทธิ์)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -45,6 +46,7 @@ class TaskAssignment(models.Model):
     post = models.ForeignKey(TaskPost, on_delete=models.CASCADE, related_name="assignments")
     employee = models.ForeignKey("User", on_delete=models.CASCADE, related_name="task_assignments")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    note = models.TextField(blank=True, default="", verbose_name="หมายเหตุ")
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
