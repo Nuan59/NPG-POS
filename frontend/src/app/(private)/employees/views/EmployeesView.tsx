@@ -17,6 +17,7 @@ import Link from "next/link";
 import { handleFilter } from "@/app/hooks/useFilter";
 import TableLoading from "@/components/global/TableLoading";
 import WorkHoursSettings from "../components/WorkHoursSettings";
+import TaskBoard from "../components/TaskBoard";
 
 interface EmployeesViewProps {
 	employees: IEmployee[];
@@ -60,6 +61,8 @@ const EmployeesView = ({ employees }: EmployeesViewProps) => {
 			</div>
 
 			<WorkHoursSettings />
+
+			<TaskBoard employees={employees} />
 
 		<Suspense fallback={<TableLoading />}>
 				<ScrollArea className="mt-3">
