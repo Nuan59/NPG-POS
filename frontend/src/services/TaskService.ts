@@ -9,7 +9,7 @@ export interface TaskAssignment {
   employee_id: number;
   employee_name: string;
   employee_username: string;
-  status: "pending" | "done";
+  status: "pending" | "in_progress" | "issue" | "done";
   completed_at: string | null;
 }
 
@@ -91,18 +91,23 @@ export const deleteTaskPost = async (id: number) => {
   }
 };
 
-export const toggleTaskStatus = async (postId: number, employeeId?: number) => {
+export const setTaskStatus = async (
+  postId: number,
+  taskStatus: "pending" | "in_progress" | "issue" | "done",
+  employeeId?: number
+) => {
   "use server";
   try {
-    const response = await authorizedFetch(`${process.env.API_URL}/tasks/posts/${postId}/toggle_status/`, {
+    const response = await authorizedFetch(`${process.env.API_URL}/tasks/posts/${postId}/set_status/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(employeeId ? { employee_id: employeeId } : {}),
+      body: JSON.stringify(employeeId ? { status: taskStatus, employee_id: employeeId } : { status: taskStatus }),
     });
     if (!response?.ok) {
       return { status: "error", error: "อัปเดตสถานะไม่สำเร็จ" };
     }
     revalidatePath("/employees");
+    revalidatePath("/tasks");
     revalidateTag("taskPosts");
     const data = await response.json();
     return { status: "success", data: data as TaskPost };

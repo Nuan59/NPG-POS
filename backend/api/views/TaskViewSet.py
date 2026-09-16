@@ -5,6 +5,7 @@
 # แล้ว register ใน urls.py (แถวเดียวกับ router.register('npg/accounts', ...)):
 #   router.register('tasks/posts', TaskPostViewSet, basename='task-posts')
 from django.apps import apps
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -16,15 +17,25 @@ from api.serializers.TaskSerializer import TaskPostSerializer
 
 class TaskPostViewSet(viewsets.ModelViewSet):
     """
-    GET    /tasks/posts/                     รายการโพสต์ทั้งหมด (ล่าสุดก่อน)
+    GET    /tasks/posts/                     รายการโพสต์ - admin เห็นหมด, พนักงานเห็นเฉพาะ
+             ประกาศทั่วไป + โพสต์ที่ตัวเองถูกมอบหมายเท่านั้น (โพสต์เฉพาะคนอื่นจะไม่เห็นเลย)
     POST   /tasks/posts/                     สร้างโพสต์ใหม่ (เฉพาะ admin)
              body: { content, post_type: "general"|"assigned", employee_ids?: [1,2,...] }
     DELETE /tasks/posts/{id}/                 ลบโพสต์ (เฉพาะ admin)
-    POST   /tasks/posts/{id}/toggle_status/   สลับสถานะทำแล้ว/ยังไม่ทำของ "ตัวเอง"
-             admin สลับของคนอื่นได้โดยส่ง { employee_id } มาด้วย
+    POST   /tasks/posts/{id}/set_status/       ตั้งสถานะของ "ตัวเอง"
+             body: { status: "pending"|"in_progress"|"issue"|"done" }
+             admin ตั้งของคนอื่นได้โดยส่ง { employee_id } มาด้วย
     """
-    queryset = TaskPost.objects.all().prefetch_related("assignments", "assignments__employee")
     serializer_class = TaskPostSerializer
+
+    def get_queryset(self):
+        qs = TaskPost.objects.all().prefetch_related("assignments", "assignments__employee")
+        if self._is_admin(self.request):
+            return qs
+        username = getattr(self.request.user, "username", None)
+        return qs.filter(
+            Q(post_type="general") | Q(assignments__employee__username=username)
+        ).distinct()
 
     def _is_admin(self, request):
         return getattr(request.user, "role", None) == "adm"
@@ -66,10 +77,15 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             return Response({"error": "เฉพาะผู้ดูแลระบบเท่านั้นที่ลบได้"}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
-    @action(detail=True, methods=["post"], url_path="toggle_status")
-    def toggle_status(self, request, pk=None):
+    @action(detail=True, methods=["post"], url_path="set_status")
+    def set_status(self, request, pk=None):
         post = self.get_object()
         is_admin = self._is_admin(request)
+
+        new_status = request.data.get("status")
+        valid_statuses = [c[0] for c in TaskAssignment.STATUS_CHOICES]
+        if new_status not in valid_statuses:
+            return Response({"error": "สถานะไม่ถูกต้อง"}, status=status.HTTP_400_BAD_REQUEST)
 
         employee_id = request.data.get("employee_id")
         target_id = employee_id if (employee_id and is_admin) else request.user.id
@@ -79,8 +95,8 @@ class TaskPostViewSet(viewsets.ModelViewSet):
         except TaskAssignment.DoesNotExist:
             return Response({"error": "ไม่พบงานที่มอบหมายให้คนนี้"}, status=status.HTTP_404_NOT_FOUND)
 
-        assignment.status = "done" if assignment.status == "pending" else "pending"
-        assignment.completed_at = timezone.now() if assignment.status == "done" else None
+        assignment.status = new_status
+        assignment.completed_at = timezone.now() if new_status == "done" else None
         assignment.save()
 
         return Response(self.get_serializer(post).data)

@@ -15,15 +15,22 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2, Check, Square } from "lucide-react";
+import { Megaphone, Plus, Trash2 } from "lucide-react";
 import { IEmployee } from "@/types/IEmployee";
 import {
   TaskPost,
   getTaskPosts,
   createTaskPost,
   deleteTaskPost,
-  toggleTaskStatus,
+  setTaskStatus,
 } from "@/services/TaskService";
+
+const STATUS_META: Record<string, { label: string; className: string }> = {
+  pending: { label: "ยังไม่ทำ", className: "bg-amber-50 border-amber-400 text-amber-700" },
+  in_progress: { label: "กำลังทำ", className: "bg-blue-50 border-blue-400 text-blue-700" },
+  issue: { label: "ติดปัญหา", className: "bg-red-50 border-red-400 text-red-700" },
+  done: { label: "ทำแล้ว", className: "bg-emerald-50 border-emerald-400 text-emerald-700" },
+};
 
 interface TaskBoardProps {
   employees: IEmployee[];
@@ -103,8 +110,12 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     }
   };
 
-  const handleToggle = async (postId: number, employeeIdForAdmin?: number) => {
-    const result = await toggleTaskStatus(postId, employeeIdForAdmin);
+  const handleSetStatus = async (
+    postId: number,
+    newStatus: "pending" | "in_progress" | "issue" | "done",
+    employeeIdForAdmin?: number
+  ) => {
+    const result = await setTaskStatus(postId, newStatus, employeeIdForAdmin);
     if (result.status === "success") {
       loadPosts();
     } else {
@@ -246,27 +257,43 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                   {post.assignments.map((a) => {
                     const isMine = a.employee_username === myUsername;
                     const canToggle = isAdmin || isMine;
+                    const meta = STATUS_META[a.status] || STATUS_META.pending;
+
+                    if (!canToggle) {
+                      return (
+                        <span
+                          key={a.id}
+                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 ${meta.className} opacity-80`}
+                        >
+                          {a.employee_name}: {meta.label}
+                        </span>
+                      );
+                    }
+
                     return (
-                      <button
+                      <div
                         key={a.id}
-                        disabled={!canToggle}
-                        onClick={() => canToggle && handleToggle(post.id, isAdmin ? a.employee_id : undefined)}
-                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex items-center gap-1.5 transition-all ${
-                          a.status === "done"
-                            ? "bg-emerald-50 border-emerald-400 text-emerald-700"
-                            : "bg-amber-50 border-amber-400 text-amber-700"
-                        } ${
-                          canToggle
-                            ? "cursor-pointer hover:shadow-md hover:scale-[1.02]"
-                            : "cursor-default opacity-70"
-                        }`}
+                        className={`flex items-center gap-1.5 text-sm font-medium pl-3.5 pr-1.5 py-1.5 rounded-lg border-2 ${meta.className}`}
                       >
-                        {a.status === "done" ? <Check size={16} /> : <Square size={16} />}
-                        {a.employee_name}: {a.status === "done" ? "ทำแล้ว" : "ยังไม่ทำ"}
-                        {isMine && !isAdmin && (
-                          <span className="text-[10px] opacity-70">(กดเปลี่ยนสถานะได้)</span>
-                        )}
-                      </button>
+                        <span>{a.employee_name}:</span>
+                        <select
+                          value={a.status}
+                          onChange={(e) =>
+                            handleSetStatus(
+                              post.id,
+                              e.target.value as "pending" | "in_progress" | "issue" | "done",
+                              isAdmin ? a.employee_id : undefined
+                            )
+                          }
+                          className="bg-transparent font-semibold outline-none cursor-pointer pr-1"
+                        >
+                          {Object.entries(STATUS_META).map(([value, m]) => (
+                            <option key={value} value={value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     );
                   })}
                 </div>

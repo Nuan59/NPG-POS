@@ -1,11 +1,16 @@
 ﻿"use client";
 // TaskNotificationIcon.tsx
+// วางไฟล์นี้ใน: frontend/src/components/global/TaskNotificationIcon.tsx
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 import { getTaskPosts } from "@/services/TaskService";
 
+/**
+ * ไอคอนถาวรใน Navbar สำหรับเช็คงานที่ถูกมอบหมาย - กดแล้วพาไปหน้า /tasks
+ * แสดงตัวเลขจำนวนงานค้าง (ยังไม่ทำ) ของตัวเอง ถ้าไม่มีงานค้างจะไม่โชว์ badge
+ */
 const TaskNotificationIcon = () => {
   const { data: session, status } = useSession();
   const userInfo = session?.user as any;
@@ -22,11 +27,11 @@ const TaskNotificationIcon = () => {
         const count = posts.filter(
           (p) =>
             p.post_type === "assigned" &&
-            p.assignments.some((a) => a.employee_username === myUsername && a.status === "pending")
+            p.assignments.some((a) => a.employee_username === myUsername && a.status !== "done")
         ).length;
         setPendingCount(count);
       } catch (error) {
-        console.error("ดึงจำนวนงานค้างไม่สำเร็จ:", error);
+        console.error("❌ ดึงจำนวนงานค้างไม่สำเร็จ:", error);
       }
     };
 

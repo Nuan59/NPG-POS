@@ -44,7 +44,7 @@ const TaskLoginNotification = () => {
         const myPending = posts.filter(
           (p) =>
             p.post_type === "assigned" &&
-            p.assignments.some((a) => a.employee_username === myUsername && a.status === "pending")
+            p.assignments.some((a) => a.employee_username === myUsername && a.status !== "done")
         );
 
         if (myPending.length > 0) {

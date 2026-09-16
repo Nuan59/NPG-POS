@@ -37,6 +37,8 @@ class TaskAssignment(models.Model):
     """
     STATUS_CHOICES = [
         ("pending", "ยังไม่ทำ"),
+        ("in_progress", "กำลังทำ"),
+        ("issue", "ติดปัญหา"),
         ("done", "ทำแล้ว"),
     ]
 
