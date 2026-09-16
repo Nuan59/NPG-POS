@@ -293,6 +293,47 @@ def cleanup_cashflow_duplicates(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+# ✅ Temp: สร้างตาราง Task ด้วย raw SQL แล้ว fake-mark migration ที่ค้างว่า apply แล้ว
+# กันชนตาราง cashflow เก่าที่เคยสร้างด้วย raw SQL มาก่อน (ไม่ผ่าน migration history)
+def fix_task_migration(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    from django.core.management import call_command
+    from io import StringIO
+
+    try:
+        User = django_apps.get_model('api', 'User')
+        user_table = User._meta.db_table
+
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS task_post (
+                    id BIGSERIAL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    post_type VARCHAR(20) NOT NULL DEFAULT 'general',
+                    created_by VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS task_assignment (
+                    id BIGSERIAL PRIMARY KEY,
+                    post_id BIGINT NOT NULL REFERENCES task_post(id) ON DELETE CASCADE,
+                    employee_id BIGINT NOT NULL REFERENCES "{user_table}"(id) ON DELETE CASCADE,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    completed_at TIMESTAMPTZ NULL,
+                    UNIQUE (post_id, employee_id)
+                );
+            """)
+
+        out = StringIO()
+        call_command('migrate', 'api', fake=True, stdout=out)
+
+        return JsonResponse({'status': 'ok', 'user_table': user_table, 'output': out.getvalue()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
 router = routers.DefaultRouter()
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
@@ -315,6 +356,7 @@ urlpatterns = [
     path('dev/migrate-only/', run_migrate_only),
     path('dev/fake-0019/', fake_migrate_0019),
     path('dev/fake-0021/', fake_migrate_0021),
+    path('dev/fix-task-migration/', fix_task_migration),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
