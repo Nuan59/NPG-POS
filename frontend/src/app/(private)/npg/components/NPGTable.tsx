@@ -234,8 +234,13 @@ export default function NPGTable({
                     </td>
                     <td className="p-3 text-right">
                       <span className="text-green-600 font-semibold">
-                        ฿{formatCurrency(account.installment_amount)}
+                        ฿{formatCurrency(account.installment_amount + (account.estimated_late_fee || 0))}
                       </span>
+                      {!!account.estimated_late_fee && account.estimated_late_fee > 0 && (
+                        <div className="text-xs text-red-500 font-medium mt-0.5">
+                          (รวมค่าปรับ ฿{formatCurrency(account.estimated_late_fee)})
+                        </div>
+                      )}
                     </td>
                     <td className="p-3 text-right">
                       <span className={isOverdue ? "text-red-600 font-bold" : "text-orange-600 font-semibold"}>
