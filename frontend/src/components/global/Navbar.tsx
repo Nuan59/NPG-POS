@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import BirthdayNotification from "@/components/BirthdayNotification";
 import NPGNotification from "@/components/Npgnotification";
 import RegistrationExpiryNotification from '@/components/Registrationexpirynotification';
+import TaskNotificationIcon from "@/components/global/TaskNotificationIcon";
 import { useState } from "react";
 import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
 import { getRequiredPermission } from "@/util/RoutePermissions";
@@ -74,6 +75,7 @@ export const Navbar = () => {
             <BirthdayNotification />
             <RegistrationExpiryNotification />
             <NPGNotification />
+            <TaskNotificationIcon />
             <button
               onClick={() => signOut()}
               className="p-2 rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-110 transition-all duration-300"
