@@ -169,6 +169,21 @@ class NPGAccount(models.Model):
         """
         คำนวณยอดปิดบัญชี (ลดดอกเบี้ยตามจำนวนเดือนที่เหลือ)
         """
+        # ✅ กันหารด้วย 0 - ถ้า installment_count เป็น 0 (ข้อมูลตั้งค่าผิด/บัญชีทดสอบ) หรือ
+        # ไม่มีงวดเหลือให้ปิดแล้ว ให้ปิดด้วยยอดหนี้คงเหลือตรงๆ ไม่มีส่วนลด แทนที่จะ error 500
+        if not self.installment_count or self.installment_count <= 0:
+            remaining_balance = float(self.remaining_balance)
+            return {
+                'remaining_installments': 0,
+                'remaining_months': 0,
+                'principal_per_installment': 0,
+                'remaining_principal': 0,
+                'interest_per_month': 0,
+                'remaining_interest': 0,
+                'discount': 0,
+                'close_amount': round(remaining_balance, 2),
+            }
+
         remaining_installments = self.installment_count - self.paid_count
         
         if self.period_type == 'รายปี':
