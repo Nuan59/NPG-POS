@@ -165,8 +165,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     const interestPerMonthRaw = data.finance_amount * (data.interest_rate / 100);
     const interestPerMonth = Math.round(interestPerMonthRaw);
     
-    // ส่วนลด = ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ
-    const discount = interestPerMonth * remainingMonths;
+    // ส่วนลด = (ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ) ÷ 2 - ต้องตรงกับสูตรฝั่ง backend
+    // (NPGAccount.calculate_close_amount) เป๊ะ ไม่งั้นตัวเลข preview กับยอดที่บันทึกจริงจะไม่ตรงกัน
+    const discount = (interestPerMonth * remainingMonths) / 2;
     
     // ยอดปิดบัญชี = หนี้คงเหลือ - ส่วนลด
     return Math.round(data.remaining_balance - discount);
