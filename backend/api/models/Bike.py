@@ -19,7 +19,7 @@ class Bike(models.Model):
         # ไม่นับเป็นสต็อกขาย ไม่ต้องมี storage_place/ราคาขาย
         ('customer_owned', 'Customer Owned'),
     ]
-    category   = models.CharField(max_length=10, choices=CATEGORY_CHOICES, default='new')
+    category   = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='new')
 
     sale_price = models.DecimalField(max_digits=9, decimal_places=2, null=True, blank=True)
     wholesale_price = models.CharField(max_length=20, null=True, blank=True)
