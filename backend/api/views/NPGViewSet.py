@@ -272,7 +272,13 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             return Response({'error': 'บัญชีนี้ชำระครบแล้ว'}, status=status.HTTP_400_BAD_REQUEST)
         if account.status == 'closed':
             return Response({'error': 'บัญชีนี้ถูกปิดแล้ว'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        # ✅ คำนวณ paid_count / remaining_balance ใหม่จากประวัติการชำระจริงก่อนเสมอ
+        # กันกรณีคอลัมน์ paid_count ในฐานข้อมูลค้างไม่ตรงกับจำนวนงวดที่จ่ายจริง
+        # (เคยเจอเคสจ่ายจริง 18 งวด แต่คอลัมน์ค้างที่ 12 ทำให้คำนวณส่วนลดดอกเบี้ยผิดเพี้ยนไปเท่าตัว)
+        _recalc_account(account)
+        account.refresh_from_db()
+
         close_calculation = account.calculate_close_amount()
         close_amount = request.data.get('close_amount')
         close_amount = float(close_amount) if close_amount is not None else close_calculation['close_amount']
