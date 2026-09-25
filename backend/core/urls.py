@@ -336,6 +336,20 @@ def fix_task_migration(request):
 
 router = routers.DefaultRouter()
 
+# ✅ Temp: ทำคอลัมน์ chassi (เลขตัวถัง) ของตาราง Bike ให้ไม่บังคับใน DB
+# กันเคสลงทะเบียนรถลูกค้าที่ไม่ได้ซื้อกับเราแล้วไม่มีเลขตัวถัง
+def make_chassi_optional(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        Bike = django_apps.get_model('api', 'Bike')
+        table = Bike._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f'ALTER TABLE "{table}" ALTER COLUMN chassi DROP NOT NULL;')
+        return JsonResponse({'status': 'ok', 'table': table, 'message': 'เลขตัวถังไม่บังคับแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เพิ่มคอลัมน์ created_by_username / note ที่ตาราง Task (พนักงานโพสต์กันเองได้ + ใส่หมายเหตุตอนเปลี่ยนสถานะ)
 def add_task_note_columns(request):
     from django.db import connection
@@ -369,6 +383,7 @@ urlpatterns = [
     path('dev/fake-0021/', fake_migrate_0021),
     path('dev/fix-task-migration/', fix_task_migration),
     path('dev/add-task-note-columns/', add_task_note_columns),
+    path('dev/make-chassi-optional/', make_chassi_optional),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
