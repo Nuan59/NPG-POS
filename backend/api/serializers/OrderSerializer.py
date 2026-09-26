@@ -103,4 +103,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'has_checkout',
             'notes',
             'registration_expiry_date',  # ✅ วันหมดอายุทะเบียน
+            'transaction_type',          # ✅ ประเภทธุรกรรม (ขาย/ซ่อม/ต่อภาษี+พรบ/อื่นๆ)
+            'transaction_type_detail',   # ✅ รายละเอียดประเภทงาน (กรณี "อื่นๆ")
+            'mileage',                   # ✅ เลขไมล์ตอนรับบริการ
         ]

@@ -336,6 +336,21 @@ def fix_task_migration(request):
 
 router = routers.DefaultRouter()
 
+# ✅ Temp: เพิ่มคอลัมน์ transaction_type/transaction_type_detail/mileage ให้ตาราง Order
+def add_order_service_columns(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        Order = django_apps.get_model('api', 'Order')
+        table = Order._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"ALTER TABLE \"{table}\" ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(20) NOT NULL DEFAULT 'ขาย';")
+            cursor.execute(f"ALTER TABLE \"{table}\" ADD COLUMN IF NOT EXISTS transaction_type_detail VARCHAR(255) NOT NULL DEFAULT '';")
+            cursor.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS mileage INTEGER NULL;')
+        return JsonResponse({'status': 'ok', 'table': table, 'message': 'เพิ่มคอลัมน์เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: ทำคอลัมน์ chassi (เลขตัวถัง) ของตาราง Bike ให้ไม่บังคับใน DB
 # กันเคสลงทะเบียนรถลูกค้าที่ไม่ได้ซื้อกับเราแล้วไม่มีเลขตัวถัง
 def make_chassi_optional(request):
@@ -384,6 +399,7 @@ urlpatterns = [
     path('dev/fix-task-migration/', fix_task_migration),
     path('dev/add-task-note-columns/', add_task_note_columns),
     path('dev/make-chassi-optional/', make_chassi_optional),
+    path('dev/add-order-service-columns/', add_order_service_columns),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),

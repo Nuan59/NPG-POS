@@ -59,6 +59,29 @@ class Order(models.Model):
         ('completed',        'เสร็จสิ้น รอลูกค้ารับเล่ม'),
         ('received_book',    'ลูกค้ารับเล่มแล้ว'),
     ]
+
+    # ✅ ประเภทธุรกรรม - เดิม frontend ส่งมาแต่ backend ไม่เคยบันทึกจริง (หายไปตลอด)
+    # จำเป็นสำหรับแยกดู "ประวัติการรับบริการ" ของรถแต่ละคันในอนาคต
+    TRANSACTION_TYPE_CHOICES = [
+        ('ขาย', 'ขาย'),
+        ('ซ่อม', 'ซ่อม'),
+        ('ต่อภาษี+พรบ', 'ต่อภาษี+พรบ'),
+        ('อื่นๆ', 'อื่นๆ'),
+    ]
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_TYPE_CHOICES,
+        default='ขาย',
+        verbose_name='ประเภทธุรกรรม'
+    )
+    transaction_type_detail = models.CharField(
+        max_length=255, null=True, blank=True, default='',
+        verbose_name='รายละเอียดประเภทงาน (กรณี "อื่นๆ")'
+    )
+
+    # ✅ เลขไมล์ ณ ตอนรับบริการ - ใช้ทำประวัติการรับบริการของรถ + ช่วยสังเกตความผิดปกติ
+    # (เช่น รถคันเดิมมาอีกครั้งแต่เลขไมล์ไม่ขยับตามเวลาที่ผ่านไป)
+    mileage = models.IntegerField(null=True, blank=True, verbose_name='เลขไมล์ (กม.)')
     
     # ข้อมูลหลัก
     sale_date = models.DateField(auto_now_add=False)

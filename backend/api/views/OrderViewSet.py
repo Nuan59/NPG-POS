@@ -102,6 +102,12 @@ class OrderViewSet(viewsets.ModelViewSet):
             # ✅ ผ่อนดาวน์
             down_payment_installment = request.data.get('down_payment_installment', False)
 
+            # ✅ ประเภทธุรกรรม + เลขไมล์ (เดิม frontend ส่งมาแต่ backend ไม่เคยอ่าน/บันทึกเลย)
+            transaction_type = request.data.get('transaction_type', 'ขาย')
+            transaction_type_detail = request.data.get('transaction_type_detail', '')
+            mileage_raw = request.data.get('mileage')
+            mileage = int(mileage_raw) if mileage_raw not in (None, '', 'null') else None
+
             # สร้าง Order
             with transaction.atomic():
                 new_order = Order.objects.create(
@@ -133,7 +139,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                     
                     notes=request.data.get('notes', ''),
                     registration_status='CPL',
-                    has_checkout=True
+                    has_checkout=True,
+
+                    # ✅ ประเภทธุรกรรม + เลขไมล์
+                    transaction_type=transaction_type,
+                    transaction_type_detail=transaction_type_detail,
+                    mileage=mileage,
                 )
 
                 # เพิ่มรถ
