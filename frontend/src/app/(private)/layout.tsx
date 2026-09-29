@@ -5,6 +5,7 @@ import OrderCard from "@/components/global/OrderCard";
 import OrderProvider from "@/context/OrderContext";
 import IssueLoginNotification from "@/components/global/IssueLoginNotification";
 import TaskLoginNotification from "@/components/global/TaskLoginNotification";
+import AnnouncementBar from "@/components/global/AnnouncementBar";
 const prompt = Prompt({ weight: "100", subsets: ["latin", "thai"] });
 
 export default function PrivateLayout({
@@ -20,6 +21,7 @@ export default function PrivateLayout({
 				<IssueLoginNotification />
 				<TaskLoginNotification />
 				<Navbar />
+				<AnnouncementBar />
 				<main className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] text-slate-900 gap-0 mt-0">
 					<section className="m-3 lg:m-8 bg-slate-50 font-bold p-3 lg:p-8 min-h-[calc(100vh-80px)] lg:max-h-[calc(100vh-80px)] overflow-y-auto rounded-xl">
 						{children}

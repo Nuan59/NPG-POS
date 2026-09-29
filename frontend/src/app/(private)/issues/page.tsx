@@ -14,9 +14,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Plus, AlertCircle, CheckCircle, Clock, Megaphone, Trash2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { toast } from "sonner";
+import {
+  Announcement,
+  getAnnouncements,
+  createAnnouncement,
+  toggleAnnouncement,
+  deleteAnnouncement,
+} from "@/services/AnnouncementService";
 
 interface Issue {
   id: number;
@@ -55,9 +63,125 @@ interface Issue {
 
 type TabKey = "open" | "closed";
 
+// ✅ แผงจัดการ "ประกาศตัวหนังสือไหล" ใต้ Navbar - เฉพาะ admin เห็นและใช้งานได้
+const AnnouncementPanel = () => {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newContent, setNewContent] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const loadAnnouncements = async () => {
+    const data = await getAnnouncements();
+    setAnnouncements(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!newContent.trim()) {
+      toast.error("กรุณากรอกข้อความประกาศ");
+      return;
+    }
+    setSaving(true);
+    const result = await createAnnouncement(newContent.trim());
+    setSaving(false);
+    if (result.status === "success") {
+      toast.success("เพิ่มประกาศแล้ว");
+      setNewContent("");
+      loadAnnouncements();
+    } else {
+      toast.error(result.error || "เกิดข้อผิดพลาด");
+    }
+  };
+
+  const handleToggle = async (a: Announcement) => {
+    const result = await toggleAnnouncement(a.id, !a.is_active);
+    if (result.status === "success") {
+      loadAnnouncements();
+    } else {
+      toast.error(result.error || "อัปเดตไม่สำเร็จ");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("ต้องการลบประกาศนี้ใช่ไหม?")) return;
+    const result = await deleteAnnouncement(id);
+    if (result.status === "success") {
+      toast.success("ลบแล้ว");
+      loadAnnouncements();
+    } else {
+      toast.error(result.error || "ลบไม่สำเร็จ");
+    }
+  };
+
+  return (
+    <Card className="mb-6 border-orange-200">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Megaphone className="w-5 h-5 text-orange-600" />
+          ประกาศตัวหนังสือไหล (แสดงใต้เมนูบนทุกหน้า)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+            placeholder="พิมพ์ข้อความประกาศ..."
+            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-orange-400"
+          />
+          <Button onClick={handleCreate} disabled={saving} className="gap-1">
+            <Plus size={14} /> เพิ่ม
+          </Button>
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-gray-400">กำลังโหลด...</p>
+        ) : announcements.length === 0 ? (
+          <p className="text-sm text-gray-400">ยังไม่มีประกาศ</p>
+        ) : (
+          <div className="space-y-2">
+            {announcements.map((a) => (
+              <div
+                key={a.id}
+                className={cn(
+                  "flex items-center justify-between gap-2 p-2.5 rounded-lg border text-sm",
+                  a.is_active ? "bg-orange-50 border-orange-200" : "bg-gray-50 border-gray-200 opacity-60"
+                )}
+              >
+                <span className="flex-1">{a.content}</span>
+                <button
+                  onClick={() => handleToggle(a)}
+                  className="text-gray-500 hover:text-orange-600 shrink-0"
+                  title={a.is_active ? "ซ่อน" : "แสดง"}
+                >
+                  {a.is_active ? <Eye size={16} /> : <EyeOff size={16} />}
+                </button>
+                <button
+                  onClick={() => handleDelete(a.id)}
+                  className="text-gray-400 hover:text-rose-500 shrink-0"
+                  title="ลบ"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const IssuesPage = () => {
   const router = useRouter();
   const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === "adm";
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("open");
@@ -148,6 +272,9 @@ const IssuesPage = () => {
 
   return (
     <div className="p-6">
+      {/* ✅ แผงจัดการประกาศตัวหนังสือไหล - เฉพาะ admin */}
+      {isAdmin && <AnnouncementPanel />}
+
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">กระทู้/แจ้งปัญหา</h1>

@@ -20,6 +20,7 @@ from api.views import (
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.CashflowView import CashflowViewSet
 from api.views.TaskViewSet import TaskPostViewSet
+from api.views.AnnouncementViewSet import AnnouncementViewSet
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView
@@ -346,6 +347,26 @@ def add_task_post_due_date_column(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+
+# ✅ Temp: สร้างตาราง announcement (ประกาศตัวหนังสือไหลใต้ Navbar)
+def create_announcement_table(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS announcement (
+                    id SERIAL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_by VARCHAR(255) NOT NULL DEFAULT '',
+                    created_by_username VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง announcement เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เพิ่มคอลัมน์ due_date ให้ตาราง task_assignment (กำหนดเวลางานแยกรายบุคคล)
 def add_task_due_date_column(request):
     from django.db import connection
@@ -407,6 +428,7 @@ router.register(r'issues', IssueViewSet, basename='issue')
 router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 router.register(r'cashflow', CashflowViewSet, basename='cashflow')
 router.register(r'tasks/posts', TaskPostViewSet, basename='task-posts')
+router.register(r'announcements', AnnouncementViewSet, basename='announcements')
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -422,6 +444,7 @@ urlpatterns = [
     path('dev/add-order-service-columns/', add_order_service_columns),
     path('dev/add-task-due-date-column/', add_task_due_date_column),
     path('dev/add-task-post-due-date-column/', add_task_post_due_date_column),
+    path('dev/create-announcement-table/', create_announcement_table),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
