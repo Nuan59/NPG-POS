@@ -11,6 +11,8 @@ export interface TaskAssignment {
   employee_username: string;
   status: "pending" | "in_progress" | "issue" | "done";
   note: string;
+  due_date: string | null;
+  is_overdue: boolean;
   completed_at: string | null;
 }
 
@@ -40,7 +42,8 @@ export const getTaskPosts = async (): Promise<TaskPost[]> => {
 export const createTaskPost = async (payload: {
   content: string;
   post_type: "general" | "assigned";
-  employee_ids?: number[];
+  // ✅ กำหนดเวลาตั้งแยกได้คนละคน - due_date เป็น ISO string หรือ null (ไม่บังคับ)
+  assignments?: { employee_id: number; due_date: string | null }[];
 }) => {
   "use server";
   try {
@@ -63,6 +66,7 @@ export const createTaskPost = async (payload: {
       return { status: "error", error: bodyJson?.error || `HTTP ${response.status}` };
     }
     revalidatePath("/employees");
+    revalidatePath("/tasks");
     revalidateTag("taskPosts");
     return { status: "success", data: bodyJson as TaskPost };
   } catch (err) {
@@ -83,6 +87,7 @@ export const deleteTaskPost = async (id: number) => {
       return { status: "error", error: "ลบไม่สำเร็จ" };
     }
     revalidatePath("/employees");
+    revalidatePath("/tasks");
     revalidateTag("taskPosts");
     return { status: "success" };
   } catch (err) {

@@ -15,10 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { IEmployee } from "@/types/IEmployee";
 import {
   TaskPost,
+  TaskAssignment,
   getTaskPosts,
   createTaskPost,
   deleteTaskPost,
@@ -36,6 +37,32 @@ interface TaskBoardProps {
   employees: IEmployee[];
 }
 
+// ✅ กำหนดเวลาต่อคน - เลือกได้ว่าจะกำหนดเป็น "กี่วันจากนี้" หรือ "วันที่เจาะจง"
+interface AssignConfig {
+  checked: boolean;
+  mode: "days" | "date";
+  days: string;
+  date: string;
+}
+const defaultConfig: AssignConfig = { checked: false, mode: "days", days: "", date: "" };
+
+const formatDueDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+
+const computeDueDate = (cfg: AssignConfig): string | null => {
+  if (cfg.mode === "days") {
+    const n = Number(cfg.days);
+    if (!n || n <= 0) return null;
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    d.setHours(23, 59, 0, 0);
+    return d.toISOString();
+  }
+  if (!cfg.date) return null;
+  const d = new Date(`${cfg.date}T23:59:00`);
+  return d.toISOString();
+};
+
 const TaskBoard = ({ employees }: TaskBoardProps) => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -47,13 +74,12 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     if (status === "unauthenticated") router.push("/login");
   }, [status, router]);
 
-
   const [posts, setPosts] = useState<TaskPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [content, setContent] = useState("");
   const [postType, setPostType] = useState<"general" | "assigned">("general");
-  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
+  const [assignConfig, setAssignConfig] = useState<Record<number, AssignConfig>>({});
   const [saving, setSaving] = useState(false);
 
   // ✅ แก้สถานะ+หมายเหตุแบบ inline ต่อ assignment
@@ -75,7 +101,12 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   const resetForm = () => {
     setContent("");
     setPostType("general");
-    setSelectedEmployees([]);
+    setAssignConfig({});
+  };
+
+  const getConfig = (id: number): AssignConfig => assignConfig[id] || defaultConfig;
+  const updateConfig = (id: number, patch: Partial<AssignConfig>) => {
+    setAssignConfig((prev) => ({ ...prev, [id]: { ...getConfig(id), ...patch } }));
   };
 
   const handleCreate = async () => {
@@ -83,15 +114,23 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
       toast.error("กรุณากรอกเนื้อหา");
       return;
     }
-    if (postType === "assigned" && selectedEmployees.length === 0) {
-      toast.error("กรุณาเลือกพนักงานที่จะมอบหมาย");
+    const selectedIds = Object.entries(assignConfig)
+      .filter(([, cfg]) => cfg.checked)
+      .map(([id]) => Number(id));
+
+    if (postType === "assigned" && selectedIds.length === 0) {
+      toast.error("กรุณาเลือกคนที่จะมอบหมาย");
       return;
     }
+
     setSaving(true);
     const result = await createTaskPost({
       content: content.trim(),
       post_type: postType,
-      employee_ids: postType === "assigned" ? selectedEmployees : undefined,
+      assignments:
+        postType === "assigned"
+          ? selectedIds.map((id) => ({ employee_id: id, due_date: computeDueDate(getConfig(id)) }))
+          : undefined,
     });
     setSaving(false);
     if (result.status === "success") {
@@ -115,7 +154,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     }
   };
 
-  const startEdit = (a: TaskPost["assignments"][number]) => {
+  const startEdit = (a: TaskAssignment) => {
     setEditingId(a.id);
     setDraftStatus(a.status);
     setDraftNote(a.note || "");
@@ -129,12 +168,6 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     } else {
       toast.error(result.error || "อัปเดตไม่สำเร็จ");
     }
-  };
-
-  const toggleEmployeeSelect = (id: number) => {
-    setSelectedEmployees((prev) =>
-      prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]
-    );
   };
 
   const formatDate = (d: string) =>
@@ -168,7 +201,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                 <Plus size={14} /> โพสต์ใหม่
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>ประกาศ / มอบหมายงานใหม่</DialogTitle>
               </DialogHeader>
@@ -208,19 +241,68 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                 </div>
 
                 {postType === "assigned" && (
-                  <div className="border rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
-                    {employees.map((emp) => (
-                      <label key={emp.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <Checkbox
-                          checked={selectedEmployees.includes(emp.id!)}
-                          onCheckedChange={() => toggleEmployeeSelect(emp.id!)}
-                        />
-                        {emp.name}
-                        {emp.role === "adm" && (
-                          <span className="text-[10px] text-orange-500 font-semibold">(ผู้ดูแลระบบ)</span>
-                        )}
-                      </label>
-                    ))}
+                  <div className="border rounded-lg p-3 space-y-2 max-h-80 overflow-y-auto">
+                    {employees.map((emp) => {
+                      const cfg = getConfig(emp.id!);
+                      return (
+                        <div key={emp.id} className={`rounded-lg p-2 ${cfg.checked ? "bg-orange-50/60" : ""}`}>
+                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={cfg.checked}
+                              onCheckedChange={(v) => updateConfig(emp.id!, { checked: !!v })}
+                            />
+                            {emp.name}
+                            {emp.role === "adm" && (
+                              <span className="text-[10px] text-orange-500 font-semibold">(ผู้ดูแลระบบ)</span>
+                            )}
+                          </label>
+
+                          {cfg.checked && (
+                            <div className="mt-2 ml-6 flex items-center gap-2 flex-wrap">
+                              <div className="flex text-xs border rounded overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => updateConfig(emp.id!, { mode: "days" })}
+                                  className={`px-2 py-1 ${
+                                    cfg.mode === "days" ? "bg-gray-800 text-white" : "bg-white text-gray-500"
+                                  }`}
+                                >
+                                  กี่วัน
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateConfig(emp.id!, { mode: "date" })}
+                                  className={`px-2 py-1 ${
+                                    cfg.mode === "date" ? "bg-gray-800 text-white" : "bg-white text-gray-500"
+                                  }`}
+                                >
+                                  วันที่
+                                </button>
+                              </div>
+
+                              {cfg.mode === "days" ? (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={cfg.days}
+                                  onChange={(e) => updateConfig(emp.id!, { days: e.target.value })}
+                                  placeholder="เช่น 3 (วัน)"
+                                  className="w-28 text-xs border rounded px-2 py-1"
+                                />
+                              ) : (
+                                <input
+                                  type="date"
+                                  value={cfg.date}
+                                  onChange={(e) => updateConfig(emp.id!, { date: e.target.value })}
+                                  className="text-xs border rounded px-2 py-1"
+                                />
+                              )}
+                              <span className="text-[10px] text-gray-400">ไม่กรอก = ไม่มีกำหนด</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -267,14 +349,21 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                     const isMine = a.employee_username === myUsername;
                     const canToggle = isAdmin || isMine;
                     const meta = STATUS_META[a.status] || STATUS_META.pending;
+                    const overdueRing = a.is_overdue ? "ring-2 ring-red-500" : "";
 
                     if (!canToggle) {
                       return (
                         <span
                           key={a.id}
-                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 ${meta.className} opacity-80`}
+                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 ${meta.className} ${overdueRing} opacity-80`}
                         >
                           {a.employee_name}: {meta.label}
+                          {a.due_date && (
+                            <span className={`ml-1 ${a.is_overdue ? "text-red-600 font-bold" : "opacity-70"}`}>
+                              {a.is_overdue ? " ⚠ เกินกำหนด " : " • กำหนด "}
+                              {formatDueDate(a.due_date)}
+                            </span>
+                          )}
                           {a.note && <span className="font-normal"> — {a.note}</span>}
                         </span>
                       );
@@ -297,6 +386,12 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                               ))}
                             </select>
                           </div>
+                          {a.due_date && (
+                            <div className={`text-xs ${a.is_overdue ? "text-red-600 font-bold" : "opacity-70"}`}>
+                              {a.is_overdue ? "⚠ เกินกำหนดแล้ว " : "กำหนด "}
+                              {formatDueDate(a.due_date)}
+                            </div>
+                          )}
                           <input
                             value={draftNote}
                             onChange={(e) => setDraftNote(e.target.value)}
@@ -325,9 +420,18 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                       <button
                         key={a.id}
                         onClick={() => startEdit(a)}
-                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 hover:shadow-md transition-all ${meta.className}`}
+                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 hover:shadow-md transition-all ${meta.className} ${overdueRing}`}
                       >
-                        <span>{a.employee_name}: {meta.label}</span>
+                        <span className="flex items-center gap-1">
+                          {a.is_overdue && <AlertTriangle size={13} className="text-red-600" />}
+                          {a.employee_name}: {meta.label}
+                        </span>
+                        {a.due_date && (
+                          <span className={`text-xs font-normal ${a.is_overdue ? "text-red-600 font-bold" : "opacity-70"}`}>
+                            {a.is_overdue ? "⚠ เกินกำหนด " : "กำหนด "}
+                            {formatDueDate(a.due_date)}
+                          </span>
+                        )}
                         {a.note && <span className="text-xs font-normal opacity-80">📝 {a.note}</span>}
                       </button>
                     );
