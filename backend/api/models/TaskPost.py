@@ -6,7 +6,7 @@ from django.db import models
 class TaskPost(models.Model):
     """
     โพสต์ประกาศ/มอบหมายงาน - ใครก็โพสต์ได้ (admin เห็นทุกโพสต์เสมอ)
-    - post_type = "general"  -> ประกาศทั่วไป ทุกคนเห็นเหมือนกัน ไม่มีสถานะ
+    - post_type = "general"  -> ประกาศทั่วไป ทุกคนเห็นเหมือนกัน ไม่มีสถานะ แต่ตั้งกำหนดเวลาเดียวได้ (due_date)
     - post_type = "assigned" -> มอบหมายเฉพาะคน แต่ละคนมีสถานะ+กำหนดเวลาของตัวเอง (ดู TaskAssignment)
     """
     POST_TYPE_CHOICES = [
@@ -18,6 +18,9 @@ class TaskPost(models.Model):
     post_type = models.CharField(max_length=20, choices=POST_TYPE_CHOICES, default="general")
     created_by = models.CharField(max_length=255, blank=True, default="")  # ชื่อที่โชว์ (คนโพสต์)
     created_by_username = models.CharField(max_length=255, blank=True, default="")  # username จริง (เช็คสิทธิ์)
+
+    # ✅ กำหนดเวลาของ "ประกาศทั่วไป" เอง (ไม่ได้ใช้กับ "มอบหมายงาน" - นั่นใช้ due_date ใน TaskAssignment แยกรายคนแทน)
+    due_date = models.DateTimeField(null=True, blank=True, verbose_name="กำหนดเวลา")
 
     created_at = models.DateTimeField(auto_now_add=True)
 

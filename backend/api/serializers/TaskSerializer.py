@@ -44,8 +44,30 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
 
 class TaskPostSerializer(serializers.ModelSerializer):
     assignments = TaskAssignmentSerializer(many=True, read_only=True)
+    # ✅ กำหนดเวลาของโพสต์เอง - มีความหมายเฉพาะ "ประกาศทั่วไป" (post_type=general)
+    is_overdue = serializers.SerializerMethodField()
+    is_due_soon = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskPost
-        fields = ["id", "content", "post_type", "created_by", "created_by_username", "created_at", "assignments"]
+        fields = [
+            "id", "content", "post_type", "created_by", "created_by_username",
+            "due_date", "is_overdue", "is_due_soon", "created_at", "assignments",
+        ]
         read_only_fields = ["id", "created_by", "created_by_username", "created_at"]
+
+    def get_is_overdue(self, obj):
+        from django.utils import timezone
+        if not obj.due_date:
+            return False
+        return obj.due_date < timezone.now()
+
+    def get_is_due_soon(self, obj):
+        from django.utils import timezone
+        from datetime import timedelta
+        if not obj.due_date:
+            return False
+        now = timezone.now()
+        if obj.due_date < now:
+            return False
+        return obj.due_date <= now + timedelta(days=1)

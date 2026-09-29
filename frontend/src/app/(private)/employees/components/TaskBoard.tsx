@@ -37,21 +37,21 @@ interface TaskBoardProps {
   employees: IEmployee[];
 }
 
-// ✅ กำหนดเวลาต่อคน - เลือกได้ว่าจะกำหนดเป็น "กี่วันจากนี้" หรือ "วันที่เจาะจง"
-interface AssignConfig {
+// ✅ ตั้งกำหนดเวลาได้ 2 แบบ - "ระยะเวลา" (กี่วันนับจากนี้) หรือ "วันที่" (เจาะจงวันที่)
+interface DueConfig {
   checked: boolean;
-  mode: "days" | "date";
-  days: string;
+  mode: "duration" | "date";
+  duration: string;
   date: string;
 }
-const defaultConfig: AssignConfig = { checked: false, mode: "days", days: "", date: "" };
+const defaultDueConfig: DueConfig = { checked: false, mode: "duration", duration: "", date: "" };
 
 const formatDueDate = (iso: string) =>
   new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
-const computeDueDate = (cfg: AssignConfig): string | null => {
-  if (cfg.mode === "days") {
-    const n = Number(cfg.days);
+const computeDueDate = (cfg: DueConfig): string | null => {
+  if (cfg.mode === "duration") {
+    const n = Number(cfg.duration);
     if (!n || n <= 0) return null;
     const d = new Date();
     d.setDate(d.getDate() + n);
@@ -63,29 +63,92 @@ const computeDueDate = (cfg: AssignConfig): string | null => {
   return d.toISOString();
 };
 
-// ✅ ป้ายกำหนดเวลาต่อ badge - แดงถ้าเกินกำหนด, เหลืองถ้าใกล้ถึง (≤1 วัน), เทาถ้ายังไกล
-const DueDateTag = ({ a }: { a: TaskAssignment }) => {
-  if (!a.due_date) return null;
-  if (a.is_overdue) {
+interface DueLike {
+  due_date: string | null;
+  is_overdue: boolean;
+  is_due_soon: boolean;
+}
+
+// ✅ ป้ายกำหนดเวลา - แดงถ้าเกินกำหนด, เหลืองถ้าใกล้ถึง (≤1 วัน), เทาถ้ายังไกล
+const DueDateTag = ({ d }: { d: DueLike }) => {
+  if (!d.due_date) return null;
+  if (d.is_overdue) {
     return (
       <span className="text-xs font-bold text-red-600 flex items-center gap-1">
-        <AlertTriangle size={12} /> เกินกำหนด {formatDueDate(a.due_date)}
+        <AlertTriangle size={12} /> เกินกำหนด {formatDueDate(d.due_date)}
       </span>
     );
   }
-  if (a.is_due_soon) {
+  if (d.is_due_soon) {
     return (
       <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
-        <Clock size={12} /> ใกล้ครบกำหนด {formatDueDate(a.due_date)}
+        <Clock size={12} /> ใกล้ครบกำหนด {formatDueDate(d.due_date)}
       </span>
     );
   }
   return (
     <span className="text-xs font-normal opacity-70 flex items-center gap-1">
-      <CalendarClock size={12} /> กำหนด {formatDueDate(a.due_date)}
+      <CalendarClock size={12} /> กำหนด {formatDueDate(d.due_date)}
     </span>
   );
 };
+
+// ✅ ตัวเลือก "ระยะเวลา" / "วันที่" ใช้ซ้ำได้ทั้งประกาศทั่วไป (ตัวเดียว) และมอบหมายงาน (ต่อคน)
+const DueConfigPicker = ({
+  cfg,
+  onChange,
+}: {
+  cfg: DueConfig;
+  onChange: (patch: Partial<DueConfig>) => void;
+}) => (
+  <div>
+    <div className="flex items-center gap-2 mb-2">
+      <CalendarClock size={13} className="text-orange-500 shrink-0" />
+      <span className="text-xs font-medium text-gray-600">กำหนดเวลา</span>
+    </div>
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex text-xs rounded-lg overflow-hidden border border-gray-300 shadow-sm shrink-0">
+        <button
+          type="button"
+          onClick={() => onChange({ mode: "duration" })}
+          className={`px-3 py-1.5 font-medium transition-colors ${
+            cfg.mode === "duration" ? "bg-gray-900 text-white" : "bg-white text-gray-500 hover:bg-gray-50"
+          }`}
+        >
+          ระยะเวลา
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ mode: "date" })}
+          className={`px-3 py-1.5 font-medium transition-colors ${
+            cfg.mode === "date" ? "bg-gray-900 text-white" : "bg-white text-gray-500 hover:bg-gray-50"
+          }`}
+        >
+          วันที่
+        </button>
+      </div>
+
+      {cfg.mode === "duration" ? (
+        <input
+          type="number"
+          min={1}
+          value={cfg.duration}
+          onChange={(e) => onChange({ duration: e.target.value })}
+          placeholder="เช่น 3 (วัน)"
+          className="w-28 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
+        />
+      ) : (
+        <input
+          type="date"
+          value={cfg.date}
+          onChange={(e) => onChange({ date: e.target.value })}
+          className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
+        />
+      )}
+    </div>
+    <span className="text-[11px] text-gray-400 mt-1.5 block">ไม่กรอก = ไม่มีกำหนดเวลา</span>
+  </div>
+);
 
 const TaskBoard = ({ employees }: TaskBoardProps) => {
   const { data: session, status } = useSession();
@@ -103,7 +166,10 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [content, setContent] = useState("");
   const [postType, setPostType] = useState<"general" | "assigned">("general");
-  const [assignConfig, setAssignConfig] = useState<Record<number, AssignConfig>>({});
+  // ✅ กำหนดเวลาของ "ประกาศทั่วไป" - ตัวเดียวใช้ร่วมกันทุกคน
+  const [generalDueConfig, setGeneralDueConfig] = useState<DueConfig>(defaultDueConfig);
+  // ✅ กำหนดเวลาของ "มอบหมายงาน" - แยกได้คนละคน (key = employee id)
+  const [assignConfig, setAssignConfig] = useState<Record<number, DueConfig>>({});
   const [saving, setSaving] = useState(false);
 
   // ✅ แก้สถานะ+หมายเหตุแบบ inline ต่อ assignment
@@ -125,11 +191,12 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   const resetForm = () => {
     setContent("");
     setPostType("general");
+    setGeneralDueConfig(defaultDueConfig);
     setAssignConfig({});
   };
 
-  const getConfig = (id: number): AssignConfig => assignConfig[id] || defaultConfig;
-  const updateConfig = (id: number, patch: Partial<AssignConfig>) => {
+  const getConfig = (id: number): DueConfig => assignConfig[id] || defaultDueConfig;
+  const updateConfig = (id: number, patch: Partial<DueConfig>) => {
     setAssignConfig((prev) => ({ ...prev, [id]: { ...getConfig(id), ...patch } }));
   };
 
@@ -151,6 +218,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     const result = await createTaskPost({
       content: content.trim(),
       post_type: postType,
+      due_date: postType === "general" ? computeDueDate(generalDueConfig) : undefined,
       assignments:
         postType === "assigned"
           ? selectedIds.map((id) => ({ employee_id: id, due_date: computeDueDate(getConfig(id)) }))
@@ -264,6 +332,17 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                   </button>
                 </div>
 
+                {/* ✅ ประกาศทั่วไป - กำหนดเวลาเดียวใช้ร่วมกันทุกคน */}
+                {postType === "general" && (
+                  <div className="border rounded-xl p-3 bg-orange-50/40 border-orange-100">
+                    <DueConfigPicker
+                      cfg={generalDueConfig}
+                      onChange={(patch) => setGeneralDueConfig((prev) => ({ ...prev, ...patch }))}
+                    />
+                  </div>
+                )}
+
+                {/* ✅ มอบหมายงาน - เลือกคน + กำหนดเวลาแยกรายคน */}
                 {postType === "assigned" && (
                   <div className="border rounded-xl p-2 space-y-2 max-h-96 overflow-y-auto bg-gray-50">
                     {employees.map((emp) => {
@@ -290,55 +369,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
 
                           {cfg.checked && (
                             <div className="px-3 pb-3 pt-1 border-t border-orange-100 bg-orange-50/40">
-                              <div className="flex items-center gap-2 mb-2">
-                                <CalendarClock size={13} className="text-orange-500 shrink-0" />
-                                <span className="text-xs font-medium text-gray-600">กำหนดเวลา</span>
-                              </div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <div className="flex text-xs rounded-lg overflow-hidden border border-gray-300 shadow-sm shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateConfig(emp.id!, { mode: "days" })}
-                                    className={`px-3 py-1.5 font-medium transition-colors ${
-                                      cfg.mode === "days"
-                                        ? "bg-gray-900 text-white"
-                                        : "bg-white text-gray-500 hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    กี่วัน
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateConfig(emp.id!, { mode: "date" })}
-                                    className={`px-3 py-1.5 font-medium transition-colors ${
-                                      cfg.mode === "date"
-                                        ? "bg-gray-900 text-white"
-                                        : "bg-white text-gray-500 hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    วันที่
-                                  </button>
-                                </div>
-
-                                {cfg.mode === "days" ? (
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={cfg.days}
-                                    onChange={(e) => updateConfig(emp.id!, { days: e.target.value })}
-                                    placeholder="เช่น 3 (วัน)"
-                                    className="w-28 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
-                                  />
-                                ) : (
-                                  <input
-                                    type="date"
-                                    value={cfg.date}
-                                    onChange={(e) => updateConfig(emp.id!, { date: e.target.value })}
-                                    className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
-                                  />
-                                )}
-                              </div>
-                              <span className="text-[11px] text-gray-400 mt-1.5 block">ไม่กรอก = ไม่มีกำหนดเวลา</span>
+                              <DueConfigPicker cfg={cfg} onChange={(patch) => updateConfig(emp.id!, patch)} />
                             </div>
                           )}
                         </div>
@@ -370,9 +401,15 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-base whitespace-pre-wrap leading-relaxed">{post.content}</p>
-                  <p className="text-xs text-gray-400 mt-2">
-                    โดย {post.created_by} • {formatDate(post.created_at)}
-                  </p>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <p className="text-xs text-gray-400">
+                      โดย {post.created_by} • {formatDate(post.created_at)}
+                    </p>
+                    {/* ✅ กำหนดเวลาของประกาศทั่วไป */}
+                    {post.post_type === "general" && (
+                      <DueDateTag d={{ due_date: post.due_date, is_overdue: post.is_overdue, is_due_soon: post.is_due_soon }} />
+                    )}
+                  </div>
                 </div>
                 {(isAdmin || post.created_by_username === myUsername) && (
                   <button
@@ -403,7 +440,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                           className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 ${meta.className} ${ring} opacity-80`}
                         >
                           <span>{a.employee_name}: {meta.label}</span>
-                          <DueDateTag a={a} />
+                          <DueDateTag d={a} />
                           {a.note && <span className="text-xs font-normal">— {a.note}</span>}
                         </span>
                       );
@@ -426,7 +463,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                               ))}
                             </select>
                           </div>
-                          <DueDateTag a={a} />
+                          <DueDateTag d={a} />
                           <input
                             value={draftNote}
                             onChange={(e) => setDraftNote(e.target.value)}
@@ -461,7 +498,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                           {a.is_overdue && <AlertTriangle size={13} className="text-red-600" />}
                           {a.employee_name}: {meta.label}
                         </span>
-                        <DueDateTag a={a} />
+                        <DueDateTag d={a} />
                         {a.note && <span className="text-xs font-normal opacity-80">📝 {a.note}</span>}
                       </button>
                     );

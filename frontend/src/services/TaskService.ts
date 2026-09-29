@@ -23,6 +23,10 @@ export interface TaskPost {
   post_type: "general" | "assigned";
   created_by: string;
   created_by_username: string;
+  // ✅ กำหนดเวลาของ "ประกาศทั่วไป" เอง (assigned ใช้ due_date ใน assignments แต่ละคนแทน)
+  due_date: string | null;
+  is_overdue: boolean;
+  is_due_soon: boolean;
   created_at: string;
   assignments: TaskAssignment[];
 }
@@ -43,7 +47,9 @@ export const getTaskPosts = async (): Promise<TaskPost[]> => {
 export const createTaskPost = async (payload: {
   content: string;
   post_type: "general" | "assigned";
-  // ✅ กำหนดเวลาตั้งแยกได้คนละคน - due_date เป็น ISO string หรือ null (ไม่บังคับ)
+  // ✅ กำหนดเวลาของ "ประกาศทั่วไป" - ISO string หรือ null (ไม่บังคับ)
+  due_date?: string | null;
+  // ✅ กำหนดเวลาของ "มอบหมายงาน" ตั้งแยกได้คนละคน - due_date เป็น ISO string หรือ null (ไม่บังคับ)
   assignments?: { employee_id: number; due_date: string | null }[];
 }) => {
   "use server";

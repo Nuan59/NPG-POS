@@ -17,7 +17,8 @@ class TaskPostViewSet(viewsets.ModelViewSet):
              ประกาศทั่วไป + โพสต์ที่ตัวเองถูกมอบหมาย + โพสต์ที่ตัวเองสร้างเอง
     POST   /tasks/posts/                     สร้างโพสต์ใหม่ (ใครก็ได้)
              body: { content, post_type: "general"|"assigned",
-                      assignments?: [{ employee_id, due_date }] }
+                      due_date?: ISO string|null,                    # เฉพาะ post_type="general"
+                      assignments?: [{ employee_id, due_date }] }    # เฉพาะ post_type="assigned"
              due_date เป็น ISO datetime string หรือ null (ไม่บังคับ)
     DELETE /tasks/posts/{id}/                 ลบโพสต์ (เฉพาะ admin หรือคนที่โพสต์เอง)
     POST   /tasks/posts/{id}/set_status/       ตั้งสถานะของ "ตัวเอง"
@@ -54,11 +55,15 @@ class TaskPostViewSet(viewsets.ModelViewSet):
         if post_type == "assigned" and not assignments_data:
             return Response({"error": "กรุณาเลือกคนที่จะมอบหมาย"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ✅ กำหนดเวลาของ "ประกาศทั่วไป" เอง (ตอนเป็น assigned ไม่ใช้ตรงนี้ - แยกรายคนแทน)
+        post_due_date = request.data.get("due_date") if post_type == "general" else None
+
         post = TaskPost.objects.create(
             content=content,
             post_type=post_type,
             created_by=self._display_name(request),
             created_by_username=getattr(request.user, "username", "") or "",
+            due_date=post_due_date or None,
         )
 
         if post_type == "assigned":

@@ -336,6 +336,16 @@ def fix_task_migration(request):
 
 router = routers.DefaultRouter()
 
+# ✅ Temp: เพิ่มคอลัมน์ due_date ให้ตาราง task_post (กำหนดเวลาของประกาศทั่วไป)
+def add_task_post_due_date_column(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("ALTER TABLE task_post ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ NULL;")
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์ due_date ให้ task_post เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เพิ่มคอลัมน์ due_date ให้ตาราง task_assignment (กำหนดเวลางานแยกรายบุคคล)
 def add_task_due_date_column(request):
     from django.db import connection
@@ -411,6 +421,7 @@ urlpatterns = [
     path('dev/make-chassi-optional/', make_chassi_optional),
     path('dev/add-order-service-columns/', add_order_service_columns),
     path('dev/add-task-due-date-column/', add_task_due_date_column),
+    path('dev/add-task-post-due-date-column/', add_task_post_due_date_column),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
