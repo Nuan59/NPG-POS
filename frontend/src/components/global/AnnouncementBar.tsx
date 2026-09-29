@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { getAnnouncements } from "@/services/AnnouncementService";
 
+// ✅ โชว์สูงสุด 5 ประกาศที่เปิดอยู่ (ล่าสุดก่อน) ต่อกันเป็นแถบไหลเดียว - เกินนี้ตัดออก
+const MAX_ANNOUNCEMENTS = 5;
+
 /**
  * แถบตัวหนังสือไหลใต้ Navbar - โชว์ประกาศที่ is_active=true ทั้งหมด (ต่อกันด้วย •)
  * ไม่มีประกาศที่เปิดอยู่เลย -> ไม่แสดงอะไร (return null) กันเปลืองพื้นที่เปล่าๆ
@@ -16,7 +19,7 @@ const AnnouncementBar = () => {
   useEffect(() => {
     const load = async () => {
       const all = await getAnnouncements();
-      const active = all.filter((a) => a.is_active);
+      const active = all.filter((a) => a.is_active).slice(0, MAX_ANNOUNCEMENTS);
       setText(active.map((a) => a.content).join("   •   "));
       setLoaded(true);
     };
