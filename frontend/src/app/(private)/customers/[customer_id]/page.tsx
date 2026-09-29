@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getCustomer } from "@/services/CustomerService";
 import { ICustomer } from "@/types/Customer";
 import { Separator } from "@/components/ui/separator";
-import { Frown, Receipt } from "lucide-react";
+import { Frown, Receipt, History } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -142,10 +142,10 @@ const ViewCustomer = async ({ params }: ViewCustomerProps) => {
 										<ScrollArea className="h-[80%]">
 											{customerOrders.map((order, index) => {
 												// ✅ กันพัง - order ประเภท "อื่นๆ" อาจไม่มีรถผูกอยู่เลย (bikes: [])
-												const bikeLabel =
+												const bike =
 													order.bikes && order.bikes.length > 0
-														? order.bikes[0].model_name
-														: "-";
+														? order.bikes[0]
+														: null;
 												// ✅ ประเภทธุรกรรม/เลขไมล์ - field ใหม่ (cast any กันเคส type
 												// IOrder ยังไม่ได้เพิ่ม field นี้ในไฟล์ types/Order.ts)
 												const transactionType =
@@ -156,8 +156,8 @@ const ViewCustomer = async ({ params }: ViewCustomerProps) => {
 													<TableRow key={index}>
 														<TableCell className="font-medium">
 															<div className="flex flex-col gap-1">
-																<span>{bikeLabel}</span>
-																<div className="flex items-center gap-1.5">
+																<span>{bike?.model_name || "-"}</span>
+																<div className="flex items-center gap-1.5 flex-wrap">
 																	<span
 																		className={`text-[10px] px-1.5 py-0.5 rounded font-semibold w-fit ${
 																			transactionBadgeStyle[transactionType] ||
@@ -170,6 +170,16 @@ const ViewCustomer = async ({ params }: ViewCustomerProps) => {
 																		<span className="text-[10px] text-gray-500">
 																			ไมล์ {Number(mileage).toLocaleString()} กม.
 																		</span>
+																	)}
+																	{/* ✅ ดูประวัติเข้ารับบริการทั้งหมดของรถคันนี้ (ไม่ใช่แค่ที่ซื้อ/ทำกับเราครั้งนี้) */}
+																	{bike?.id && (
+																		<Link
+																			href={`/service-history?bike=${bike.id}`}
+																			className="text-[10px] text-orange-600 hover:underline flex items-center gap-0.5"
+																		>
+																			<History size={10} />
+																			ดูประวัติรถ
+																		</Link>
 																	)}
 																</div>
 															</div>

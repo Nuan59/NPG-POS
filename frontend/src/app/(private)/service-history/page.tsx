@@ -3,7 +3,7 @@
 // วางไฟล์นี้ใน: frontend/src/app/(private)/service-history/page.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Bike as BikeIcon, Gauge, Calendar, Receipt } from "lucide-react";
 import Link from "next/link";
 import { getDate } from "@/util/GetDateString";
@@ -41,6 +41,9 @@ const transactionBadgeStyle: Record<string, string> = {
 export default function ServiceHistoryPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // ✅ ถ้ามาจากลิงก์ /service-history?bike=123 (เช่น จากหน้าลูกค้า) ให้เลือกรถคันนั้นให้อัตโนมัติ
+  const bikeIdFromUrl = searchParams.get("bike");
 
   const [bikes, setBikes] = useState<Bike[]>([]);
   const [loadingBikes, setLoadingBikes] = useState(true);
@@ -108,6 +111,16 @@ export default function ServiceHistoryPage() {
       setLoadingOrders(false);
     }
   };
+
+  // ✅ พอโหลดรายชื่อรถเสร็จแล้ว ถ้ามี ?bike= ใน URL ให้เลือกคันนั้นให้อัตโนมัติ (ครั้งเดียว)
+  useEffect(() => {
+    if (!bikeIdFromUrl || loadingBikes || bikes.length === 0 || selectedBike) return;
+    const found = bikes.find((b) => String(b.id) === bikeIdFromUrl);
+    if (found) {
+      handleSelectBike(found);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bikeIdFromUrl, loadingBikes, bikes]);
 
   const categoryLabel = (category: Bike["category"]) => {
     if (category === "customer_owned") return "รถลูกค้า (ไม่ได้ซื้อกับเรา)";
