@@ -106,3 +106,33 @@ export const deleteEmployee = async (employee_id: number) => {
 
   return null;
 };
+
+/**
+ * ✅ เปิด/ปิดการใช้งานพนักงาน (แทนการลบถาวร)
+ * พนักงานที่ is_active=false จะ login เข้าระบบไม่ได้อีก แต่ประวัติการขายเดิมยังอยู่ครบ
+ */
+export const toggleEmployeeActive = async (employee_id: number) => {
+  "use server";
+  try {
+    const response = await authorizedFetch(
+      `${process.env.API_URL}/employees/${employee_id}/toggle_active/`,
+      { method: "POST" }
+    );
+
+    if (!response) {
+      return { success: false, message: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้" };
+    }
+
+    const data = await response.json();
+
+    if (response.ok) {
+      revalidateTag("employees");
+      revalidateTag("getEmployee");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("❌ Error in toggleEmployeeActive:", error);
+    return { success: false, message: "เกิดข้อผิดพลาด" };
+  }
+};

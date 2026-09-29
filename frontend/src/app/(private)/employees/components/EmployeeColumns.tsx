@@ -9,13 +9,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Eye, MoreHorizontal, Pencil, Trash2, ShieldCheck } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, Trash2, ShieldCheck, Ban, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { IEmployee } from "@/types/IEmployee";
 import { Badge } from "@/components/ui/badge";
 import { getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import PermissionsDialog from "./PermissionsDialog";
+import { toggleEmployeeActive } from "@/services/EmployeeService";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -32,12 +33,24 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
   {
     accessorKey: "role",
     header: "บทบาท",
-    cell: ({ row }) =>
-      row.original.role === "adm" ? (
-        <Badge>ผู้จัดการ</Badge>
-      ) : (
-        <Badge variant={"secondary"}>พนักงาน</Badge>
-      ),
+    cell: ({ row }) => {
+      // ✅ is_active มาจาก AbstractUser ของ Django ค่า default = true, undefined ก็ถือว่าเปิดใช้งานอยู่
+      const isActive = (row.original as any).is_active !== false;
+      return (
+        <div className="flex items-center gap-2">
+          {row.original.role === "adm" ? (
+            <Badge>ผู้จัดการ</Badge>
+          ) : (
+            <Badge variant={"secondary"}>พนักงาน</Badge>
+          )}
+          {!isActive && (
+            <Badge variant="destructive" className="text-xs">
+              ปิดใช้งาน
+            </Badge>
+          )}
+        </div>
+      );
+    },
   },
   {
     id: "actions",
@@ -95,6 +108,41 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
         router.refresh();
       };
 
+      const isActive = (employee as any).is_active !== false;
+
+      const handleToggleActive = async () => {
+        const session = await getSession();
+        const role = (session as any)?.user?.role;
+        const myUsername = (session as any)?.user?.username;
+
+        if (role !== "adm") {
+          alert("เฉพาะผู้จัดการเท่านั้นที่สามารถเปิด/ปิดการใช้งานได้");
+          return;
+        }
+
+        if (myUsername === employee.username) {
+          alert("ไม่สามารถปิดการใช้งานบัญชีของตัวเองได้");
+          return;
+        }
+
+        const actionText = isActive ? "ปิดการใช้งาน" : "เปิดการใช้งาน";
+        const ok = window.confirm(
+          isActive
+            ? `ต้องการปิดการใช้งาน "${employee.name}" ใช่ไหม?\n(พนักงานจะ login เข้าระบบไม่ได้อีก แต่ประวัติการขายเดิมยังอยู่ครบ)`
+            : `ต้องการเปิดการใช้งาน "${employee.name}" อีกครั้งใช่ไหม?`
+        );
+        if (!ok) return;
+
+        const result = await toggleEmployeeActive(employee.id!);
+
+        if (!result?.success) {
+          alert(result?.message || `${actionText}ไม่สำเร็จ`);
+          return;
+        }
+
+        router.refresh();
+      };
+
       return (
         <>
           <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
@@ -133,6 +181,21 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
                   กำหนดสิทธิ์
                 </DropdownMenuItem>
               )}
+
+              {/* ✅ เปิด/ปิดการใช้งาน (เฉพาะผู้จัดการกดได้จริง, ห้ามปิดตัวเอง - เช็คใน handler) */}
+              <DropdownMenuItem
+                onClick={handleToggleActive}
+                className={`flex justify-between ${
+                  isActive ? "text-amber-600 focus:text-amber-600" : "text-green-600 focus:text-green-600"
+                }`}
+              >
+                {isActive ? (
+                  <Ban className="opacity-60" />
+                ) : (
+                  <CheckCircle2 className="opacity-60" />
+                )}
+                {isActive ? "ปิดการใช้งาน" : "เปิดการใช้งาน"}
+              </DropdownMenuItem>
 
               {/* ✅ ลบ (เฉพาะผู้จัดการ) */}
               <DropdownMenuItem
