@@ -13,6 +13,7 @@ export interface TaskAssignment {
   note: string;
   due_date: string | null;
   is_overdue: boolean;
+  is_due_soon: boolean;
   completed_at: string | null;
 }
 

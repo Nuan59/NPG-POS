@@ -11,12 +11,14 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     # มี username แน่นอน แต่ id ตัวเลขอาจไม่มีติดมาด้วย
     employee_username = serializers.CharField(source="employee.username", read_only=True)
     is_overdue = serializers.SerializerMethodField()
+    # ✅ ใกล้ครบกำหนด - เตือนล่วงหน้า 1 วันก่อนถึงกำหนด (ยังไม่เกินกำหนด แต่เหลือ ≤1 วัน)
+    is_due_soon = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskAssignment
         fields = [
             "id", "employee_id", "employee_name", "employee_username",
-            "status", "note", "due_date", "is_overdue", "completed_at",
+            "status", "note", "due_date", "is_overdue", "is_due_soon", "completed_at",
         ]
 
     def get_is_overdue(self, obj):
@@ -26,6 +28,18 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         if not obj.due_date:
             return False
         return obj.due_date < timezone.now()
+
+    def get_is_due_soon(self, obj):
+        from django.utils import timezone
+        from datetime import timedelta
+        if obj.status == "done":
+            return False
+        if not obj.due_date:
+            return False
+        now = timezone.now()
+        if obj.due_date < now:
+            return False  # เกินกำหนดไปแล้ว นับเป็น overdue ไม่ใช่ due_soon
+        return obj.due_date <= now + timedelta(days=1)
 
 
 class TaskPostSerializer(serializers.ModelSerializer):

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Megaphone, Plus, Trash2, AlertTriangle, Clock, CalendarClock } from "lucide-react";
 import { IEmployee } from "@/types/IEmployee";
 import {
   TaskPost,
@@ -61,6 +61,30 @@ const computeDueDate = (cfg: AssignConfig): string | null => {
   if (!cfg.date) return null;
   const d = new Date(`${cfg.date}T23:59:00`);
   return d.toISOString();
+};
+
+// ✅ ป้ายกำหนดเวลาต่อ badge - แดงถ้าเกินกำหนด, เหลืองถ้าใกล้ถึง (≤1 วัน), เทาถ้ายังไกล
+const DueDateTag = ({ a }: { a: TaskAssignment }) => {
+  if (!a.due_date) return null;
+  if (a.is_overdue) {
+    return (
+      <span className="text-xs font-bold text-red-600 flex items-center gap-1">
+        <AlertTriangle size={12} /> เกินกำหนด {formatDueDate(a.due_date)}
+      </span>
+    );
+  }
+  if (a.is_due_soon) {
+    return (
+      <span className="text-xs font-bold text-amber-600 flex items-center gap-1">
+        <Clock size={12} /> ใกล้ครบกำหนด {formatDueDate(a.due_date)}
+      </span>
+    );
+  }
+  return (
+    <span className="text-xs font-normal opacity-70 flex items-center gap-1">
+      <CalendarClock size={12} /> กำหนด {formatDueDate(a.due_date)}
+    </span>
+  );
 };
 
 const TaskBoard = ({ employees }: TaskBoardProps) => {
@@ -241,63 +265,80 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                 </div>
 
                 {postType === "assigned" && (
-                  <div className="border rounded-lg p-3 space-y-2 max-h-80 overflow-y-auto">
+                  <div className="border rounded-xl p-2 space-y-2 max-h-96 overflow-y-auto bg-gray-50">
                     {employees.map((emp) => {
                       const cfg = getConfig(emp.id!);
                       return (
-                        <div key={emp.id} className={`rounded-lg p-2 ${cfg.checked ? "bg-orange-50/60" : ""}`}>
-                          <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <div
+                          key={emp.id}
+                          className={`rounded-lg border transition-all overflow-hidden ${
+                            cfg.checked ? "bg-white border-orange-300 shadow-sm" : "bg-white/60 border-transparent"
+                          }`}
+                        >
+                          <label className="flex items-center gap-2.5 text-sm cursor-pointer px-3 py-2.5">
                             <Checkbox
                               checked={cfg.checked}
                               onCheckedChange={(v) => updateConfig(emp.id!, { checked: !!v })}
                             />
-                            {emp.name}
+                            <span className="font-medium">{emp.name}</span>
                             {emp.role === "adm" && (
-                              <span className="text-[10px] text-orange-500 font-semibold">(ผู้ดูแลระบบ)</span>
+                              <span className="text-[10px] text-orange-500 font-semibold bg-orange-50 px-1.5 py-0.5 rounded">
+                                ผู้ดูแลระบบ
+                              </span>
                             )}
                           </label>
 
                           {cfg.checked && (
-                            <div className="mt-2 ml-6 flex items-center gap-2 flex-wrap">
-                              <div className="flex text-xs border rounded overflow-hidden">
-                                <button
-                                  type="button"
-                                  onClick={() => updateConfig(emp.id!, { mode: "days" })}
-                                  className={`px-2 py-1 ${
-                                    cfg.mode === "days" ? "bg-gray-800 text-white" : "bg-white text-gray-500"
-                                  }`}
-                                >
-                                  กี่วัน
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => updateConfig(emp.id!, { mode: "date" })}
-                                  className={`px-2 py-1 ${
-                                    cfg.mode === "date" ? "bg-gray-800 text-white" : "bg-white text-gray-500"
-                                  }`}
-                                >
-                                  วันที่
-                                </button>
+                            <div className="px-3 pb-3 pt-1 border-t border-orange-100 bg-orange-50/40">
+                              <div className="flex items-center gap-2 mb-2">
+                                <CalendarClock size={13} className="text-orange-500 shrink-0" />
+                                <span className="text-xs font-medium text-gray-600">กำหนดเวลา</span>
                               </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex text-xs rounded-lg overflow-hidden border border-gray-300 shadow-sm shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateConfig(emp.id!, { mode: "days" })}
+                                    className={`px-3 py-1.5 font-medium transition-colors ${
+                                      cfg.mode === "days"
+                                        ? "bg-gray-900 text-white"
+                                        : "bg-white text-gray-500 hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    กี่วัน
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateConfig(emp.id!, { mode: "date" })}
+                                    className={`px-3 py-1.5 font-medium transition-colors ${
+                                      cfg.mode === "date"
+                                        ? "bg-gray-900 text-white"
+                                        : "bg-white text-gray-500 hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    วันที่
+                                  </button>
+                                </div>
 
-                              {cfg.mode === "days" ? (
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={cfg.days}
-                                  onChange={(e) => updateConfig(emp.id!, { days: e.target.value })}
-                                  placeholder="เช่น 3 (วัน)"
-                                  className="w-28 text-xs border rounded px-2 py-1"
-                                />
-                              ) : (
-                                <input
-                                  type="date"
-                                  value={cfg.date}
-                                  onChange={(e) => updateConfig(emp.id!, { date: e.target.value })}
-                                  className="text-xs border rounded px-2 py-1"
-                                />
-                              )}
-                              <span className="text-[10px] text-gray-400">ไม่กรอก = ไม่มีกำหนด</span>
+                                {cfg.mode === "days" ? (
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={cfg.days}
+                                    onChange={(e) => updateConfig(emp.id!, { days: e.target.value })}
+                                    placeholder="เช่น 3 (วัน)"
+                                    className="w-28 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
+                                  />
+                                ) : (
+                                  <input
+                                    type="date"
+                                    value={cfg.date}
+                                    onChange={(e) => updateConfig(emp.id!, { date: e.target.value })}
+                                    className="text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
+                                  />
+                                )}
+                              </div>
+                              <span className="text-[11px] text-gray-400 mt-1.5 block">ไม่กรอก = ไม่มีกำหนดเวลา</span>
                             </div>
                           )}
                         </div>
@@ -349,22 +390,21 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                     const isMine = a.employee_username === myUsername;
                     const canToggle = isAdmin || isMine;
                     const meta = STATUS_META[a.status] || STATUS_META.pending;
-                    const overdueRing = a.is_overdue ? "ring-2 ring-red-500" : "";
+                    const ring = a.is_overdue
+                      ? "ring-2 ring-red-500"
+                      : a.is_due_soon
+                      ? "ring-2 ring-amber-400"
+                      : "";
 
                     if (!canToggle) {
                       return (
                         <span
                           key={a.id}
-                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 ${meta.className} ${overdueRing} opacity-80`}
+                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 ${meta.className} ${ring} opacity-80`}
                         >
-                          {a.employee_name}: {meta.label}
-                          {a.due_date && (
-                            <span className={`ml-1 ${a.is_overdue ? "text-red-600 font-bold" : "opacity-70"}`}>
-                              {a.is_overdue ? " ⚠ เกินกำหนด " : " • กำหนด "}
-                              {formatDueDate(a.due_date)}
-                            </span>
-                          )}
-                          {a.note && <span className="font-normal"> — {a.note}</span>}
+                          <span>{a.employee_name}: {meta.label}</span>
+                          <DueDateTag a={a} />
+                          {a.note && <span className="text-xs font-normal">— {a.note}</span>}
                         </span>
                       );
                     }
@@ -386,12 +426,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                               ))}
                             </select>
                           </div>
-                          {a.due_date && (
-                            <div className={`text-xs ${a.is_overdue ? "text-red-600 font-bold" : "opacity-70"}`}>
-                              {a.is_overdue ? "⚠ เกินกำหนดแล้ว " : "กำหนด "}
-                              {formatDueDate(a.due_date)}
-                            </div>
-                          )}
+                          <DueDateTag a={a} />
                           <input
                             value={draftNote}
                             onChange={(e) => setDraftNote(e.target.value)}
@@ -420,18 +455,13 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                       <button
                         key={a.id}
                         onClick={() => startEdit(a)}
-                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 hover:shadow-md transition-all ${meta.className} ${overdueRing}`}
+                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 hover:shadow-md transition-all ${meta.className} ${ring}`}
                       >
                         <span className="flex items-center gap-1">
                           {a.is_overdue && <AlertTriangle size={13} className="text-red-600" />}
                           {a.employee_name}: {meta.label}
                         </span>
-                        {a.due_date && (
-                          <span className={`text-xs font-normal ${a.is_overdue ? "text-red-600 font-bold" : "opacity-70"}`}>
-                            {a.is_overdue ? "⚠ เกินกำหนด " : "กำหนด "}
-                            {formatDueDate(a.due_date)}
-                          </span>
-                        )}
+                        <DueDateTag a={a} />
                         {a.note && <span className="text-xs font-normal opacity-80">📝 {a.note}</span>}
                       </button>
                     );
