@@ -10,10 +10,22 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     # ✅ ใช้ username เทียบฝั่ง frontend ว่า "นี่คืองานของฉันเอง" เพราะ session ฝั่ง frontend
     # มี username แน่นอน แต่ id ตัวเลขอาจไม่มีติดมาด้วย
     employee_username = serializers.CharField(source="employee.username", read_only=True)
+    is_overdue = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskAssignment
-        fields = ["id", "employee_id", "employee_name", "employee_username", "status", "note", "completed_at"]
+        fields = [
+            "id", "employee_id", "employee_name", "employee_username",
+            "status", "note", "due_date", "is_overdue", "completed_at",
+        ]
+
+    def get_is_overdue(self, obj):
+        from django.utils import timezone
+        if obj.status == "done":
+            return False
+        if not obj.due_date:
+            return False
+        return obj.due_date < timezone.now()
 
 
 class TaskPostSerializer(serializers.ModelSerializer):

@@ -1,9 +1,5 @@
 # TaskViewSet.py
 # วางไฟล์นี้ใน: backend/api/views/TaskViewSet.py
-# แล้วเพิ่มบรรทัดนี้ใน backend/api/views/__init__.py:
-#   from .TaskViewSet import TaskPostViewSet
-# แล้ว register ใน urls.py (แถวเดียวกับ router.register('npg/accounts', ...)):
-#   router.register('tasks/posts', TaskPostViewSet, basename='task-posts')
 from django.apps import apps
 from django.db.models import Q
 from django.utils import timezone
@@ -18,12 +14,14 @@ from api.serializers.TaskSerializer import TaskPostSerializer
 class TaskPostViewSet(viewsets.ModelViewSet):
     """
     GET    /tasks/posts/                     รายการโพสต์ - admin เห็นหมด, พนักงานเห็นเฉพาะ
-             ประกาศทั่วไป + โพสต์ที่ตัวเองถูกมอบหมายเท่านั้น (โพสต์เฉพาะคนอื่นจะไม่เห็นเลย)
-    POST   /tasks/posts/                     สร้างโพสต์ใหม่ (เฉพาะ admin)
-             body: { content, post_type: "general"|"assigned", employee_ids?: [1,2,...] }
-    DELETE /tasks/posts/{id}/                 ลบโพสต์ (เฉพาะ admin)
+             ประกาศทั่วไป + โพสต์ที่ตัวเองถูกมอบหมาย + โพสต์ที่ตัวเองสร้างเอง
+    POST   /tasks/posts/                     สร้างโพสต์ใหม่ (ใครก็ได้)
+             body: { content, post_type: "general"|"assigned",
+                      assignments?: [{ employee_id, due_date }] }
+             due_date เป็น ISO datetime string หรือ null (ไม่บังคับ)
+    DELETE /tasks/posts/{id}/                 ลบโพสต์ (เฉพาะ admin หรือคนที่โพสต์เอง)
     POST   /tasks/posts/{id}/set_status/       ตั้งสถานะของ "ตัวเอง"
-             body: { status: "pending"|"in_progress"|"issue"|"done" }
+             body: { status, note? }
              admin ตั้งของคนอื่นได้โดยส่ง { employee_id } มาด้วย
     """
     serializer_class = TaskPostSerializer
@@ -51,9 +49,9 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             return Response({"error": "กรุณากรอกเนื้อหา"}, status=status.HTTP_400_BAD_REQUEST)
 
         post_type = request.data.get("post_type") or "general"
-        employee_ids = request.data.get("employee_ids") or []
+        assignments_data = request.data.get("assignments") or []
 
-        if post_type == "assigned" and not employee_ids:
+        if post_type == "assigned" and not assignments_data:
             return Response({"error": "กรุณาเลือกคนที่จะมอบหมาย"}, status=status.HTTP_400_BAD_REQUEST)
 
         post = TaskPost.objects.create(
@@ -65,10 +63,19 @@ class TaskPostViewSet(viewsets.ModelViewSet):
 
         if post_type == "assigned":
             User = apps.get_model("api", "User")
-            employees = User.objects.filter(id__in=employee_ids)
-            TaskAssignment.objects.bulk_create([
-                TaskAssignment(post=post, employee=emp) for emp in employees
-            ])
+            ids = [a.get("employee_id") for a in assignments_data if a.get("employee_id")]
+            employees = {e.id: e for e in User.objects.filter(id__in=ids)}
+
+            objs = []
+            for a in assignments_data:
+                eid = a.get("employee_id")
+                if eid in employees:
+                    objs.append(TaskAssignment(
+                        post=post,
+                        employee=employees[eid],
+                        due_date=a.get("due_date") or None,
+                    ))
+            TaskAssignment.objects.bulk_create(objs)
 
         return Response(self.get_serializer(post).data, status=status.HTTP_201_CREATED)
 

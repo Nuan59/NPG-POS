@@ -1,15 +1,13 @@
 # TaskPost.py
 # วางไฟล์นี้ใน: backend/api/models/TaskPost.py
-# แล้วเพิ่มบรรทัดนี้ใน backend/api/models/__init__.py (ที่เดียวกับที่ import NPGAccount, NPGPayment):
-#   from .TaskPost import TaskPost, TaskAssignment
 from django.db import models
 
 
 class TaskPost(models.Model):
     """
-    โพสต์ประกาศ/มอบหมายงานให้พนักงาน (สร้างได้เฉพาะ admin)
+    โพสต์ประกาศ/มอบหมายงาน - ใครก็โพสต์ได้ (admin เห็นทุกโพสต์เสมอ)
     - post_type = "general"  -> ประกาศทั่วไป ทุกคนเห็นเหมือนกัน ไม่มีสถานะ
-    - post_type = "assigned" -> มอบหมายเฉพาะคน แต่ละคนมีสถานะทำ/ไม่ทำแยกกัน (ดู TaskAssignment)
+    - post_type = "assigned" -> มอบหมายเฉพาะคน แต่ละคนมีสถานะ+กำหนดเวลาของตัวเอง (ดู TaskAssignment)
     """
     POST_TYPE_CHOICES = [
         ("general", "ประกาศทั่วไป"),
@@ -33,8 +31,8 @@ class TaskPost(models.Model):
 
 class TaskAssignment(models.Model):
     """
-    สถานะงานของพนักงานแต่ละคนที่ถูกมอบหมายในโพสต์เดียวกัน - แยกกันคนละแถว
-    เพื่อให้แต่ละคนติ๊ก "ทำแล้ว" ของตัวเองได้โดยไม่กระทบคนอื่นในโพสต์เดียวกัน
+    สถานะ+กำหนดเวลาของพนักงานแต่ละคนที่ถูกมอบหมายในโพสต์เดียวกัน - แยกกันคนละแถว
+    เพื่อให้แต่ละคนมีสถานะ/กำหนดเวลาของตัวเองโดยไม่กระทบคนอื่นในโพสต์เดียวกัน
     """
     STATUS_CHOICES = [
         ("pending", "ยังไม่ทำ"),
@@ -47,6 +45,8 @@ class TaskAssignment(models.Model):
     employee = models.ForeignKey("User", on_delete=models.CASCADE, related_name="task_assignments")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
     note = models.TextField(blank=True, default="", verbose_name="หมายเหตุ")
+    # ✅ กำหนดเวลา - ตั้งแยกได้คนละกำหนดต่อคน (ไม่บังคับ) ใช้เตือนตอนเกินกำหนดในหน้า TaskBoard
+    due_date = models.DateTimeField(null=True, blank=True, verbose_name="กำหนดเวลา")
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
