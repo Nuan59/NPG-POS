@@ -13,6 +13,8 @@ export const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/issues": "board",
   "/employees": "employees",
   "/reports": "reports",
+  // ✅ ประวัติการรับบริการของรถ - ใช้สิทธิ์เดียวกับ "รายงาน" ไปก่อน (ปรับเป็นสิทธิ์แยกทีหลังได้)
+  "/service-history": "reports",
 };
 
 /**

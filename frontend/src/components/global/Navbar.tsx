@@ -24,6 +24,7 @@ export const Navbar = () => {
     { href: "/storage", label: "คลัง" },
     { href: "/gifts", label: "ของแถม" },
     { href: "/registration", label: "ทะเบียน" },
+    { href: "/service-history", label: "ประวัติรถ" },
     { href: "/installment", label: "คำนวณ" },
     { href: "/npg", label: "NPG" },
     { href: "/cashflow", label: "รายรับ-รายจ่าย" },

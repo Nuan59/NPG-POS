@@ -32,6 +32,14 @@ interface ViewCustomerProps {
 	};
 }
 
+// ✅ ป้าย "ประเภทธุรกรรม" - สีต่างกันตามประเภท (ขาย/ซ่อม/ต่อภาษี+พรบ/อื่นๆ)
+const transactionBadgeStyle: Record<string, string> = {
+	"ขาย": "bg-blue-100 text-blue-800",
+	"ซ่อม": "bg-orange-100 text-orange-800",
+	"ต่อภาษี+พรบ": "bg-purple-100 text-purple-800",
+	"อื่นๆ": "bg-gray-100 text-gray-800",
+};
+
 const ViewCustomer = async ({ params }: ViewCustomerProps) => {
 	// ✅ แก้ไข: ใช้ return format จาก getCustomer ที่มี { ok, data, error }
 	const result = await getCustomer(parseInt(params.customer_id));
@@ -132,26 +140,56 @@ const ViewCustomer = async ({ params }: ViewCustomerProps) => {
 								<TableBody>
 									{customerOrders.length > 0 ? (
 										<ScrollArea className="h-[80%]">
-											{customerOrders.map((order, index) => (
-												<TableRow key={index}>
-													<TableCell className="font-medium">
-														{order.bikes[0].model_name}
-													</TableCell>
-													<TableCell className="text-right">
-														{getDate(order.sale_date)}
-													</TableCell>
-													<TableCell className="text-right">
-														<Link href={`/sales/${order.id}`}>
-															<Button variant={"outline"}>
-																<Receipt
-																	opacity={"80%"}
-																	size={"1.2rem"}
-																/>
-															</Button>
-														</Link>
-													</TableCell>
-												</TableRow>
-											))}
+											{customerOrders.map((order, index) => {
+												// ✅ กันพัง - order ประเภท "อื่นๆ" อาจไม่มีรถผูกอยู่เลย (bikes: [])
+												const bikeLabel =
+													order.bikes && order.bikes.length > 0
+														? order.bikes[0].model_name
+														: "-";
+												// ✅ ประเภทธุรกรรม/เลขไมล์ - field ใหม่ (cast any กันเคส type
+												// IOrder ยังไม่ได้เพิ่ม field นี้ในไฟล์ types/Order.ts)
+												const transactionType =
+													(order as any).transaction_type || "ขาย";
+												const mileage = (order as any).mileage;
+
+												return (
+													<TableRow key={index}>
+														<TableCell className="font-medium">
+															<div className="flex flex-col gap-1">
+																<span>{bikeLabel}</span>
+																<div className="flex items-center gap-1.5">
+																	<span
+																		className={`text-[10px] px-1.5 py-0.5 rounded font-semibold w-fit ${
+																			transactionBadgeStyle[transactionType] ||
+																			"bg-gray-100 text-gray-800"
+																		}`}
+																	>
+																		{transactionType}
+																	</span>
+																	{!!mileage && (
+																		<span className="text-[10px] text-gray-500">
+																			ไมล์ {Number(mileage).toLocaleString()} กม.
+																		</span>
+																	)}
+																</div>
+															</div>
+														</TableCell>
+														<TableCell className="text-right">
+															{getDate(order.sale_date)}
+														</TableCell>
+														<TableCell className="text-right">
+															<Link href={`/sales/${order.id}`}>
+																<Button variant={"outline"}>
+																	<Receipt
+																		opacity={"80%"}
+																		size={"1.2rem"}
+																	/>
+																</Button>
+															</Link>
+														</TableCell>
+													</TableRow>
+												);
+											})}
 										</ScrollArea>
 									) : (
 										<TableRow>
