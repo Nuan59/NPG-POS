@@ -68,6 +68,7 @@ const AnnouncementPanel = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [newContent, setNewContent] = useState("");
+  const [newDetail, setNewDetail] = useState("");
   const [saving, setSaving] = useState(false);
 
   const loadAnnouncements = async () => {
@@ -86,11 +87,12 @@ const AnnouncementPanel = () => {
       return;
     }
     setSaving(true);
-    const result = await createAnnouncement(newContent.trim());
+    const result = await createAnnouncement({ content: newContent.trim(), detail: newDetail.trim() });
     setSaving(false);
     if (result.status === "success") {
       toast.success("เพิ่มประกาศแล้ว");
       setNewContent("");
+      setNewDetail("");
       loadAnnouncements();
     } else {
       toast.error(result.error || "เกิดข้อผิดพลาด");
@@ -126,18 +128,26 @@ const AnnouncementPanel = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex gap-2 mb-4">
+        <div className="space-y-2 mb-4">
           <input
             type="text"
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            placeholder="พิมพ์ข้อความประกาศ..."
-            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-orange-400"
+            placeholder="ข้อความสั้นที่จะไหลในแถบ..."
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-orange-400"
           />
-          <Button onClick={handleCreate} disabled={saving} className="gap-1">
-            <Plus size={14} /> เพิ่ม
-          </Button>
+          <textarea
+            value={newDetail}
+            onChange={(e) => setNewDetail(e.target.value)}
+            placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ) - โชว์ตอนกดที่แถบไหล"
+            rows={2}
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-orange-400 resize-none"
+          />
+          <div className="flex justify-end">
+            <Button onClick={handleCreate} disabled={saving} className="gap-1">
+              <Plus size={14} /> เพิ่มประกาศ
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -150,11 +160,14 @@ const AnnouncementPanel = () => {
               <div
                 key={a.id}
                 className={cn(
-                  "flex items-center justify-between gap-2 p-2.5 rounded-lg border text-sm",
+                  "flex items-start justify-between gap-2 p-2.5 rounded-lg border text-sm",
                   a.is_active ? "bg-orange-50 border-orange-200" : "bg-gray-50 border-gray-200 opacity-60"
                 )}
               >
-                <span className="flex-1">{a.content}</span>
+                <div className="flex-1">
+                  <p>{a.content}</p>
+                  {a.detail && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{a.detail}</p>}
+                </div>
                 <button
                   onClick={() => handleToggle(a)}
                   className="text-gray-500 hover:text-orange-600 shrink-0"

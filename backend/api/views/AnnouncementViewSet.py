@@ -10,7 +10,7 @@ from api.serializers.AnnouncementSerializer import AnnouncementSerializer
 class AnnouncementViewSet(viewsets.ModelViewSet):
     """
     GET    /announcements/            ทุกคนที่ login แล้วดูได้ (เรียงใหม่สุดก่อน)
-    POST   /announcements/            สร้างประกาศใหม่ (เฉพาะ admin)
+    POST   /announcements/            สร้างประกาศใหม่ (เฉพาะ admin) - body: { content, detail? }
     PATCH  /announcements/{id}/       แก้ไข/เปิดปิด (เฉพาะ admin) เช่น { is_active: false }
     DELETE /announcements/{id}/       ลบ (เฉพาะ admin)
     """
@@ -31,8 +31,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         if not content:
             return Response({"error": "กรุณากรอกข้อความประกาศ"}, status=status.HTTP_400_BAD_REQUEST)
 
+        detail = (request.data.get("detail") or "").strip()
+
         announcement = Announcement.objects.create(
             content=content,
+            detail=detail,
             created_by=self._display_name(request),
             created_by_username=getattr(request.user, "username", "") or "",
         )

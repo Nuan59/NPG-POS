@@ -7,6 +7,8 @@ import { revalidatePath, revalidateTag } from "next/cache";
 export interface Announcement {
   id: number;
   content: string;
+  // ✅ รายละเอียดเพิ่มเติม (ไม่บังคับ) - โชว์ตอนกดที่แถบไหลเพื่อดูรายละเอียดเต็ม
+  detail: string;
   is_active: boolean;
   created_by: string;
   created_by_username: string;
@@ -26,13 +28,13 @@ export const getAnnouncements = async (): Promise<Announcement[]> => {
   }
 };
 
-export const createAnnouncement = async (content: string) => {
+export const createAnnouncement = async (payload: { content: string; detail?: string }) => {
   "use server";
   try {
     const response = await authorizedFetch(`${process.env.API_URL}/announcements/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(payload),
     });
     if (!response) {
       return { status: "error", error: "ไม่มี session หรือ token กรุณา login ใหม่" };
