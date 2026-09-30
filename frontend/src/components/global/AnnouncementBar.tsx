@@ -2,14 +2,17 @@
 // AnnouncementBar.tsx
 // วางไฟล์นี้ใน: frontend/src/components/global/AnnouncementBar.tsx
 import { useEffect, useState } from "react";
-import { Megaphone } from "lucide-react";
+import { Megaphone, Sparkles } from "lucide-react";
 import { getAnnouncements } from "@/services/AnnouncementService";
 
 // ✅ โชว์สูงสุด 5 ประกาศที่เปิดอยู่ (ล่าสุดก่อน) ต่อกันเป็นแถบไหลเดียว - เกินนี้ตัดออก
 const MAX_ANNOUNCEMENTS = 5;
+// ✅ พิมพ์ข้อความซ้ำกี่รอบก่อนวนใหม่ - กันเคสข้อความสั้นแล้วดูเหมือนมีช่องว่าง ไม่ไหลเต็มจอ
+const REPEAT_COUNT = 10;
 
 /**
- * แถบตัวหนังสือไหลใต้ Navbar - โชว์ประกาศที่ is_active=true ทั้งหมด (ต่อกันด้วย •)
+ * แถบตัวหนังสือไหลใต้ Navbar - โชว์ประกาศที่ is_active=true สูงสุด 5 อัน (ต่อกันด้วย ★)
+ * พิมพ์ซ้ำหลายรอบเสมอเพื่อให้ไหลเต็มความกว้างจอไม่มีช่วงว่าง ไม่ว่าข้อความจะสั้นแค่ไหน
  * ไม่มีประกาศที่เปิดอยู่เลย -> ไม่แสดงอะไร (return null) กันเปลืองพื้นที่เปล่าๆ
  */
 const AnnouncementBar = () => {
@@ -20,7 +23,7 @@ const AnnouncementBar = () => {
     const load = async () => {
       const all = await getAnnouncements();
       const active = all.filter((a) => a.is_active).slice(0, MAX_ANNOUNCEMENTS);
-      setText(active.map((a) => a.content).join("   •   "));
+      setText(active.map((a) => a.content).join("   ★   "));
       setLoaded(true);
     };
     load();
@@ -28,13 +31,23 @@ const AnnouncementBar = () => {
 
   if (!loaded || !text) return null;
 
+  // ✅ ต่อข้อความซ้ำหลายรอบให้ยาวพอเสมอ แล้วค่อยแบ่งเป็น 2 ก้อนสำหรับลูปแบบไม่มีรอยต่อ
+  const repeated = Array(REPEAT_COUNT).fill(text).join("   ★   ");
+
   return (
-    <div className="w-full bg-orange-600 text-white overflow-hidden py-1.5 flex items-center">
-      <Megaphone size={16} className="shrink-0 ml-4 mr-2" />
+    <div className="w-full relative overflow-hidden py-2 flex items-center shadow-md bg-gradient-to-r from-orange-600 via-amber-500 to-orange-600">
+      <div className="flex items-center gap-1.5 shrink-0 pl-4 pr-3 z-10 bg-gradient-to-r from-orange-600 via-orange-600 to-transparent">
+        <Megaphone size={17} className="text-white drop-shadow" />
+        <Sparkles size={12} className="text-yellow-200" />
+      </div>
       <div className="relative flex-1 overflow-hidden whitespace-nowrap">
-        <div className="inline-block animate-marquee">
-          <span className="mx-8 text-sm font-medium">{text}</span>
-          <span className="mx-8 text-sm font-medium">{text}</span>
+        <div className="inline-flex animate-marquee">
+          <span className="mx-6 text-sm font-bold text-white tracking-wide drop-shadow-sm">
+            {repeated}
+          </span>
+          <span className="mx-6 text-sm font-bold text-white tracking-wide drop-shadow-sm">
+            {repeated}
+          </span>
         </div>
       </div>
       <style jsx>{`
@@ -47,7 +60,7 @@ const AnnouncementBar = () => {
           }
         }
         .animate-marquee {
-          animation: marquee 22s linear infinite;
+          animation: marquee 40s linear infinite;
         }
       `}</style>
     </div>
