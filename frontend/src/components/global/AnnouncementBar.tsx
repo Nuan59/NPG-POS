@@ -2,7 +2,7 @@
 // AnnouncementBar.tsx
 // วางไฟล์นี้ใน: frontend/src/components/global/AnnouncementBar.tsx
 import { useEffect, useState } from "react";
-import { Megaphone, Sparkles } from "lucide-react";
+import { Megaphone } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +20,8 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 /**
- * แถบตัวหนังสือไหลใต้ Navbar - โชว์ประกาศที่ is_active=true สูงสุด 5 อัน (ต่อกันด้วย ★)
- * กดที่แถบเปิดดูรายละเอียดเต็มของทุกประกาศที่กำลังแสดงอยู่ได้
+ * แถบตัวหนังสือไหลใต้ Navbar - ใช้โทนสีเดียวกับ Navbar (เทาเข้มไล่สี + ขอบส้ม) ให้ดูเป็นเนื้อเดียวกัน
+ * โชว์ประกาศที่ is_active=true สูงสุด 5 อัน (ต่อกันด้วย ★) กดที่แถบเปิดดูรายละเอียดเต็มได้
  * ไม่มีประกาศที่เปิดอยู่เลย -> ไม่แสดงอะไร (return null) กันเปลืองพื้นที่เปล่าๆ
  */
 const AnnouncementBar = () => {
@@ -49,20 +49,23 @@ const AnnouncementBar = () => {
       <button
         type="button"
         onClick={() => setDialogOpen(true)}
-        className="w-full relative overflow-hidden py-2 flex items-center shadow-md bg-gradient-to-r from-orange-600 via-amber-500 to-orange-600 cursor-pointer text-left"
+        className="w-full relative overflow-hidden py-2.5 flex items-center shadow-lg cursor-pointer text-left border-b-2 border-orange-500 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900"
         title="กดเพื่อดูรายละเอียดประกาศ"
       >
-        <div className="flex items-center gap-1.5 shrink-0 pl-4 pr-3 z-10 bg-gradient-to-r from-orange-600 via-orange-600 to-transparent">
-          <Megaphone size={17} className="text-white drop-shadow" />
-          <Sparkles size={12} className="text-yellow-200" />
+        <div className="flex items-center gap-1.5 shrink-0 pl-4 pr-3 z-10 bg-gradient-to-r from-gray-900 via-gray-900 to-transparent">
+          <span className="bg-orange-500 rounded-full p-1 flex items-center justify-center shadow-md shadow-orange-500/40">
+            <Megaphone size={13} className="text-white" strokeWidth={2.5} />
+          </span>
         </div>
         <div className="relative flex-1 overflow-hidden whitespace-nowrap">
           <div className="inline-flex animate-marquee">
-            <span className="mx-6 text-sm font-bold text-white tracking-wide drop-shadow-sm">
-              {repeated}
-            </span>
-            <span className="mx-6 text-sm font-bold text-white tracking-wide drop-shadow-sm">
-              {repeated}
+            <span className="mx-6 text-sm sm:text-base font-extrabold text-white tracking-wide">
+              {repeated.split("★").map((part, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="text-orange-400 mx-1">★</span>}
+                  {part}
+                </span>
+              ))}
             </span>
           </div>
         </div>
@@ -72,14 +75,16 @@ const AnnouncementBar = () => {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Megaphone className="w-5 h-5 text-orange-600" />
+              <span className="bg-orange-500 rounded-full p-1.5 flex items-center justify-center">
+                <Megaphone size={16} className="text-white" strokeWidth={2.5} />
+              </span>
               ประกาศ
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-96 overflow-y-auto space-y-3">
             {active.map((a) => (
               <div key={a.id} className="p-3 rounded-lg border bg-orange-50 border-orange-200">
-                <p className="font-medium">{a.content}</p>
+                <p className="font-bold text-gray-800">{a.content}</p>
                 {a.detail && (
                   <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{a.detail}</p>
                 )}
