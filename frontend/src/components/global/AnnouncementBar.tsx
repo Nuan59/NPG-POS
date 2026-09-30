@@ -20,8 +20,8 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 /**
- * แถบตัวหนังสือไหลใต้ Navbar - สีส้มเป็นหลัก (ธีมร้าน) พร้อมลาย diagonal stripe จางๆ
- * และเอฟเฟกต์แสงวิ่งผ่าน (shine sweep) ให้ดูมีมิติแบบกราฟฟิค ไม่แบนเรียบ
+ * แถบตัวหนังสือไหลใต้ Navbar - พื้นหลังส้มล้วน (ธีมร้าน) ตกแต่งแบบโมเดิร์น:
+ * จุดลายจางๆ, เส้นไฮไลต์มันวาวขอบบน, ไอคอนในป้ายขาวพร้อมจุดไฟกะพริบ, ป้ายนับจำนวนประกาศฝั่งขวา
  * โชว์ประกาศที่ is_active=true สูงสุด 5 อัน (ต่อกันด้วย ★) กดที่แถบเปิดดูรายละเอียดเต็มได้
  * ไม่มีประกาศที่เปิดอยู่เลย -> ไม่แสดงอะไร (return null) กันเปลืองพื้นที่เปล่าๆ
  */
@@ -47,7 +47,7 @@ const AnnouncementBar = () => {
   const renderText = (t: string) =>
     t.split("★").map((part, i) => (
       <span key={i}>
-        {i > 0 && <span className="text-yellow-200 mx-1">★</span>}
+        {i > 0 && <span className="text-white/70 mx-1">★</span>}
         {part}
       </span>
     ));
@@ -57,25 +57,35 @@ const AnnouncementBar = () => {
       <button
         type="button"
         onClick={() => setDialogOpen(true)}
-        className="announcement-bar w-full relative overflow-hidden py-2.5 flex items-center shadow-lg cursor-pointer text-left border-b-2 border-orange-800/40 bg-gradient-to-r from-orange-700 via-orange-500 to-orange-700"
+        className="announcement-bar w-full relative overflow-hidden py-2.5 flex items-center shadow-lg cursor-pointer text-left border-b-2 border-orange-800/50 bg-orange-600"
         title="กดเพื่อดูรายละเอียดประกาศ"
       >
-        {/* ลาย diagonal stripe จางๆ ให้พื้นหลังดูมีมิติ ไม่แบนเรียบ */}
-        <div className="stripe-pattern absolute inset-0 pointer-events-none opacity-[0.08]" />
-        {/* แสงวิ่งผ่านเป็นระยะ (shine sweep) */}
-        <div className="shine-sweep absolute inset-y-0 w-1/4 pointer-events-none" />
+        {/* จุดลายจางๆ ให้พื้นหลังดูมีมิติแบบโมเดิร์น ไม่แบนเรียบ */}
+        <div className="dot-pattern absolute inset-0 pointer-events-none opacity-[0.12]" />
+        {/* เส้นไฮไลต์มันวาวบางๆ ที่ขอบบนสุด (glass sheen) */}
+        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
 
-        <div className="flex items-center gap-1.5 shrink-0 pl-4 pr-3 z-10 bg-gradient-to-r from-orange-700 via-orange-700 to-transparent">
-          <span className="icon-pulse relative bg-white rounded-full p-1.5 flex items-center justify-center shadow-md">
+        {/* ไอคอนซ้าย - ป้ายขาวมนพร้อมจุดไฟกะพริบมุมขวาบน */}
+        <div className="flex items-center gap-1.5 shrink-0 pl-4 pr-3 z-10 bg-gradient-to-r from-orange-600 via-orange-600 to-transparent">
+          <span className="relative bg-white rounded-lg p-1.5 flex items-center justify-center shadow-md">
             <Megaphone size={14} className="text-orange-600" strokeWidth={2.5} />
+            <span className="live-dot absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400 border border-white" />
           </span>
         </div>
+
         <div className="relative flex-1 overflow-hidden whitespace-nowrap z-10">
           <div className="inline-flex animate-marquee">
-            <span className="mx-6 text-sm sm:text-base font-extrabold text-white tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.35)]">
+            <span className="mx-6 text-sm sm:text-base font-extrabold text-white tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.3)]">
               {renderText(repeated)}
             </span>
           </div>
+        </div>
+
+        {/* ป้ายนับจำนวนประกาศฝั่งขวา - ธีมเดียวกับ badge แจ้งเตือนใน Navbar */}
+        <div className="shrink-0 pl-3 pr-4 z-10 bg-gradient-to-l from-orange-600 via-orange-600 to-transparent flex items-center">
+          <span className="bg-gray-900/70 text-white text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
+            {active.length} ประกาศ
+          </span>
         </div>
       </button>
 
@@ -117,51 +127,23 @@ const AnnouncementBar = () => {
         .animate-marquee {
           animation: marquee 40s linear infinite;
         }
-        .stripe-pattern {
-          background-image: repeating-linear-gradient(
-            -45deg,
-            #ffffff,
-            #ffffff 10px,
-            transparent 10px,
-            transparent 20px
-          );
+        .dot-pattern {
+          background-image: radial-gradient(#ffffff 1px, transparent 1px);
+          background-size: 14px 14px;
         }
-        @keyframes shineSweep {
-          0% {
-            transform: translateX(-150%) skewX(-20deg);
-            opacity: 0;
-          }
-          15% {
-            opacity: 0.5;
-          }
-          35% {
-            opacity: 0;
-          }
-          100% {
-            transform: translateX(500%) skewX(-20deg);
-            opacity: 0;
-          }
-        }
-        .shine-sweep {
-          background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.55),
-            transparent
-          );
-          animation: shineSweep 5s ease-in-out infinite;
-        }
-        @keyframes iconPulse {
+        @keyframes liveDot {
           0%,
           100% {
-            box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6);
+            opacity: 1;
+            transform: scale(1);
           }
           50% {
-            box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+            opacity: 0.4;
+            transform: scale(0.85);
           }
         }
-        .icon-pulse {
-          animation: iconPulse 2s ease-in-out infinite;
+        .live-dot {
+          animation: liveDot 1.6s ease-in-out infinite;
         }
       `}</style>
     </>
