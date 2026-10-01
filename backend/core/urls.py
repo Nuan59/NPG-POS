@@ -21,6 +21,7 @@ from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.CashflowView import CashflowViewSet
 from api.views.TaskViewSet import TaskPostViewSet
 from api.views.AnnouncementViewSet import AnnouncementViewSet
+from api.views.AnnouncementSettingsView import AnnouncementSettingsView
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView
@@ -377,6 +378,22 @@ def create_announcement_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+
+# ✅ Temp: สร้างตาราง announcement_settings (เก็บความเร็วแถบไหล)
+def create_announcement_settings_table(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS announcement_settings (
+                    id SERIAL PRIMARY KEY,
+                    speed_seconds INTEGER NOT NULL DEFAULT 40
+                );
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง announcement_settings เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เพิ่มคอลัมน์ due_date ให้ตาราง task_assignment (กำหนดเวลางานแยกรายบุคคล)
 def add_task_due_date_column(request):
     from django.db import connection
@@ -456,6 +473,9 @@ urlpatterns = [
     path('dev/add-task-post-due-date-column/', add_task_post_due_date_column),
     path('dev/create-announcement-table/', create_announcement_table),
     path('dev/add-announcement-detail-column/', add_announcement_detail_column),
+    path('dev/create-announcement-settings-table/', create_announcement_settings_table),
+    # ✅ ต้องอยู่ก่อน include(router.urls) เสมอ ไม่งั้นชนกับ /announcements/{id}/ ของ router
+    path('announcements/settings/', AnnouncementSettingsView.as_view()),
     path('dev/create-workhours/', create_workhours_table),
     path('dev/create-cashflow-tables/', create_cashflow_tables),
     path('dev/add-cashflow-count-columns/', add_cashflow_count_columns),
