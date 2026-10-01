@@ -2,7 +2,7 @@
 // AnnouncementService.ts
 // วางไฟล์นี้ใน: frontend/src/services/AnnouncementService.ts
 import { authorizedFetch } from "@/util/AuthorizedFetch";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 
 export interface Announcement {
   id: number;
@@ -21,8 +21,10 @@ export interface AnnouncementSettings {
 
 export const getAnnouncements = async (): Promise<Announcement[]> => {
   "use server";
+  // ✅ cache: "no-store" กันเด็ดขาด - ไม่ใช้ next.revalidate/tags แล้วเพราะเจอปัญหาแคชค้าง
+  // (backend มีค่าใหม่แล้วแต่หน้าเว็บยังอ่านค่าเก่าจาก Data Cache ของ Next.js)
   const response = await authorizedFetch(`${process.env.API_URL}/announcements/`, {
-    next: { revalidate: 0, tags: ["announcements"] },
+    cache: "no-store",
   });
   if (!response?.ok) return [];
   try {
@@ -54,7 +56,6 @@ export const createAnnouncement = async (payload: { content: string; detail?: st
       return { status: "error", error: bodyJson?.error || `HTTP ${response.status}` };
     }
     revalidatePath("/issues");
-    revalidateTag("announcements");
     return { status: "success", data: bodyJson as Announcement };
   } catch (err) {
     return {
@@ -78,7 +79,6 @@ export const updateAnnouncement = async (id: number, payload: { content: string;
       return { status: "error", error: err?.error || "แก้ไขไม่สำเร็จ" };
     }
     revalidatePath("/issues");
-    revalidateTag("announcements");
     return { status: "success" };
   } catch (err) {
     return {
@@ -100,7 +100,6 @@ export const toggleAnnouncement = async (id: number, isActive: boolean) => {
       return { status: "error", error: "อัปเดตไม่สำเร็จ" };
     }
     revalidatePath("/issues");
-    revalidateTag("announcements");
     return { status: "success" };
   } catch (err) {
     return {
@@ -120,7 +119,6 @@ export const deleteAnnouncement = async (id: number) => {
       return { status: "error", error: "ลบไม่สำเร็จ" };
     }
     revalidatePath("/issues");
-    revalidateTag("announcements");
     return { status: "success" };
   } catch (err) {
     return {
@@ -133,8 +131,9 @@ export const deleteAnnouncement = async (id: number) => {
 // ✅ ความเร็วตัวหนังสือไหล - เป็นค่ารวม (ทุกประกาศไหลรวมเป็นแถบเดียว จึงตั้งความเร็วแยกรายอันไม่ได้)
 export const getAnnouncementSettings = async (): Promise<AnnouncementSettings> => {
   "use server";
+  // ✅ cache: "no-store" กันเด็ดขาด - ต้องได้ค่าล่าสุดเสมอ ไม่งั้นตั้งความเร็วแล้วแถบไม่ขยับตาม
   const response = await authorizedFetch(`${process.env.API_URL}/announcements/settings/`, {
-    next: { revalidate: 0, tags: ["announcementSettings"] },
+    cache: "no-store",
   });
   if (!response?.ok) return { speed_seconds: 40 };
   try {
@@ -157,7 +156,6 @@ export const updateAnnouncementSpeed = async (speedSeconds: number) => {
       return { status: "error", error: err?.error || "อัปเดตความเร็วไม่สำเร็จ" };
     }
     revalidatePath("/issues");
-    revalidateTag("announcementSettings");
     return { status: "success" };
   } catch (err) {
     return {
