@@ -14,17 +14,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, AlertCircle, CheckCircle, Clock, Megaphone, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, AlertCircle, CheckCircle, Clock, Megaphone, Trash2, Eye, EyeOff, Pencil, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
   Announcement,
   getAnnouncements,
-  createAnnouncement,
   toggleAnnouncement,
   deleteAnnouncement,
+  getAnnouncementSettings,
+  updateAnnouncementSpeed,
 } from "@/services/AnnouncementService";
+import AnnouncementDialog from "./components/AnnouncementDialog";
 
 interface Issue {
   id: number;
@@ -64,12 +66,17 @@ interface Issue {
 type TabKey = "open" | "closed";
 
 // ✅ แผงจัดการ "ประกาศตัวหนังสือไหล" ใต้ Navbar - เฉพาะ admin เห็นและใช้งานได้
+// สร้าง/แก้ไข ใช้ Dialog แบบเดียวกับ pattern อื่นในแอป (เช่น PermissionsDialog) แทน textarea แทรกในการ์ด
 const AnnouncementPanel = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newContent, setNewContent] = useState("");
-  const [newDetail, setNewDetail] = useState("");
-  const [saving, setSaving] = useState(false);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | undefined>(undefined);
+
+  // ✅ ความเร็วตัวหนังสือไหล (ค่ารวม - ทุกประกาศไหลรวมเป็นแถบเดียว)
+  const [speed, setSpeed] = useState<number>(40);
+  const [speedSaving, setSpeedSaving] = useState(false);
 
   const loadAnnouncements = async () => {
     const data = await getAnnouncements();
@@ -77,26 +84,24 @@ const AnnouncementPanel = () => {
     setLoading(false);
   };
 
+  const loadSpeed = async () => {
+    const settings = await getAnnouncementSettings();
+    setSpeed(settings.speed_seconds);
+  };
+
   useEffect(() => {
     loadAnnouncements();
+    loadSpeed();
   }, []);
 
-  const handleCreate = async () => {
-    if (!newContent.trim()) {
-      toast.error("กรุณากรอกข้อความประกาศ");
-      return;
-    }
-    setSaving(true);
-    const result = await createAnnouncement({ content: newContent.trim(), detail: newDetail.trim() });
-    setSaving(false);
-    if (result.status === "success") {
-      toast.success("เพิ่มประกาศแล้ว");
-      setNewContent("");
-      setNewDetail("");
-      loadAnnouncements();
-    } else {
-      toast.error(result.error || "เกิดข้อผิดพลาด");
-    }
+  const openCreateDialog = () => {
+    setEditingAnnouncement(undefined);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (a: Announcement) => {
+    setEditingAnnouncement(a);
+    setDialogOpen(true);
   };
 
   const handleToggle = async (a: Announcement) => {
@@ -119,35 +124,45 @@ const AnnouncementPanel = () => {
     }
   };
 
+  const handleSaveSpeed = async () => {
+    setSpeedSaving(true);
+    const result = await updateAnnouncementSpeed(speed);
+    setSpeedSaving(false);
+    if (result.status === "success") {
+      toast.success("ตั้งความเร็วแล้ว");
+    } else {
+      toast.error(result.error || "ตั้งความเร็วไม่สำเร็จ");
+    }
+  };
+
   return (
     <Card className="mb-6 border-orange-200">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Megaphone className="w-5 h-5 text-orange-600" />
-          ประกาศตัวหนังสือไหล (แสดงใต้เมนูบนทุกหน้า)
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Megaphone className="w-5 h-5 text-orange-600" />
+            ประกาศตัวหนังสือไหล (แสดงใต้เมนูบนทุกหน้า)
+          </CardTitle>
+          <Button size="sm" onClick={openCreateDialog} className="gap-1">
+            <Plus size={14} /> เพิ่มประกาศ
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2 mb-4">
+        {/* ✅ ตั้งความเร็ว - เป็นค่ารวม เพราะทุกประกาศไหลรวมเป็นแถบเดียวกัน */}
+        <div className="flex items-center gap-2 mb-4 p-2.5 rounded-lg bg-gray-50 border">
+          <Gauge size={16} className="text-gray-500 shrink-0" />
+          <span className="text-xs text-gray-600 shrink-0">ความเร็วตัวหนังสือไหล (วินาที/รอบ ยิ่งน้อยยิ่งเร็ว)</span>
           <input
-            type="text"
-            value={newContent}
-            onChange={(e) => setNewContent(e.target.value)}
-            placeholder="ข้อความสั้นที่จะไหลในแถบ..."
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-orange-400"
+            type="number"
+            min={5}
+            value={speed}
+            onChange={(e) => setSpeed(Number(e.target.value) || 5)}
+            className="w-20 text-sm border rounded px-2 py-1 outline-none focus:border-orange-400"
           />
-          <textarea
-            value={newDetail}
-            onChange={(e) => setNewDetail(e.target.value)}
-            placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ) - โชว์ตอนกดที่แถบไหล"
-            rows={2}
-            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-orange-400 resize-none"
-          />
-          <div className="flex justify-end">
-            <Button onClick={handleCreate} disabled={saving} className="gap-1">
-              <Plus size={14} /> เพิ่มประกาศ
-            </Button>
-          </div>
+          <Button size="sm" variant="outline" onClick={handleSaveSpeed} disabled={speedSaving}>
+            {speedSaving ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
         </div>
 
         {loading ? (
@@ -169,6 +184,13 @@ const AnnouncementPanel = () => {
                   {a.detail && <p className="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">{a.detail}</p>}
                 </div>
                 <button
+                  onClick={() => openEditDialog(a)}
+                  className="text-gray-500 hover:text-blue-600 shrink-0"
+                  title="แก้ไข"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
                   onClick={() => handleToggle(a)}
                   className="text-gray-500 hover:text-orange-600 shrink-0"
                   title={a.is_active ? "ซ่อน" : "แสดง"}
@@ -187,6 +209,13 @@ const AnnouncementPanel = () => {
           </div>
         )}
       </CardContent>
+
+      <AnnouncementDialog
+        announcement={editingAnnouncement}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSaved={loadAnnouncements}
+      />
     </Card>
   );
 };
