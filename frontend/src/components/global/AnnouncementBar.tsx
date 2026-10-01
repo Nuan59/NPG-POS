@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getAnnouncements, Announcement } from "@/services/AnnouncementService";
+import { getAnnouncements, getAnnouncementSettings, Announcement } from "@/services/AnnouncementService";
 
 // ✅ โชว์สูงสุด 5 ประกาศที่เปิดอยู่ (ล่าสุดก่อน) ต่อกันเป็นแถบไหลเดียว - เกินนี้ตัดออก
 const MAX_ANNOUNCEMENTS = 5;
@@ -20,20 +20,22 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 /**
- * แถบตัวหนังสือไหลใต้ Navbar - พื้นหลังส้มล้วน (ธีมร้าน) ตกแต่งแบบโมเดิร์น:
- * จุดลายจางๆ, เส้นไฮไลต์มันวาวขอบบน, ไอคอนในป้ายขาวพร้อมจุดไฟกะพริบ, ป้ายนับจำนวนประกาศฝั่งขวา
+ * แถบตัวหนังสือไหลใต้ Navbar - พื้นหลังส้มล้วน (ธีมร้าน) ตกแต่งแบบโมเดิร์น
+ * ความเร็ว (animation-duration) ดึงมาจาก /announcements/settings/ จริง - ตั้งได้จากหน้า "กระทู้" (admin เท่านั้น)
  * โชว์ประกาศที่ is_active=true สูงสุด 5 อัน (ต่อกันด้วย ★) กดที่แถบเปิดดูรายละเอียดเต็มได้
  * ไม่มีประกาศที่เปิดอยู่เลย -> ไม่แสดงอะไร (return null) กันเปลืองพื้นที่เปล่าๆ
  */
 const AnnouncementBar = () => {
   const [active, setActive] = useState<Announcement[]>([]);
+  const [speedSeconds, setSpeedSeconds] = useState<number>(40);
   const [loaded, setLoaded] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const all = await getAnnouncements();
+      const [all, settings] = await Promise.all([getAnnouncements(), getAnnouncementSettings()]);
       setActive(all.filter((a) => a.is_active).slice(0, MAX_ANNOUNCEMENTS));
+      setSpeedSeconds(settings.speed_seconds || 40);
       setLoaded(true);
     };
     load();
@@ -74,7 +76,7 @@ const AnnouncementBar = () => {
         </div>
 
         <div className="relative flex-1 overflow-hidden whitespace-nowrap z-10">
-          <div className="inline-flex animate-marquee">
+          <div className="inline-flex animate-marquee" style={{ animationDuration: `${speedSeconds}s` }}>
             <span className="mx-6 text-sm sm:text-base font-extrabold text-white tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.3)]">
               {renderText(repeated)}
             </span>
@@ -125,7 +127,9 @@ const AnnouncementBar = () => {
           }
         }
         .animate-marquee {
-          animation: marquee 40s linear infinite;
+          animation-name: marquee;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
         }
         .dot-pattern {
           background-image: radial-gradient(#ffffff 1px, transparent 1px);
