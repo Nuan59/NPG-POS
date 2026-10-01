@@ -15,6 +15,10 @@ export interface Announcement {
   created_at: string;
 }
 
+export interface AnnouncementSettings {
+  speed_seconds: number;
+}
+
 export const getAnnouncements = async (): Promise<Announcement[]> => {
   "use server";
   const response = await authorizedFetch(`${process.env.API_URL}/announcements/`, {
@@ -60,6 +64,30 @@ export const createAnnouncement = async (payload: { content: string; detail?: st
   }
 };
 
+// ✅ แก้ไขข้อความ/รายละเอียดของประกาศที่มีอยู่ (เฉพาะ admin - เช็คสิทธิ์ฝั่ง backend)
+export const updateAnnouncement = async (id: number, payload: { content: string; detail?: string }) => {
+  "use server";
+  try {
+    const response = await authorizedFetch(`${process.env.API_URL}/announcements/${id}/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response?.ok) {
+      const err = await response?.json().catch(() => ({}));
+      return { status: "error", error: err?.error || "แก้ไขไม่สำเร็จ" };
+    }
+    revalidatePath("/issues");
+    revalidateTag("announcements");
+    return { status: "success" };
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+    };
+  }
+};
+
 export const toggleAnnouncement = async (id: number, isActive: boolean) => {
   "use server";
   try {
@@ -93,6 +121,43 @@ export const deleteAnnouncement = async (id: number) => {
     }
     revalidatePath("/issues");
     revalidateTag("announcements");
+    return { status: "success" };
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+    };
+  }
+};
+
+// ✅ ความเร็วตัวหนังสือไหล - เป็นค่ารวม (ทุกประกาศไหลรวมเป็นแถบเดียว จึงตั้งความเร็วแยกรายอันไม่ได้)
+export const getAnnouncementSettings = async (): Promise<AnnouncementSettings> => {
+  "use server";
+  const response = await authorizedFetch(`${process.env.API_URL}/announcements/settings/`, {
+    next: { revalidate: 0, tags: ["announcementSettings"] },
+  });
+  if (!response?.ok) return { speed_seconds: 40 };
+  try {
+    return await response.json();
+  } catch {
+    return { speed_seconds: 40 };
+  }
+};
+
+export const updateAnnouncementSpeed = async (speedSeconds: number) => {
+  "use server";
+  try {
+    const response = await authorizedFetch(`${process.env.API_URL}/announcements/settings/`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ speed_seconds: speedSeconds }),
+    });
+    if (!response?.ok) {
+      const err = await response?.json().catch(() => ({}));
+      return { status: "error", error: err?.error || "อัปเดตความเร็วไม่สำเร็จ" };
+    }
+    revalidatePath("/issues");
+    revalidateTag("announcementSettings");
     return { status: "success" };
   } catch (err) {
     return {
