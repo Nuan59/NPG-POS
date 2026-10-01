@@ -394,6 +394,28 @@ def create_announcement_settings_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+
+# ✅ Temp: เพิ่มระบบติดตามความคืบหน้างาน (เป้าหมายจำนวน + ประวัติอัปเดตรายวัน)
+def add_task_progress_columns(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("ALTER TABLE task_assignment ADD COLUMN IF NOT EXISTS target_quantity INTEGER NULL;")
+            cursor.execute("ALTER TABLE task_assignment ADD COLUMN IF NOT EXISTS target_unit VARCHAR(50) NOT NULL DEFAULT '';")
+            cursor.execute("ALTER TABLE task_assignment ADD COLUMN IF NOT EXISTS current_progress INTEGER NOT NULL DEFAULT 0;")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS task_progress_log (
+                    id SERIAL PRIMARY KEY,
+                    assignment_id INTEGER NOT NULL REFERENCES task_assignment(id) ON DELETE CASCADE,
+                    amount INTEGER NOT NULL,
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มระบบติดตามความคืบหน้าเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เพิ่มคอลัมน์ due_date ให้ตาราง task_assignment (กำหนดเวลางานแยกรายบุคคล)
 def add_task_due_date_column(request):
     from django.db import connection
@@ -474,6 +496,7 @@ urlpatterns = [
     path('dev/create-announcement-table/', create_announcement_table),
     path('dev/add-announcement-detail-column/', add_announcement_detail_column),
     path('dev/create-announcement-settings-table/', create_announcement_settings_table),
+    path('dev/add-task-progress-columns/', add_task_progress_columns),
     # ✅ ต้องอยู่ก่อน include(router.urls) เสมอ ไม่งั้นชนกับ /announcements/{id}/ ของ router
     path('announcements/settings/', AnnouncementSettingsView.as_view()),
     path('dev/create-workhours/', create_workhours_table),

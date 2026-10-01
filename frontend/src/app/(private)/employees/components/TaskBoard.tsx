@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2, AlertTriangle, Clock, CalendarClock } from "lucide-react";
+import { Megaphone, Plus, Trash2, AlertTriangle, Clock, CalendarClock, Target, History, ChevronDown, ChevronUp } from "lucide-react";
 import { IEmployee } from "@/types/IEmployee";
 import {
   TaskPost,
@@ -24,6 +24,7 @@ import {
   createTaskPost,
   deleteTaskPost,
   setTaskStatus,
+  addTaskProgress,
 } from "@/services/TaskService";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
@@ -38,6 +39,24 @@ interface TaskBoardProps {
 }
 
 // ✅ ตั้งกำหนดเวลาได้ 2 แบบ - "ระยะเวลา" (กี่วันนับจากนี้) หรือ "วันที่" (เจาะจงวันที่)
+// บวกเป้าหมายความคืบหน้า (ไม่บังคับ) - แล้วแต่งานที่มอบหมาย
+interface AssignConfig {
+  checked: boolean;
+  mode: "duration" | "date";
+  duration: string;
+  date: string;
+  targetQuantity: string;
+  targetUnit: string;
+}
+const defaultAssignConfig: AssignConfig = {
+  checked: false,
+  mode: "duration",
+  duration: "",
+  date: "",
+  targetQuantity: "",
+  targetUnit: "",
+};
+
 interface DueConfig {
   checked: boolean;
   mode: "duration" | "date";
@@ -49,7 +68,10 @@ const defaultDueConfig: DueConfig = { checked: false, mode: "duration", duration
 const formatDueDate = (iso: string) =>
   new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
-const computeDueDate = (cfg: DueConfig): string | null => {
+const formatLogDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+const computeDueDate = (cfg: { mode: "duration" | "date"; duration: string; date: string }): string | null => {
   if (cfg.mode === "duration") {
     const n = Number(cfg.duration);
     if (!n || n <= 0) return null;
@@ -98,8 +120,8 @@ const DueConfigPicker = ({
   cfg,
   onChange,
 }: {
-  cfg: DueConfig;
-  onChange: (patch: Partial<DueConfig>) => void;
+  cfg: { mode: "duration" | "date"; duration: string; date: string };
+  onChange: (patch: Partial<{ mode: "duration" | "date"; duration: string; date: string }>) => void;
 }) => (
   <div>
     <div className="flex items-center gap-2 mb-2">
@@ -150,6 +172,29 @@ const DueConfigPicker = ({
   </div>
 );
 
+// ✅ แถบความคืบหน้า - โชว์เฉพาะงานที่ตั้งเป้าหมายจำนวนไว้
+const ProgressBar = ({ a }: { a: TaskAssignment }) => {
+  if (!a.target_quantity) return null;
+  const pct = a.progress_percentage ?? 0;
+  return (
+    <div className="mt-1.5 w-full">
+      <div className="flex items-center justify-between text-xs mb-1">
+        <span className="flex items-center gap-1 font-medium opacity-80">
+          <Target size={12} /> {a.current_progress.toLocaleString()} / {a.target_quantity.toLocaleString()}
+          {a.target_unit ? ` ${a.target_unit}` : ""}
+        </span>
+        <span className="font-semibold opacity-70">{pct}%</span>
+      </div>
+      <div className="w-full h-2 bg-black/10 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-current rounded-full transition-all"
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const TaskBoard = ({ employees }: TaskBoardProps) => {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -168,14 +213,22 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   const [postType, setPostType] = useState<"general" | "assigned">("general");
   // ✅ กำหนดเวลาของ "ประกาศทั่วไป" - ตัวเดียวใช้ร่วมกันทุกคน
   const [generalDueConfig, setGeneralDueConfig] = useState<DueConfig>(defaultDueConfig);
-  // ✅ กำหนดเวลาของ "มอบหมายงาน" - แยกได้คนละคน (key = employee id)
-  const [assignConfig, setAssignConfig] = useState<Record<number, DueConfig>>({});
+  // ✅ กำหนดเวลา+เป้าหมายของ "มอบหมายงาน" - แยกได้คนละคน (key = employee id)
+  const [assignConfig, setAssignConfig] = useState<Record<number, AssignConfig>>({});
   const [saving, setSaving] = useState(false);
 
   // ✅ แก้สถานะ+หมายเหตุแบบ inline ต่อ assignment
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draftStatus, setDraftStatus] = useState<"pending" | "in_progress" | "issue" | "done">("pending");
   const [draftNote, setDraftNote] = useState("");
+
+  // ✅ อัปเดตความคืบหน้ารายวัน แบบ inline ต่อ assignment
+  const [progressEditingId, setProgressEditingId] = useState<number | null>(null);
+  const [progressAmount, setProgressAmount] = useState("");
+  const [progressNote, setProgressNote] = useState("");
+  const [progressSaving, setProgressSaving] = useState(false);
+  // ✅ เปิด/ปิดดูประวัติการอัปเดตย้อนหลัง ต่อ assignment
+  const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
 
   const loadPosts = async () => {
     const data = await getTaskPosts();
@@ -195,8 +248,8 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     setAssignConfig({});
   };
 
-  const getConfig = (id: number): DueConfig => assignConfig[id] || defaultDueConfig;
-  const updateConfig = (id: number, patch: Partial<DueConfig>) => {
+  const getConfig = (id: number): AssignConfig => assignConfig[id] || defaultAssignConfig;
+  const updateConfig = (id: number, patch: Partial<AssignConfig>) => {
     setAssignConfig((prev) => ({ ...prev, [id]: { ...getConfig(id), ...patch } }));
   };
 
@@ -221,7 +274,16 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
       due_date: postType === "general" ? computeDueDate(generalDueConfig) : undefined,
       assignments:
         postType === "assigned"
-          ? selectedIds.map((id) => ({ employee_id: id, due_date: computeDueDate(getConfig(id)) }))
+          ? selectedIds.map((id) => {
+              const cfg = getConfig(id);
+              const qty = Number(cfg.targetQuantity);
+              return {
+                employee_id: id,
+                due_date: computeDueDate(cfg),
+                target_quantity: qty > 0 ? qty : null,
+                target_unit: cfg.targetUnit.trim(),
+              };
+            })
           : undefined,
     });
     setSaving(false);
@@ -256,6 +318,30 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     const result = await setTaskStatus(postId, draftStatus, draftNote, employeeIdForAdmin);
     if (result.status === "success") {
       setEditingId(null);
+      loadPosts();
+    } else {
+      toast.error(result.error || "อัปเดตไม่สำเร็จ");
+    }
+  };
+
+  const startProgressEdit = (a: TaskAssignment) => {
+    setProgressEditingId(a.id);
+    setProgressAmount("");
+    setProgressNote("");
+  };
+
+  const saveProgress = async (postId: number, employeeIdForAdmin?: number) => {
+    const amount = Number(progressAmount);
+    if (!amount || amount <= 0) {
+      toast.error("กรุณากรอกจำนวนที่มากกว่า 0");
+      return;
+    }
+    setProgressSaving(true);
+    const result = await addTaskProgress(postId, amount, progressNote, employeeIdForAdmin);
+    setProgressSaving(false);
+    if (result.status === "success") {
+      toast.success(`บันทึกความคืบหน้า +${amount} แล้ว`);
+      setProgressEditingId(null);
       loadPosts();
     } else {
       toast.error(result.error || "อัปเดตไม่สำเร็จ");
@@ -342,9 +428,9 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                   </div>
                 )}
 
-                {/* ✅ มอบหมายงาน - เลือกคน + กำหนดเวลาแยกรายคน */}
+                {/* ✅ มอบหมายงาน - เลือกคน + กำหนดเวลา + เป้าหมายความคืบหน้า แยกรายคน */}
                 {postType === "assigned" && (
-                  <div className="border rounded-xl p-2 space-y-2 max-h-96 overflow-y-auto bg-gray-50">
+                  <div className="border rounded-xl p-2 space-y-2 max-h-[28rem] overflow-y-auto bg-gray-50">
                     {employees.map((emp) => {
                       const cfg = getConfig(emp.id!);
                       return (
@@ -368,8 +454,37 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                           </label>
 
                           {cfg.checked && (
-                            <div className="px-3 pb-3 pt-1 border-t border-orange-100 bg-orange-50/40">
+                            <div className="px-3 pb-3 pt-1 border-t border-orange-100 bg-orange-50/40 space-y-3">
                               <DueConfigPicker cfg={cfg} onChange={(patch) => updateConfig(emp.id!, patch)} />
+
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Target size={13} className="text-orange-500 shrink-0" />
+                                  <span className="text-xs font-medium text-gray-600">
+                                    เป้าหมายความคืบหน้า (ไม่บังคับ)
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={cfg.targetQuantity}
+                                    onChange={(e) => updateConfig(emp.id!, { targetQuantity: e.target.value })}
+                                    placeholder="จำนวน เช่น 200"
+                                    className="w-28 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={cfg.targetUnit}
+                                    onChange={(e) => updateConfig(emp.id!, { targetUnit: e.target.value })}
+                                    placeholder="หน่วย เช่น คัน"
+                                    className="w-28 text-sm border border-gray-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 shadow-sm"
+                                  />
+                                </div>
+                                <span className="text-[11px] text-gray-400 mt-1.5 block">
+                                  ใส่แล้วคนทำงานจะอัปเดตความคืบหน้ารายวันได้ (เช่น ลอกลาย 200 คัน)
+                                </span>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -432,23 +547,25 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                       : a.is_due_soon
                       ? "ring-2 ring-amber-400"
                       : "";
+                    const cardWidth = a.target_quantity ? "w-full sm:w-80" : "";
 
                     if (!canToggle) {
                       return (
-                        <span
+                        <div
                           key={a.id}
-                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 ${meta.className} ${ring} opacity-80`}
+                          className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 ${meta.className} ${ring} ${cardWidth} opacity-80`}
                         >
                           <span>{a.employee_name}: {meta.label}</span>
                           <DueDateTag d={a} />
+                          <ProgressBar a={a} />
                           {a.note && <span className="text-xs font-normal">— {a.note}</span>}
-                        </span>
+                        </div>
                       );
                     }
 
                     if (editingId === a.id) {
                       return (
-                        <div key={a.id} className={`rounded-lg border-2 p-2.5 space-y-1.5 w-full sm:w-72 ${meta.className}`}>
+                        <div key={a.id} className={`rounded-lg border-2 p-2.5 space-y-1.5 w-full sm:w-80 ${meta.className}`}>
                           <div className="flex items-center gap-1.5 text-sm font-medium">
                             <span>{a.employee_name}:</span>
                             <select
@@ -489,18 +606,99 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                     }
 
                     return (
-                      <button
+                      <div
                         key={a.id}
-                        onClick={() => startEdit(a)}
-                        className={`text-sm font-medium px-3.5 py-2 rounded-lg border-2 flex flex-col items-start gap-0.5 hover:shadow-md transition-all ${meta.className} ${ring}`}
+                        className={`rounded-lg border-2 p-2.5 flex flex-col gap-1 hover:shadow-md transition-all ${meta.className} ${ring} ${cardWidth}`}
                       >
-                        <span className="flex items-center gap-1">
-                          {a.is_overdue && <AlertTriangle size={13} className="text-red-600" />}
-                          {a.employee_name}: {meta.label}
-                        </span>
-                        <DueDateTag d={a} />
-                        {a.note && <span className="text-xs font-normal opacity-80">📝 {a.note}</span>}
-                      </button>
+                        <button
+                          onClick={() => startEdit(a)}
+                          className="text-sm font-medium flex flex-col items-start gap-0.5 text-left"
+                        >
+                          <span className="flex items-center gap-1">
+                            {a.is_overdue && <AlertTriangle size={13} className="text-red-600" />}
+                            {a.employee_name}: {meta.label}
+                          </span>
+                          <DueDateTag d={a} />
+                          {a.note && <span className="text-xs font-normal opacity-80">📝 {a.note}</span>}
+                        </button>
+
+                        <ProgressBar a={a} />
+
+                        {/* ✅ อัปเดตความคืบหน้ารายวัน - เฉพาะงานที่ตั้งเป้าหมายจำนวนไว้ */}
+                        {a.target_quantity && (
+                          <div className="mt-1">
+                            {progressEditingId === a.id ? (
+                              <div className="space-y-1.5 bg-white/70 rounded p-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium shrink-0">วันนี้ทำได้ +</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={progressAmount}
+                                    onChange={(e) => setProgressAmount(e.target.value)}
+                                    placeholder="จำนวน"
+                                    className="w-20 text-xs border rounded px-2 py-1 outline-none"
+                                    autoFocus
+                                  />
+                                  <span className="text-xs shrink-0">{a.target_unit}</span>
+                                </div>
+                                <input
+                                  value={progressNote}
+                                  onChange={(e) => setProgressNote(e.target.value)}
+                                  placeholder="หมายเหตุ (ถ้ามี)"
+                                  className="text-xs border rounded px-2 py-1.5 w-full outline-none"
+                                />
+                                <div className="flex gap-1.5">
+                                  <button
+                                    onClick={() => saveProgress(post.id, isAdmin ? a.employee_id : undefined)}
+                                    disabled={progressSaving}
+                                    className="text-xs bg-gray-900 text-white rounded px-2.5 py-1 font-medium"
+                                  >
+                                    {progressSaving ? "กำลังบันทึก..." : "บันทึก"}
+                                  </button>
+                                  <button
+                                    onClick={() => setProgressEditingId(null)}
+                                    className="text-xs border rounded px-2.5 py-1 bg-white"
+                                  >
+                                    ยกเลิก
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => startProgressEdit(a)}
+                                  className="text-xs bg-gray-900 text-white rounded-full px-3 py-1 font-medium flex items-center gap-1"
+                                >
+                                  <Plus size={11} /> อัปเดตวันนี้
+                                </button>
+                                {a.progress_logs.length > 0 && (
+                                  <button
+                                    onClick={() => setExpandedHistoryId(expandedHistoryId === a.id ? null : a.id)}
+                                    className="text-xs flex items-center gap-1 opacity-70 hover:opacity-100"
+                                  >
+                                    <History size={11} />
+                                    ประวัติ
+                                    {expandedHistoryId === a.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
+                            {expandedHistoryId === a.id && a.progress_logs.length > 0 && (
+                              <div className="mt-1.5 space-y-1 max-h-28 overflow-y-auto bg-white/60 rounded p-1.5">
+                                {a.progress_logs.map((log) => (
+                                  <div key={log.id} className="text-[11px] flex justify-between gap-2">
+                                    <span className="opacity-70 shrink-0">{formatLogDate(log.created_at)}</span>
+                                    <span className="font-medium">+{log.amount}</span>
+                                    {log.note && <span className="opacity-60 truncate">{log.note}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>

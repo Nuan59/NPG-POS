@@ -7,7 +7,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from api.models.TaskPost import TaskPost, TaskAssignment
+from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog
 from api.serializers.TaskSerializer import TaskPostSerializer
 
 
@@ -18,17 +18,22 @@ class TaskPostViewSet(viewsets.ModelViewSet):
     POST   /tasks/posts/                     สร้างโพสต์ใหม่ (ใครก็ได้)
              body: { content, post_type: "general"|"assigned",
                       due_date?: ISO string|null,                    # เฉพาะ post_type="general"
-                      assignments?: [{ employee_id, due_date }] }    # เฉพาะ post_type="assigned"
+                      assignments?: [{ employee_id, due_date,
+                                       target_quantity?, target_unit? }] }   # เฉพาะ post_type="assigned"
              due_date เป็น ISO datetime string หรือ null (ไม่บังคับ)
+             target_quantity/target_unit ไม่บังคับ - ใส่เมื่อจะติดตามความคืบหน้าเป็นจำนวน (เช่น ลอกลาย 200 คัน)
     DELETE /tasks/posts/{id}/                 ลบโพสต์ (เฉพาะ admin หรือคนที่โพสต์เอง)
     POST   /tasks/posts/{id}/set_status/       ตั้งสถานะของ "ตัวเอง"
              body: { status, note? }
              admin ตั้งของคนอื่นได้โดยส่ง { employee_id } มาด้วย
+    POST   /tasks/posts/{id}/add_progress/     อัปเดตความคืบหน้ารายวันของ "ตัวเอง" (บวกสะสม)
+             body: { amount, note? }
+             admin อัปเดตของคนอื่นได้โดยส่ง { employee_id } มาด้วย
     """
     serializer_class = TaskPostSerializer
 
     def get_queryset(self):
-        qs = TaskPost.objects.all().prefetch_related("assignments", "assignments__employee")
+        qs = TaskPost.objects.all().prefetch_related("assignments", "assignments__employee", "assignments__progress_logs")
         if self._is_admin(self.request):
             return qs
         username = getattr(self.request.user, "username", None)
@@ -75,10 +80,17 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             for a in assignments_data:
                 eid = a.get("employee_id")
                 if eid in employees:
+                    target_qty = a.get("target_quantity")
+                    try:
+                        target_qty = int(target_qty) if target_qty not in (None, "") else None
+                    except (TypeError, ValueError):
+                        target_qty = None
                     objs.append(TaskAssignment(
                         post=post,
                         employee=employees[eid],
                         due_date=a.get("due_date") or None,
+                        target_quantity=target_qty,
+                        target_unit=(a.get("target_unit") or "").strip(),
                     ))
             TaskAssignment.objects.bulk_create(objs)
 
@@ -91,28 +103,61 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             return Response({"error": "ลบได้เฉพาะ admin หรือคนที่โพสต์เองเท่านั้น"}, status=status.HTTP_403_FORBIDDEN)
         return super().destroy(request, *args, **kwargs)
 
+    def _resolve_assignment(self, request, post):
+        """หา assignment เป้าหมาย - ของตัวเอง หรือของคนอื่นถ้าเป็น admin และส่ง employee_id มา"""
+        is_admin = self._is_admin(request)
+        employee_id = request.data.get("employee_id")
+        target_id = employee_id if (employee_id and is_admin) else request.user.id
+        try:
+            return post.assignments.get(employee_id=target_id), None
+        except TaskAssignment.DoesNotExist:
+            return None, Response({"error": "ไม่พบงานที่มอบหมายให้คนนี้"}, status=status.HTTP_404_NOT_FOUND)
+
     @action(detail=True, methods=["post"], url_path="set_status")
     def set_status(self, request, pk=None):
         post = self.get_object()
-        is_admin = self._is_admin(request)
 
         new_status = request.data.get("status")
         valid_statuses = [c[0] for c in TaskAssignment.STATUS_CHOICES]
         if new_status not in valid_statuses:
             return Response({"error": "สถานะไม่ถูกต้อง"}, status=status.HTTP_400_BAD_REQUEST)
 
-        employee_id = request.data.get("employee_id")
-        target_id = employee_id if (employee_id and is_admin) else request.user.id
-
-        try:
-            assignment = post.assignments.get(employee_id=target_id)
-        except TaskAssignment.DoesNotExist:
-            return Response({"error": "ไม่พบงานที่มอบหมายให้คนนี้"}, status=status.HTTP_404_NOT_FOUND)
+        assignment, error = self._resolve_assignment(request, post)
+        if error:
+            return error
 
         assignment.status = new_status
         if "note" in request.data:
             assignment.note = request.data.get("note") or ""
         assignment.completed_at = timezone.now() if new_status == "done" else None
+        assignment.save()
+
+        return Response(self.get_serializer(post).data)
+
+    @action(detail=True, methods=["post"], url_path="add_progress")
+    def add_progress(self, request, pk=None):
+        post = self.get_object()
+
+        try:
+            amount = int(request.data.get("amount"))
+        except (TypeError, ValueError):
+            return Response({"error": "จำนวนไม่ถูกต้อง"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amount == 0:
+            return Response({"error": "กรุณากรอกจำนวนที่มากกว่า 0"}, status=status.HTTP_400_BAD_REQUEST)
+
+        assignment, error = self._resolve_assignment(request, post)
+        if error:
+            return error
+
+        note = (request.data.get("note") or "").strip()
+        TaskProgressLog.objects.create(assignment=assignment, amount=amount, note=note)
+
+        assignment.current_progress = assignment.current_progress + amount
+        # ✅ ถึงเป้าหมายแล้ว - เปลี่ยนสถานะเป็น "ทำแล้ว" ให้อัตโนมัติ (เฉพาะกรณีตั้งเป้าหมายไว้)
+        if assignment.target_quantity and assignment.current_progress >= assignment.target_quantity:
+            assignment.status = "done"
+            assignment.completed_at = timezone.now()
         assignment.save()
 
         return Response(self.get_serializer(post).data)

@@ -1,7 +1,13 @@
 # TaskSerializer.py
 # วางไฟล์นี้ใน: backend/api/serializers/TaskSerializer.py
 from rest_framework import serializers
-from api.models.TaskPost import TaskPost, TaskAssignment
+from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog
+
+
+class TaskProgressLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskProgressLog
+        fields = ["id", "amount", "note", "created_at"]
 
 
 class TaskAssignmentSerializer(serializers.ModelSerializer):
@@ -13,12 +19,16 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
     is_overdue = serializers.SerializerMethodField()
     # ✅ ใกล้ครบกำหนด - เตือนล่วงหน้า 1 วันก่อนถึงกำหนด (ยังไม่เกินกำหนด แต่เหลือ ≤1 วัน)
     is_due_soon = serializers.SerializerMethodField()
+    # ✅ ประวัติการอัปเดตความคืบหน้ารายวัน - ล่าสุดก่อน
+    progress_logs = TaskProgressLogSerializer(many=True, read_only=True)
+    progress_percentage = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskAssignment
         fields = [
             "id", "employee_id", "employee_name", "employee_username",
             "status", "note", "due_date", "is_overdue", "is_due_soon", "completed_at",
+            "target_quantity", "target_unit", "current_progress", "progress_percentage", "progress_logs",
         ]
 
     def get_is_overdue(self, obj):
@@ -40,6 +50,12 @@ class TaskAssignmentSerializer(serializers.ModelSerializer):
         if obj.due_date < now:
             return False  # เกินกำหนดไปแล้ว นับเป็น overdue ไม่ใช่ due_soon
         return obj.due_date <= now + timedelta(days=1)
+
+    def get_progress_percentage(self, obj):
+        if not obj.target_quantity or obj.target_quantity <= 0:
+            return None
+        pct = (obj.current_progress / obj.target_quantity) * 100
+        return round(min(pct, 100), 1)
 
 
 class TaskPostSerializer(serializers.ModelSerializer):
