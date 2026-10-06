@@ -13,3 +13,4 @@ from .Registration import RegistrationLog
 from .Issue import Issue, IssueUpdate
 from .WorkHours import WorkHours
 from .Cashflow import CashflowEntry, CashflowDayMeta
+from .ServiceRecord import ServiceRecord
