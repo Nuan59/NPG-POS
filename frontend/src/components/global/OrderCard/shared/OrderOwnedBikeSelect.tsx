@@ -6,7 +6,10 @@ import { IBike } from "@/types/Bike";
 import { IOrder } from "@/types/Order";
 import { ChevronDown, ChevronUp, Search, Bike as BikeIcon, Plus } from "lucide-react";
 import React, { useContext, useEffect, useState } from "react";
+import { getSession } from "next-auth/react";
 import RegisterCustomerBikeDialog from "./RegisterCustomerBikeDialog";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /**
  * เลือกรถที่ลูกค้าคนนี้เคยซื้อไปแล้ว (จากประวัติการขายของลูกค้า)
@@ -17,6 +20,9 @@ const OrderOwnedBikeSelect = () => {
   const { orderCustomer, addBikeToOrder } = useContext(OrderContext);
 
   const [customerOrders, setCustomerOrders] = useState<IOrder[]>([]);
+  // ✅ รถจากงานบริการเดิมของลูกค้า (ตาราง service_record แยกจากงานขายแล้ว)
+  // เช่น รถลูกค้าที่ลงทะเบียนไว้ตอนมาซ่อมครั้งก่อน - ไม่มีใน Order เลยต้องดึงจาก /service/ ด้วย
+  const [serviceBikes, setServiceBikes] = useState<IBike[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -26,12 +32,24 @@ const OrderOwnedBikeSelect = () => {
     const fetchOrders = async () => {
       if (!orderCustomer?.id) {
         setCustomerOrders([]);
+        setServiceBikes([]);
         return;
       }
       setLoading(true);
       try {
-        const orders = await getCustomerOrders(orderCustomer.id);
+        const session = await getSession();
+        const token = (session as any)?.user?.accessToken;
+        const [orders, serviceRes] = await Promise.all([
+          getCustomerOrders(orderCustomer.id),
+          fetch(`${API_BASE_URL}/service/?customer=${orderCustomer.id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => null),
+        ]);
         setCustomerOrders(Array.isArray(orders) ? orders : []);
+        const services = serviceRes && serviceRes.ok ? await serviceRes.json() : [];
+        setServiceBikes(
+          (Array.isArray(services) ? services : []).map((r: any) => r.bike).filter((b: any) => b?.id)
+        );
       } catch (error) {
         console.error("❌ fetchOrders (owned bikes) error:", error);
         setCustomerOrders([]);
@@ -50,11 +68,14 @@ const OrderOwnedBikeSelect = () => {
         if (bike?.id) map.set(bike.id, bike);
       });
     });
+    serviceBikes.forEach((bike) => {
+      if (bike?.id && !map.has(bike.id)) map.set(bike.id, bike);
+    });
     return Array.from(map.values());
-  }, [customerOrders]);
+  }, [customerOrders, serviceBikes]);
 
   const filteredBikes = ownedBikes.filter((bike) =>
-    `${bike.model_name} ${bike.model_code} ${bike.chassi}`
+    `${bike.model_name} ${bike.model_code} ${bike.chassi || ""} ${(bike as any).registration_plate || ""}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
   );
@@ -125,7 +146,7 @@ const OrderOwnedBikeSelect = () => {
                 >
                   <div className="font-medium">{bike.model_name}</div>
                   <div className="text-sm text-gray-500">
-                    {bike.model_code} • {bike.chassi}
+                    {(bike as any).registration_plate || bike.model_code} • {bike.chassi || "ไม่มีเลขตัวถัง"}
                   </div>
                 </li>
               ))}

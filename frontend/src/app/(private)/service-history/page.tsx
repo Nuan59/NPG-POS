@@ -20,14 +20,18 @@ interface Bike {
   brand?: string;
 }
 
-interface Order {
+// ✅ แถวในประวัติรถ - รวมทั้งงานขาย (/order/) และงานบริการ (/service/) ที่แยกตารางกันแล้ว
+interface HistoryRow {
+  key: string;
+  source: "sale" | "service";
   id: number;
-  sale_date: string;
+  date: string;
   customer: string;
-  transaction_type?: string;
+  transaction_type: string;
   transaction_type_detail?: string;
   mileage?: number | null;
   total?: number;
+  items?: { description: string; amount: number }[];
   notes?: string;
 }
 
@@ -50,7 +54,7 @@ export default function ServiceHistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [selectedBike, setSelectedBike] = useState<Bike | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<HistoryRow[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   useEffect(() => {
@@ -96,14 +100,41 @@ export default function ServiceHistoryPage() {
     setLoadingOrders(true);
     try {
       const token = (session as any)?.user?.accessToken;
-      const res = await fetch(`${API_BASE_URL}/order/?bike=${bike.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      const list: Order[] = Array.isArray(data) ? data : [];
+      const headers = { Authorization: `Bearer ${token}` };
+      const [salesRes, serviceRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/order/?bike=${bike.id}`, { headers }),
+        fetch(`${API_BASE_URL}/service/?bike=${bike.id}`, { headers }),
+      ]);
+      const salesData = salesRes.ok ? await salesRes.json() : [];
+      const serviceData = serviceRes.ok ? await serviceRes.json() : [];
+
+      const rows: HistoryRow[] = [
+        ...(Array.isArray(salesData) ? salesData : []).map((o: any) => ({
+          key: `sale-${o.id}`,
+          source: "sale" as const,
+          id: o.id,
+          date: o.sale_date,
+          customer: o.customer,
+          transaction_type: "ขาย",
+          total: o.total,
+        })),
+        ...(Array.isArray(serviceData) ? serviceData : []).map((r: any) => ({
+          key: `service-${r.id}`,
+          source: "service" as const,
+          id: r.id,
+          date: r.service_date,
+          customer: r.customer,
+          transaction_type: r.transaction_type,
+          transaction_type_detail: r.transaction_type_detail,
+          mileage: r.mileage,
+          total: r.total,
+          items: r.items,
+          notes: r.notes,
+        })),
+      ];
       // ล่าสุดขึ้นก่อน
-      list.sort((a, b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
-      setOrders(list);
+      rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setOrders(rows);
     } catch (error) {
       console.error("❌ fetchOrders error:", error);
       setOrders([]);
@@ -219,7 +250,7 @@ export default function ServiceHistoryPage() {
               {orders.map((order) => {
                 const type = order.transaction_type || "ขาย";
                 return (
-                  <div key={order.id} className="border rounded-lg p-4 flex items-start justify-between gap-3">
+                  <div key={order.key} className="border rounded-lg p-4 flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span
@@ -232,7 +263,7 @@ export default function ServiceHistoryPage() {
                             : type}
                         </span>
                         <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Calendar size={12} /> {getDate(order.sale_date)}
+                          <Calendar size={12} /> {getDate(order.date)}
                         </span>
                       </div>
                       <p className="text-sm text-gray-700">ลูกค้า: {order.customer}</p>
@@ -240,6 +271,15 @@ export default function ServiceHistoryPage() {
                         <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
                           <Gauge size={14} /> เลขไมล์ {Number(order.mileage).toLocaleString()} กม.
                         </p>
+                      )}
+                      {!!order.items?.length && (
+                        <ul className="text-xs text-gray-500 mt-1 space-y-0.5">
+                          {order.items.map((item, i) => (
+                            <li key={i}>
+                              • {item.description} ฿{Number(item.amount).toLocaleString()}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                       {order.notes && (
                         <p className="text-xs text-gray-400 mt-1 whitespace-pre-wrap">{order.notes}</p>
@@ -251,7 +291,11 @@ export default function ServiceHistoryPage() {
                           ฿{Number(order.total).toLocaleString()}
                         </span>
                       )}
-                      <Link href={`/service-history/${order.id}`}>
+                      <Link
+                        href={
+                          order.source === "sale" ? `/sales/${order.id}` : `/service-history/${order.id}`
+                        }
+                      >
                         <button className="text-xs border rounded px-2 py-1 flex items-center gap-1 hover:bg-gray-50">
                           <Receipt size={12} /> ดูรายการ
                         </button>

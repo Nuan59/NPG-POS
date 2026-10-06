@@ -1,36 +1,55 @@
 // serviceRecordUtil.ts
 // วางไฟล์นี้ใน: frontend/src/app/(private)/service-history/[service-history_id]/components/serviceRecordUtil.ts
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { TempReceiptItem } from "@/components/pdf/TempReceiptTemplate";
 
-// ✅ แปลง notes กลับเป็นรายการ - useServiceOrderCheckout บันทึกเป็นบรรทัด "- รายละเอียด: 1,234 บาท"
-// ถ้าแกะไม่ได้ fallback เป็นรายการเดียวรวมยอดทั้งหมด
-export const parseItemsFromNotes = (
-  notes: string | undefined,
-  fallbackLabel: string,
-  total: number
-): TempReceiptItem[] => {
-  if (!notes) return [{ description: fallbackLabel, amount: total }];
-  const pattern = /^-\s*(.+?):\s*([\d,]+)\s*บาท\s*$/;
-  const items: TempReceiptItem[] = [];
-  for (const line of notes.split("\n")) {
-    const match = line.trim().match(pattern);
-    if (match) {
-      items.push({ description: match[1].trim(), amount: Number(match[2].replace(/,/g, "")) });
-    }
-  }
-  return items.length > 0 ? items : [{ description: fallbackLabel, amount: total }];
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// ✅ ข้อมูลจาก GET /service/{id}/ (ServiceViewSet - ตาราง service_record แยกจากงานขาย)
+export interface ServiceRecord {
+  id: number;
+  service_date: string;
+  customer_id: number | null;
+  customer: string;
+  customer_phone: string;
+  customer_address: string;
+  bike: {
+    id: number;
+    brand: string;
+    model_name: string;
+    model_code: string;
+    chassi: string | null;
+    registration_plate: string;
+  } | null;
+  transaction_type: "ซ่อม" | "ต่อภาษี+พรบ" | "อื่นๆ";
+  transaction_type_detail: string;
+  mileage: number | null;
+  items: TempReceiptItem[];
+  total: number;
+  payment_type: string;
+  transfer_bank: string;
+  check_number: string;
+  notes: string;
+  created_by: string;
+}
+
+export const transactionBadgeStyle: Record<string, string> = {
+  "ซ่อม": "bg-orange-100 text-orange-800",
+  "ต่อภาษี+พรบ": "bg-purple-100 text-purple-800",
+  "อื่นๆ": "bg-gray-100 text-gray-800",
 };
 
-// ✅ เอาเฉพาะส่วน "รายละเอียดงาน" ที่ไม่ใช่บรรทัดรายการ ไว้แสดงเป็นหมายเหตุ
-export const getNotesWithoutItems = (notes: string | undefined): string => {
-  if (!notes) return "";
-  const pattern = /^-\s*(.+?):\s*([\d,]+)\s*บาท\s*$/;
-  return notes
-    .split("\n")
-    .filter((line) => !pattern.test(line.trim()))
-    .join("\n")
-    .trim();
+export const getTypeLabel = (r: ServiceRecord) =>
+  r.transaction_type === "อื่นๆ" && r.transaction_type_detail ? r.transaction_type_detail : r.transaction_type;
+
+export const getPaymentLabel = (r: ServiceRecord) => {
+  if (r.payment_type === "เงินโอน" && r.transfer_bank) return `เงินโอน (${r.transfer_bank})`;
+  if (r.payment_type === "เช็ค" && r.check_number) return `เช็ค เลขที่ ${r.check_number}`;
+  return r.payment_type || "-";
 };
+
+export const getReceiptNumber = (id: number) => `S-${String(id).padStart(8, "0")}`;
 
 export const formatDate = (dateString: string) => {
   if (!dateString) return new Date().toLocaleDateString("th-TH");
@@ -43,4 +62,37 @@ export const formatDate = (dateString: string) => {
   } catch {
     return dateString;
   }
+};
+
+// ✅ ดึงรายการงานบริการ 1 รายการ (ใช้ร่วมกันทั้งหน้ารายละเอียดและหน้าใบเสร็จชั่วคราว)
+export const useServiceRecord = (id: string) => {
+  const { data: session, status } = useSession();
+  const [record, setRecord] = useState<ServiceRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const token = (session as any)?.user?.accessToken;
+
+    const fetchRecord = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/service/${id}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 404) throw new Error("ไม่พบรายการนี้");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setRecord(await res.json());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "โหลดข้อมูลไม่สำเร็จ");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecord();
+  }, [id, status, session]);
+
+  return { record, loading, error, status };
 };

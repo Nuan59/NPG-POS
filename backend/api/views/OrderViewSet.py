@@ -24,7 +24,8 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """ดึงรายการ Order พร้อม filter"""
-        queryset = Order.objects.all().order_by('-id')
+        # ✅ เฉพาะงานขาย - งานซ่อม/ต่อภาษี/อื่นๆ ย้ายไปอยู่ที่ /service/ (ServiceViewSet) แล้ว
+        queryset = Order.objects.filter(transaction_type='ขาย').order_by('-id')
         
         customer = self.request.query_params.get('customer')
         startDate = self.request.query_params.get('startDate')

@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { getSession } from "next-auth/react";
 import { toast } from "sonner";
-import { IOrder } from "@/types/Order";
-import { createOrder } from "@/services/OrderService";
 import { PaymentType, TransferBank } from "../shared/PaymentSection";
 import { TransactionType } from "../types";
-import { ServiceItem, calculateServiceItemsTotal } from "./ServiceItems";
+import { ServiceItem } from "./ServiceItems";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface UseServiceOrderCheckoutParams {
   orderCustomer: any;
@@ -25,21 +26,18 @@ interface UseServiceOrderCheckoutParams {
   transferBank: TransferBank;
   checkNumber: string;
 
-  // ✅ เลขไมล์ ณ ตอนรับบริการ (มีความหมายเฉพาะตอนมีรถผูกอยู่)
   mileage: string;
 }
 
 /**
- * Logic การสร้างออเดอร์ประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
- * (ฟอร์มแบบง่าย ไม่มีไฟแนนซ์ บังคับเลือกรถ รองรับหลายรายการต่อบิล)
- * ✅ checkout เสร็จแล้วไปที่ /service-history/{id} ตรงๆ เลย (เมนู "รายการ") - ออกใบเสร็จรับเงินชั่วคราว
- * ให้อัตโนมัติทันที ไม่ผ่านหน้าเลือกเอกสาร /sales/{id}/documents ที่มีแต่ "ขาย" เท่านั้นที่ใช้
+ * บันทึกงาน "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
+ * ✅ แยกขาดจากงานขาย - ส่งไปที่ /service/ (ตาราง service_record) ไม่ใช่ /order/
+ *    ผูกรถเป็นประวัติอย่างเดียว ไม่แตะสถานะ sold / สต็อก
+ * ✅ บังคับเลือกรถทุกประเภท แล้วเด้งไปหน้าประวัติรถคันนั้น
  */
 export const useServiceOrderCheckout = ({
   orderCustomer,
   orderBike,
-  orderAdditionalFees,
-  orderGifts,
   notes,
   resetOrder,
   transactionType,
@@ -59,7 +57,6 @@ export const useServiceOrderCheckout = ({
       return;
     }
 
-    // ✅ บังคับเลือกรถทุกประเภท - รายการจะได้ไปขึ้นในประวัติรถคันนั้น
     if (!orderBike?.id) {
       toast.info("กรุณาเลือกรถก่อนบันทึกรายการ");
       return;
@@ -68,7 +65,6 @@ export const useServiceOrderCheckout = ({
     const validItems = serviceItems.filter(
       (item) => item.description.trim() !== "" && item.amount > 0
     );
-
     if (validItems.length === 0) {
       toast.info("กรุณาเพิ่มอย่างน้อย 1 รายการ พร้อมระบุราคา");
       return;
@@ -79,75 +75,53 @@ export const useServiceOrderCheckout = ({
       return;
     }
 
-    const total = calculateServiceItemsTotal(validItems);
-
-    // ✅ รวมรายการเป็นข้อความไว้ใน notes ก่อน (ระหว่างรอ backend รองรับตารางรายการจริง)
-    const itemsDescription = validItems
-      .map((item) => `- ${item.description}: ${item.amount.toLocaleString()} บาท`)
-      .join("\n");
-
     const payload = {
       customer: orderCustomer.id,
-      bikes: [orderBike],
-      // ✅ ไม่มีของแถม/ค่าใช้จ่ายเพิ่มเติมสำหรับงานประเภทนี้ (กันค่าที่ค้างจากแท็บ "ขาย" ติดมา)
-      additional_fees: [],
-      gifts: [],
-
-      sale_price: total,
-      deposit: 0,
-      discount: 0,
-      down_payment: 0,
-
-      // ไม่มีไฟแนนซ์สำหรับประเภทนี้
-      finance_amount: 0,
-      interest_rate: 0,
-      installment_count: 0,
-      installment_amount: 0,
-      finance_provider: "",
-      npg_period: "",
-
-      // ประเภทการซื้อ - ใช้ "เงินสด" เป็นค่าเริ่มต้นเสมอสำหรับงานประเภทนี้
-      payment_method: "เงินสด",
-
-      // รูปแบบการชำระ
+      bike: orderBike.id,
+      transaction_type: transactionType,
+      transaction_type_detail: transactionType === "อื่นๆ" ? otherTransactionDetail.trim() : "",
+      mileage: mileage.trim() !== "" ? Number(mileage) : null,
+      items: validItems.map(({ description, amount }) => ({
+        description: description.trim(),
+        amount,
+      })),
       payment_type: paymentType,
       transfer_bank: paymentType === "เงินโอน" ? transferBank : "",
       check_number: paymentType === "เช็ค" ? checkNumber : "",
+      notes: serviceDetail || notes || "",
+    };
 
-      // ✅ ประเภทธุรกรรม
-      transaction_type: transactionType,
-      transaction_type_detail:
-        transactionType === "อื่นๆ" ? otherTransactionDetail : "",
+    try {
+      const session = await getSession();
+      const token = (session as any)?.user?.accessToken;
+      if (!token) {
+        toast.error("Session หมดอายุ กรุณาเข้าสู่ระบบใหม่");
+        router.push("/login");
+        return;
+      }
 
-      // ✅ เตรียมไว้ให้ backend ใช้ทีหลัง (ตอนนี้ backend ยังไม่มีตารางรองรับ จะถูกเพิกเฉย)
-      service_items: validItems.map(({ description, amount }) => ({
-        description,
-        amount,
-      })),
+      const res = await fetch(`${API_BASE_URL}/service/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      notes: [serviceDetail, itemsDescription].filter(Boolean).join("\n\n") || notes,
-      total,
-
-      // ✅ เลขไมล์ - มีความหมายเฉพาะตอนมีรถผูกอยู่ ไม่งั้นส่ง null
-      mileage: mileage.trim() !== "" ? Number(mileage) : null,
-    } as IOrder;
-
-    const checkout = await createOrder(payload);
-    if (checkout.status === "success") {
-      const data = await checkout.data;
-      const orderId = data.data;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || `บันทึกไม่สำเร็จ (${res.status})`);
+        return;
+      }
 
       toast.success("บันทึกรายการสำเร็จ!");
-
       const bikeId = orderBike.id;
       resetOrder();
-      // ✅ เด้งไปหน้าประวัติรถคันนี้ (ใบเสร็จชั่วคราวกดดูต่อได้จาก "ดูรายการ")
       router.push(`/service-history?bike=${bikeId}`);
-    } else {
-      const error = await checkout.data;
-      Object.keys(error).map((key) => {
-        toast.error(`${key}: ${error[key][0]}`);
-      });
+    } catch (error) {
+      console.error("❌ service checkout error:", error);
+      toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
     }
   };
 

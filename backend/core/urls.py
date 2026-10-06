@@ -18,6 +18,7 @@ from api.views import (
     IssueUpdateViewSet,
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
+from api.views.ServiceViewSet import ServiceViewSet
 from api.views.CashflowView import CashflowViewSet
 from api.views.TaskViewSet import TaskPostViewSet
 from api.views.AnnouncementViewSet import AnnouncementViewSet
@@ -488,10 +489,95 @@ def create_npg_fee_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: สร้างตาราง service_record (งานบริการ ซ่อม/ต่อภาษี+พรบ/อื่นๆ แยกจากงานขาย)
+def create_service_record_table(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        customer_table = django_apps.get_model('api', 'Customer')._meta.db_table
+        bike_table = django_apps.get_model('api', 'Bike')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS service_record (
+                    id BIGSERIAL PRIMARY KEY,
+                    service_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                    customer_id BIGINT NULL REFERENCES "{customer_table}"(id) ON DELETE SET NULL,
+                    bike_id BIGINT NULL REFERENCES "{bike_table}"(id) ON DELETE SET NULL,
+                    transaction_type VARCHAR(20) NOT NULL,
+                    transaction_type_detail VARCHAR(255) NOT NULL DEFAULT '',
+                    mileage INTEGER NULL,
+                    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    total DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    payment_type VARCHAR(50) NOT NULL DEFAULT '',
+                    transfer_bank VARCHAR(50) NOT NULL DEFAULT '',
+                    check_number VARCHAR(100) NOT NULL DEFAULT '',
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_by VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    legacy_order_id INTEGER NULL UNIQUE
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS service_record_bike_idx ON service_record (bike_id);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS service_record_customer_idx ON service_record (customer_id);")
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง service_record เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+# ✅ Temp: ย้ายงานซ่อม/ต่อภาษี/อื่นๆ ที่เคยบันทึกในตาราง Order มาไว้ที่ service_record
+# - เรียกซ้ำได้ ไม่ย้ายซ้ำ (เช็คจาก legacy_order_id)
+# - ไม่ลบ Order เดิม แค่ซ่อนจากหน้าขาย (OrderViewSet กรองเฉพาะ "ขาย" แล้ว)
+# - แกะรายการจาก notes แบบเดียวกับที่ frontend เคยบันทึก "- รายละเอียด: 1,234 บาท"
+def migrate_service_orders(request):
+    import re
+    from api.models import Order
+    from api.models.ServiceRecord import ServiceRecord
+    pattern = re.compile(r'^-\s*(.+?):\s*([\d,]+)\s*บาท\s*$')
+    try:
+        moved, skipped = [], 0
+        for order in Order.objects.exclude(transaction_type='ขาย').prefetch_related('bikes'):
+            if ServiceRecord.objects.filter(legacy_order_id=order.id).exists():
+                skipped += 1
+                continue
+
+            items, other_lines = [], []
+            for line in (order.notes or '').split('\n'):
+                m = pattern.match(line.strip())
+                if m:
+                    items.append({'description': m.group(1).strip(), 'amount': float(m.group(2).replace(',', ''))})
+                else:
+                    other_lines.append(line)
+
+            total = sum(i['amount'] for i in items) or float(order.total or 0)
+            if not items:
+                items = [{'description': order.transaction_type_detail or order.transaction_type, 'amount': total}]
+
+            record = ServiceRecord.objects.create(
+                service_date=order.sale_date,
+                customer=order.customer,
+                bike=order.bikes.first(),
+                transaction_type=order.transaction_type,
+                transaction_type_detail=order.transaction_type_detail or '',
+                mileage=order.mileage,
+                items=items,
+                total=total,
+                payment_type=order.payment_type or '',
+                transfer_bank=order.transfer_bank or '',
+                check_number=order.check_number or '',
+                notes='\n'.join(other_lines).strip(),
+                created_by=getattr(order.seller, 'username', '') if order.seller else '',
+                legacy_order_id=order.id,
+            )
+            moved.append({'order_id': order.id, 'service_id': record.id})
+        return JsonResponse({'status': 'ok', 'moved_count': len(moved), 'skipped': skipped, 'moved': moved})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
 router.register('order', OrderViewSet, basename="Order")
+router.register('service', ServiceViewSet, basename='service')
 router.register('employees', UsersViewset, basename="Employees")
 router.register('gifts', GiftViewSet, basename="Gifts")
 router.register(r'npg/accounts', NPGAccountViewSet, basename='npg-account')
@@ -530,6 +616,8 @@ urlpatterns = [
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
     path('dev/create-npg-fee-table/', create_npg_fee_table),
+    path('dev/create-service-record-table/', create_service_record_table),
+    path('dev/migrate-service-orders/', migrate_service_orders),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

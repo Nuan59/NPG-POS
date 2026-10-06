@@ -1,5 +1,7 @@
+"use client";
 // page.tsx
 // วางไฟล์นี้ใน: frontend/src/app/(private)/service-history/[service-history_id]/TempReceipt/page.tsx
+import { useMemo } from "react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -10,49 +12,51 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getOrder } from "@/services/OrderService";
-import { IOrder } from "@/types/Order";
+import { useParams } from "next/navigation";
 import ViewTempReceipt, { TempReceiptData } from "./components/ViewTempReceipt";
 import ActionButtons from "./components/ActionButtons";
-import { formatDate, parseItemsFromNotes } from "../components/serviceRecordUtil";
+import {
+  formatDate,
+  getPaymentLabel,
+  getReceiptNumber,
+  useServiceRecord,
+} from "../components/serviceRecordUtil";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export default function TempReceiptPage() {
+  const params = useParams();
+  const recordId = params["service-history_id"] as string;
+  const { record, loading, error } = useServiceRecord(recordId);
 
-interface TempReceiptPageParams {
-  params: {
-    "service-history_id": string;
-  };
-}
+  // ✅ useMemo กัน ViewTempReceipt สร้าง PDF ใหม่ทุกครั้งที่ re-render
+  const tempReceiptData: TempReceiptData | null = useMemo(() => {
+    if (!record) return null;
+    return {
+      recordId: record.id,
+      receiptNumber: getReceiptNumber(record.id),
+      date: formatDate(record.service_date),
+      customerName: record.customer || "ไม่ระบุชื่อ",
+      customerAddress: record.customer_address || "",
+      customerPhone: record.customer_phone || "",
+      paymentMethodLabel: getPaymentLabel(record),
+      items: record.items || [],
+      total: Number(record.total || 0),
+    };
+  }, [record]);
 
-const TempReceiptPage = async ({ params }: TempReceiptPageParams) => {
-  const recordId = Number.parseInt(params["service-history_id"], 10);
-  if (Number.isNaN(recordId)) notFound();
+  if (loading) {
+    return <p className="text-center text-gray-400 py-12">กำลังโหลด...</p>;
+  }
 
-  const res = await getOrder(recordId);
-  if (!res?.ok) notFound();
-
-  const order = (await res.json()) as IOrder;
-  if (!order?.id) notFound();
-
-  const o = order as any;
-  const documentID = `${order.id}`.padStart(8, "0");
-  const type: string = o.transaction_type || "ขาย";
-  const typeLabel = type === "อื่นๆ" && o.transaction_type_detail ? o.transaction_type_detail : type;
-  const total = Number(order.total || 0);
-
-  const tempReceiptData: TempReceiptData = {
-    recordId: order.id,
-    receiptNumber: `O-${documentID}`,
-    date: formatDate(o.sale_date),
-    customerName: o.customer || "ไม่ระบุชื่อ",
-    customerAddress: o.customer_address || "",
-    customerPhone: o.customer_phone || "",
-    paymentMethodLabel: order.payment_type || order.payment_method || "",
-    items: parseItemsFromNotes(order.notes, typeLabel, total),
-    total,
-  };
+  if (error || !record || !tempReceiptData) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{error || "ไม่พบรายการ"}</p>
+        <Link href="/service-history" className="text-sm underline">
+          กลับหน้ารายการ
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -60,13 +64,15 @@ const TempReceiptPage = async ({ params }: TempReceiptPageParams) => {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href="/service-history">รายการ</Link>
+              <Link href={record.bike ? `/service-history?bike=${record.bike.id}` : "/service-history"}>
+                รายการ
+              </Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href={`/service-history/${order.id}`}>O-{documentID}</Link>
+              <Link href={`/service-history/${record.id}`}>{getReceiptNumber(record.id)}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -78,13 +84,11 @@ const TempReceiptPage = async ({ params }: TempReceiptPageParams) => {
 
       <Separator className="my-2" />
 
-      <div className="h-[90%]">
+      <div className="h-[80vh]">
         <ViewTempReceipt data={tempReceiptData} />
       </div>
 
       <ActionButtons data={tempReceiptData} />
     </>
   );
-};
-
-export default TempReceiptPage;
+}
