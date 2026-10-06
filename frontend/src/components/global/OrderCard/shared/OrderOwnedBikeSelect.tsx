@@ -4,8 +4,9 @@ import { OrderContext } from "@/context/OrderContext";
 import { getCustomerOrders } from "@/services/OrderService";
 import { IBike } from "@/types/Bike";
 import { IOrder } from "@/types/Order";
-import { ChevronDown, ChevronUp, Search, Bike as BikeIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, Bike as BikeIcon, Plus } from "lucide-react";
 import React, { useContext, useEffect, useState } from "react";
+import RegisterCustomerBikeDialog from "./RegisterCustomerBikeDialog";
 
 /**
  * เลือกรถที่ลูกค้าคนนี้เคยซื้อไปแล้ว (จากประวัติการขายของลูกค้า)
@@ -19,6 +20,7 @@ const OrderOwnedBikeSelect = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [registerDialogOpen, setRegisterDialogOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -128,8 +130,27 @@ const OrderOwnedBikeSelect = () => {
                 </li>
               ))}
           </ul>
+
+          {/* ✅ ลงทะเบียนรถของลูกค้าที่ไม่ได้ซื้อกับเรา (เช่น มารับบริการเปลี่ยนถ่ายน้ำมันเครื่องอย่างเดียว) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              setRegisterDialogOpen(true);
+            }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 hover:bg-orange-50 border-t border-gray-200 transition-colors"
+          >
+            <Plus size={16} />
+            ลงทะเบียนรถใหม่ (ลูกค้าไม่ได้ซื้อกับเรา)
+          </button>
         </div>
       )}
+
+      <RegisterCustomerBikeDialog
+        open={registerDialogOpen}
+        onOpenChange={setRegisterDialogOpen}
+        onRegistered={(bike) => handleSelectBike(bike)}
+      />
     </div>
   );
 };

@@ -75,6 +75,8 @@ const OrderCard = () => {
   // ✅ ฟอร์มแบบง่ายสำหรับ ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่มีไฟแนนซ์)
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
   const [serviceDetail, setServiceDetail] = useState<string>("");
+  // ✅ เลขไมล์ ณ ตอนรับบริการ - เก็บไว้ทำประวัติรถ + ช่วยสังเกตความผิดปกติ (กันทุจริต)
+  const [mileage, setMileage] = useState<string>("");
 
   // ขาย = ราคาตั้ง
   const [sellPrice, setSellPrice] = useState<string>("");
@@ -132,6 +134,7 @@ const OrderCard = () => {
       setBikeSize(isBigBike(bikeDisplay.model_name, bikeDisplay.model_code) ? "L" : "S");
     } else {
       setBikeSize("");
+      setMileage("");
     }
   }, [bikeDisplay]);
 
@@ -246,6 +249,7 @@ const OrderCard = () => {
     paymentType,
     transferBank,
     checkNumber,
+    mileage,
   });
 
   return (
@@ -364,6 +368,9 @@ const OrderCard = () => {
             setItems={setServiceItems}
             detail={serviceDetail}
             setDetail={setServiceDetail}
+            showMileage={!!orderBike}
+            mileage={mileage}
+            setMileage={setMileage}
           />
         )}
       </div>

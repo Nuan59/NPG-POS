@@ -1,6 +1,7 @@
 "use client";
 
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { TransactionType } from "../types";
 import ServiceItems, { ServiceItem } from "./ServiceItems";
@@ -13,6 +14,10 @@ interface ServiceOrderFormProps {
   setItems: (items: ServiceItem[]) => void;
   detail: string;
   setDetail: (value: string) => void;
+  // ✅ เลขไมล์ - โชว์เฉพาะตอนมีรถผูกอยู่กับ order นี้ (ไม่มีรถก็ไม่มีอะไรให้จดไมล์)
+  showMileage?: boolean;
+  mileage: string;
+  setMileage: (value: string) => void;
 }
 
 /**
@@ -25,11 +30,29 @@ const ServiceOrderForm = ({
   setItems,
   detail,
   setDetail,
+  showMileage = false,
+  mileage,
+  setMileage,
 }: ServiceOrderFormProps) => {
   return (
     <>
       <Separator className="my-4" />
       <div className="space-y-3">
+        {/* ✅ เลขไมล์ - ใช้ทำประวัติการรับบริการของรถ + ช่วยสังเกตความผิดปกติ (กันทุจริต) */}
+        {showMileage && (
+          <div className="p-2">
+            <label className={labelCls}>เลขไมล์ (กม.)</label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={mileage}
+              onChange={(e) => setMileage(e.target.value.replace(/[^\d]/g, ""))}
+              placeholder="เช่น 12500"
+              className="mt-1 w-40 text-right p-2 text-sm"
+            />
+          </div>
+        )}
+
         <ServiceItems items={items} setItems={setItems} />
 
         <div className="p-2">

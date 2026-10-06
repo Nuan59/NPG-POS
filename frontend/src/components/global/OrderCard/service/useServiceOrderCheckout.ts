@@ -24,11 +24,16 @@ interface UseServiceOrderCheckoutParams {
   paymentType: PaymentType;
   transferBank: TransferBank;
   checkNumber: string;
+
+  // ✅ เลขไมล์ ณ ตอนรับบริการ (มีความหมายเฉพาะตอนมีรถผูกอยู่)
+  mileage: string;
 }
 
 /**
  * Logic การสร้างออเดอร์ประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
  * (ฟอร์มแบบง่าย ไม่มีไฟแนนซ์ รถเป็นตัวเลือก ไม่บังคับ รองรับหลายรายการต่อบิล)
+ * ✅ checkout เสร็จแล้วไปที่ /service-history/{id} ตรงๆ เลย (เมนู "รายการ") - ออกใบเสร็จรับเงินชั่วคราว
+ * ให้อัตโนมัติทันที ไม่ผ่านหน้าเลือกเอกสาร /sales/{id}/documents ที่มีแต่ "ขาย" เท่านั้นที่ใช้
  */
 export const useServiceOrderCheckout = ({
   orderCustomer,
@@ -44,6 +49,7 @@ export const useServiceOrderCheckout = ({
   paymentType,
   transferBank,
   checkNumber,
+  mileage,
 }: UseServiceOrderCheckoutParams) => {
   const router = useRouter();
 
@@ -115,6 +121,9 @@ export const useServiceOrderCheckout = ({
 
       notes: [serviceDetail, itemsDescription].filter(Boolean).join("\n\n") || notes,
       total,
+
+      // ✅ เลขไมล์ - มีความหมายเฉพาะตอนมีรถผูกอยู่ ไม่งั้นส่ง null
+      mileage: orderBike && mileage.trim() !== "" ? Number(mileage) : null,
     } as IOrder;
 
     const checkout = await createOrder(payload);
@@ -125,7 +134,8 @@ export const useServiceOrderCheckout = ({
       toast.success("บันทึกรายการสำเร็จ!");
 
       resetOrder();
-      router.push(`/sales/${orderId}/documents`);
+      // ✅ ข้ามหน้าเลือกเอกสารไปเลย ไปที่เมนู "รายการ" (service-history) ออกใบเสร็จรับเงินชั่วคราวให้อัตโนมัติทันที
+      router.push(`/service-history/${orderId}`);
     } else {
       const error = await checkout.data;
       Object.keys(error).map((key) => {
