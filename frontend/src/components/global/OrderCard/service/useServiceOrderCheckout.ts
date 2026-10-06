@@ -84,8 +84,9 @@ export const useServiceOrderCheckout = ({
       customer: orderCustomer.id,
       // ✅ รถเป็นตัวเลือก ไม่บังคับ สำหรับประเภทนี้
       bikes: orderBike ? [orderBike] : [],
-      additional_fees: orderAdditionalFees.map((fee) => fee),
-      gifts: orderGifts.map((gift) => gift),
+      // ✅ ไม่มีของแถม/ค่าใช้จ่ายเพิ่มเติมสำหรับงานประเภทนี้ (กันค่าที่ค้างจากแท็บ "ขาย" ติดมา)
+      additional_fees: [],
+      gifts: [],
 
       sale_price: total,
       deposit: 0,
@@ -135,7 +136,7 @@ export const useServiceOrderCheckout = ({
 
       resetOrder();
       // ✅ ข้ามหน้าเลือกเอกสารไปเลย ไปที่เมนู "รายการ" (service-history) ออกใบเสร็จรับเงินชั่วคราวให้อัตโนมัติทันที
-      router.push(`/service-history/${orderId}`);
+      router.push(`/service-history/${orderId}/TempReceipt`);
     } else {
       const error = await checkout.data;
       Object.keys(error).map((key) => {

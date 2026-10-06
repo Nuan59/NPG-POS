@@ -280,46 +280,51 @@ const OrderCard = () => {
           <OrderOwnedBikeSelect />
         )}
 
-        {/* ของแถม */}
-        {orderGifts.length > 0 && (
+        {/* ✅ ของแถม + ค่าใช้จ่ายเพิ่มเติม - เฉพาะ "ขาย" เท่านั้น (ซ่อม/ต่อภาษี+พรบ/อื่นๆ ไม่ต้องใช้) */}
+        {transactionType === "ขาย" && (
           <>
-            <Separator className="my-3" />
+          {/* ของแถม */}
+          {orderGifts.length > 0 && (
+            <>
+              <Separator className="my-3" />
+              <div className="space-y-2">
+                <h1 className="font-semibold text-lg">ของแถม</h1>
+                {orderGifts.map((gift) => (
+                  <OrderGift key={gift.id} gift={gift} />
+                ))}
+              </div>
+            </>
+          )}
+
+          <Separator className="my-3" />
+
+          {/* ค่าใช้จ่ายเพิ่มเติม */}
+          <div className="mb-3">
+            <h1 className="font-semibold text-lg mb-2">ค่าใช้จ่ายเพิ่มเติม</h1>
             <div className="space-y-2">
-              <h1 className="font-semibold text-lg">ของแถม</h1>
-              {orderGifts.map((gift) => (
-                <OrderGift key={gift.id} gift={gift} />
+              {orderAdditionalFees.map((fee) => (
+                <OrderFee key={fee.id} fee={fee} />
               ))}
             </div>
+          </div>
+
+          <div className="flex gap-3">
+            <OrderGiftDialog>
+              <button className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-950 p-4 rounded-lg text-slate-50 text-base transition-colors">
+                <Plus size={18} />
+                <span className="font-medium">เพิ่มของแถม</span>
+              </button>
+            </OrderGiftDialog>
+
+            <AdditionalFeeDialog>
+              <button className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-950 p-4 rounded-lg text-slate-50 text-base transition-colors">
+                <Plus size={18} />
+                <span className="font-medium">เพิ่มค่าใช้จ่าย</span>
+              </button>
+            </AdditionalFeeDialog>
+          </div>
           </>
         )}
-
-        <Separator className="my-3" />
-
-        {/* ค่าใช้จ่ายเพิ่มเติม */}
-        <div className="mb-3">
-          <h1 className="font-semibold text-lg mb-2">ค่าใช้จ่ายเพิ่มเติม</h1>
-          <div className="space-y-2">
-            {orderAdditionalFees.map((fee) => (
-              <OrderFee key={fee.id} fee={fee} />
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-3">
-          <OrderGiftDialog>
-            <button className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-950 p-4 rounded-lg text-slate-50 text-base transition-colors">
-              <Plus size={18} />
-              <span className="font-medium">เพิ่มของแถม</span>
-            </button>
-          </OrderGiftDialog>
-
-          <AdditionalFeeDialog>
-            <button className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-950 p-4 rounded-lg text-slate-50 text-base transition-colors">
-              <Plus size={18} />
-              <span className="font-medium">เพิ่มค่าใช้จ่าย</span>
-            </button>
-          </AdditionalFeeDialog>
-        </div>
 
         {/* ส่วนของการคำนวณราคา - เฉพาะ "ขาย" (ไม่เปลี่ยนแปลงจากเดิม) */}
         {transactionType === "ขาย" && orderBike && bikeDisplay && (
