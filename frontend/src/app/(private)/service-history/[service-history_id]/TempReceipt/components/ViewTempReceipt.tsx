@@ -1,12 +1,12 @@
 "use client";
 // ViewTempReceipt.tsx
-// วางไฟล์นี้ใน: frontend/src/app/(private)/sales/[sale_id]/temp-receipt/components/ViewTempReceipt.tsx
+// วางไฟล์นี้ใน: frontend/src/app/(private)/service-history/[service-history_id]/TempReceipt/components/ViewTempReceipt.tsx
 import { useEffect, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import TempReceiptTemplate, { TempReceiptItem } from "@/components/pdf/TempReceiptTemplate";
 
 export interface TempReceiptData {
-  saleId: number;
+  recordId: number;
   receiptNumber: string;
   date: string;
   customerName: string;
