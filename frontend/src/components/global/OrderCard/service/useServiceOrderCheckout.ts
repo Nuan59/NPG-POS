@@ -31,7 +31,7 @@ interface UseServiceOrderCheckoutParams {
 
 /**
  * Logic การสร้างออเดอร์ประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
- * (ฟอร์มแบบง่าย ไม่มีไฟแนนซ์ รถเป็นตัวเลือก ไม่บังคับ รองรับหลายรายการต่อบิล)
+ * (ฟอร์มแบบง่าย ไม่มีไฟแนนซ์ บังคับเลือกรถ รองรับหลายรายการต่อบิล)
  * ✅ checkout เสร็จแล้วไปที่ /service-history/{id} ตรงๆ เลย (เมนู "รายการ") - ออกใบเสร็จรับเงินชั่วคราว
  * ให้อัตโนมัติทันที ไม่ผ่านหน้าเลือกเอกสาร /sales/{id}/documents ที่มีแต่ "ขาย" เท่านั้นที่ใช้
  */
@@ -59,6 +59,12 @@ export const useServiceOrderCheckout = ({
       return;
     }
 
+    // ✅ บังคับเลือกรถทุกประเภท - รายการจะได้ไปขึ้นในประวัติรถคันนั้น
+    if (!orderBike?.id) {
+      toast.info("กรุณาเลือกรถก่อนบันทึกรายการ");
+      return;
+    }
+
     const validItems = serviceItems.filter(
       (item) => item.description.trim() !== "" && item.amount > 0
     );
@@ -82,8 +88,7 @@ export const useServiceOrderCheckout = ({
 
     const payload = {
       customer: orderCustomer.id,
-      // ✅ รถเป็นตัวเลือก ไม่บังคับ สำหรับประเภทนี้
-      bikes: orderBike ? [orderBike] : [],
+      bikes: [orderBike],
       // ✅ ไม่มีของแถม/ค่าใช้จ่ายเพิ่มเติมสำหรับงานประเภทนี้ (กันค่าที่ค้างจากแท็บ "ขาย" ติดมา)
       additional_fees: [],
       gifts: [],
@@ -124,7 +129,7 @@ export const useServiceOrderCheckout = ({
       total,
 
       // ✅ เลขไมล์ - มีความหมายเฉพาะตอนมีรถผูกอยู่ ไม่งั้นส่ง null
-      mileage: orderBike && mileage.trim() !== "" ? Number(mileage) : null,
+      mileage: mileage.trim() !== "" ? Number(mileage) : null,
     } as IOrder;
 
     const checkout = await createOrder(payload);
@@ -134,9 +139,10 @@ export const useServiceOrderCheckout = ({
 
       toast.success("บันทึกรายการสำเร็จ!");
 
+      const bikeId = orderBike.id;
       resetOrder();
-      // ✅ ข้ามหน้าเลือกเอกสารไปเลย ไปที่เมนู "รายการ" (service-history) ออกใบเสร็จรับเงินชั่วคราวให้อัตโนมัติทันที
-      router.push(`/service-history/${orderId}/TempReceipt`);
+      // ✅ เด้งไปหน้าประวัติรถคันนี้ (ใบเสร็จชั่วคราวกดดูต่อได้จาก "ดูรายการ")
+      router.push(`/service-history?bike=${bikeId}`);
     } else {
       const error = await checkout.data;
       Object.keys(error).map((key) => {

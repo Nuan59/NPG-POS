@@ -113,12 +113,29 @@ export default function ServiceHistoryPage() {
   };
 
   // ✅ พอโหลดรายชื่อรถเสร็จแล้ว ถ้ามี ?bike= ใน URL ให้เลือกคันนั้นให้อัตโนมัติ (ครั้งเดียว)
+  // ✅ ถ้าไม่เจอในรายการ (เช่น รถที่ขายไปแล้ว/รถลูกค้าที่เพิ่งลงทะเบียน) ดึงรถคันนั้นตรงๆ แทน
   useEffect(() => {
-    if (!bikeIdFromUrl || loadingBikes || bikes.length === 0 || selectedBike) return;
+    if (!bikeIdFromUrl || loadingBikes || selectedBike) return;
     const found = bikes.find((b) => String(b.id) === bikeIdFromUrl);
     if (found) {
       handleSelectBike(found);
+      return;
     }
+
+    const fetchBikeById = async () => {
+      try {
+        const token = (session as any)?.user?.accessToken;
+        const res = await fetch(`${API_BASE_URL}/inventory/${bikeIdFromUrl}/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const bike = await res.json();
+        if (bike?.id) handleSelectBike(bike);
+      } catch (error) {
+        console.error("❌ fetchBikeById error:", error);
+      }
+    };
+    fetchBikeById();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bikeIdFromUrl, loadingBikes, bikes]);
 
@@ -234,7 +251,7 @@ export default function ServiceHistoryPage() {
                           ฿{Number(order.total).toLocaleString()}
                         </span>
                       )}
-                      <Link href={`/sales/${order.id}`}>
+                      <Link href={`/service-history/${order.id}`}>
                         <button className="text-xs border rounded px-2 py-1 flex items-center gap-1 hover:bg-gray-50">
                           <Receipt size={12} /> ดูรายการ
                         </button>
