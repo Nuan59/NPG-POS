@@ -103,3 +103,32 @@ class NPGPayment(models.Model):
     # ทำผ่านฟังก์ชัน _recalc_account() ใน NPGViewSet.py แทน โดยคำนวณจาก
     # ผลรวมของทุก payment ใหม่ทั้งหมดทุกครั้ง (ไม่ใช่การบวกสะสม) จึงถูกต้องเสมอ
     # ไม่ว่าจะเป็นการสร้างใหม่ หรือแก้ไขรายการเก่า
+
+class NPGFee(models.Model):
+    """
+    ค่าธรรมเนียมอื่นๆ ที่เก็บจากลูกค้า NPG นอกเหนือจากค่างวดและค่าปรับล่าช้า
+    (เช่น ค่าทวงถาม ค่ายึด/ไถ่ถอนรถ ฯลฯ) - ไม่กระทบยอดหนี้คงเหลือ นับเป็นรายได้ค่าธรรมเนียมอย่างเดียว
+    ตารางสร้างผ่าน /dev/create-npg-fee-table/ (raw SQL ไม่ผ่าน migration)
+    """
+    account = models.ForeignKey(
+        'NPGAccount',
+        on_delete=models.CASCADE,
+        related_name='fees',
+        verbose_name='บัญชี NPG'
+    )
+    fee_date = models.DateField(default=timezone.now, verbose_name='วันที่รับ')
+    description = models.CharField(max_length=255, verbose_name='รายการ')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='จำนวนเงิน')
+    payment_method = models.CharField(max_length=20, blank=True, default="", verbose_name='วิธีการชำระ')
+    note = models.TextField(blank=True, default="", verbose_name='หมายเหตุ')
+    created_by = models.CharField(max_length=255, blank=True, default="", verbose_name='ผู้บันทึก')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'npg_fees'
+        verbose_name = 'ค่าธรรมเนียม NPG'
+        verbose_name_plural = 'ค่าธรรมเนียม NPG'
+        ordering = ['-fee_date', '-created_at']
+
+    def __str__(self):
+        return f"Fee-{self.id} - {self.description} ({self.amount})"

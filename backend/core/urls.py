@@ -465,6 +465,29 @@ def add_task_note_columns(request):
         return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์เรียบร้อยแล้ว'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
+# ✅ Temp: สร้างตาราง npg_fees (ค่าธรรมเนียมอื่นๆ ของบัญชี NPG)
+def create_npg_fee_table(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS npg_fees (
+                    id BIGSERIAL PRIMARY KEY,
+                    account_id BIGINT NOT NULL REFERENCES npg_accounts(id) ON DELETE CASCADE,
+                    fee_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                    description VARCHAR(255) NOT NULL,
+                    amount NUMERIC(10, 2) NOT NULL,
+                    payment_method VARCHAR(20) NOT NULL DEFAULT '',
+                    note TEXT NOT NULL DEFAULT '',
+                    created_by VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS npg_fees_account_idx ON npg_fees (account_id);")
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง npg_fees เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -506,6 +529,7 @@ urlpatterns = [
     path('dev/debug-list-cashflow-entries/', debug_list_cashflow_entries),
     path('dev/chassis/', get_all_chassis),
     path('dev/fix-npg-yearly/', fix_npg_yearly_accounts),
+    path('dev/create-npg-fee-table/', create_npg_fee_table),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

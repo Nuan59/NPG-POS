@@ -8,9 +8,11 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 
 from api.models import NPGAccount, NPGPayment
+from api.models.NPGPayment import NPGFee
 from api.serializers.NPGSerializer import (
     NPGAccountSerializer,
     NPGPaymentSerializer,
+    NPGFeeSerializer,
     NPGAccountSummarySerializer
 )
 
@@ -133,7 +135,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             'order__customer'
         ).prefetch_related(
             'order__bikes',
-            'payments'
+            'payments',
+            'fees'
         ).all()
         
         status_param = self.request.query_params.get('status')
@@ -328,6 +331,58 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             'account': serializer.data,
             'receipt': receipt,
         })
+
+
+    @action(detail=True, methods=['post'])
+    def add_fee(self, request, pk=None):
+        """
+        บันทึกค่าธรรมเนียมอื่นๆ (ไม่กระทบยอดหนี้คงเหลือ)
+        POST /npg/accounts/{id}/add_fee/
+        Body: { "description": "ค่าทวงถาม", "amount": 200, "payment_method": "เงินสด", "note": "" }
+        """
+        account = self.get_object()
+
+        description = (request.data.get('description') or '').strip()
+        if not description:
+            return Response({'error': 'กรุณาระบุรายการค่าธรรมเนียม'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            amount = float(request.data.get('amount', 0))
+        except (TypeError, ValueError):
+            return Response({'error': 'จำนวนเงินไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount <= 0:
+            return Response({'error': 'จำนวนเงินต้องมากกว่า 0'}, status=status.HTTP_400_BAD_REQUEST)
+
+        fee = NPGFee.objects.create(
+            account=account,
+            fee_date=timezone.now().date(),
+            description=description,
+            amount=amount,
+            payment_method=request.data.get('payment_method', '') or '',
+            note=request.data.get('note', '') or '',
+            created_by=getattr(request.user, 'username', '') or '',
+        )
+
+        return Response({
+            'message': 'บันทึกค่าธรรมเนียมสำเร็จ',
+            'fee': NPGFeeSerializer(fee).data,
+        })
+
+    @action(detail=True, methods=['delete'], url_path=r'delete_fee/(?P<fee_id>[0-9]+)')
+    def delete_fee(self, request, pk=None, fee_id=None):
+        """
+        ลบค่าธรรมเนียม (เฉพาะ adm)
+        DELETE /npg/accounts/{id}/delete_fee/{fee_id}/
+        """
+        if not _is_admin(request):
+            return Response({'error': 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบค่าธรรมเนียมได้'}, status=status.HTTP_403_FORBIDDEN)
+
+        account = self.get_object()
+        deleted, _ = NPGFee.objects.filter(id=fee_id, account=account).delete()
+        if not deleted:
+            return Response({'error': 'ไม่พบรายการค่าธรรมเนียม'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({'message': 'ลบค่าธรรมเนียมสำเร็จ'})
 
 
 class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):

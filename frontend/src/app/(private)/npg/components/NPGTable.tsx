@@ -58,6 +58,7 @@ export default function NPGTable({
       completed: "bg-blue-100 text-blue-800",
       closed: "bg-gray-100 text-gray-800",
       overdue: "bg-red-100 text-red-800",
+      bad_debt: "bg-rose-700 text-white",
     };
 
     const labels = {
@@ -65,6 +66,7 @@ export default function NPGTable({
       completed: "ชำระครบ",
       closed: "ปิดบัญชี",
       overdue: "เกินกำหนด",
+      bad_debt: "หนี้เสีย",
     };
 
     return (
@@ -267,7 +269,19 @@ export default function NPGTable({
                     </td>
                     <td className="p-3 text-center">
                       <div className="flex flex-col items-center gap-1">
-                        {getStatusBadge(isOverdue ? "overdue" : account.status)}
+                        {/* ✅ เกินกำหนดเกิน 90 วัน = หนี้เสีย */}
+                        {getStatusBadge(
+                          account.metrics?.contract_status === "bad_debt"
+                            ? "bad_debt"
+                            : isOverdue
+                            ? "overdue"
+                            : account.status
+                        )}
+                        {isOverdue && !!account.metrics?.days_overdue && (
+                          <span className="text-[10px] text-red-600">
+                            เกิน {account.metrics.days_overdue} วัน
+                          </span>
+                        )}
                         {/* ✅ ป้าย "ผ่อนดาวน์" แยกต่างหาก - ไม่แทนที่ status ปกติ (active/overdue/completed ยังใช้เหมือนเดิม)
                             บอกด้วยว่าตัวรถผ่อนกับไฟแนนซ์เจ้าไหน (ถ้ามี) เพื่อไม่ให้สับสนกับบัญชีไฟแนนซ์เต็มคัน */}
                         {account.account_type === "down_payment" && (

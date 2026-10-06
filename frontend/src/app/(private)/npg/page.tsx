@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import NPGSummary from "./components/NPGSummary";
+import NPGSummary, { NPGPortfolioSummary } from "./components/NPGSummary";
 import NPGTable from "./components/NPGTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,24 @@ export interface NPGAccount {
   progress_percentage: number;
   is_overdue: boolean;
   days_until_payment: number | null;
+  // ✅ ตัวเลขสรุปสัญญา (คำนวณจาก backend - NPGSerializer.get_metrics)
+  metrics?: NPGAccountMetrics;
+}
+
+export interface NPGAccountMetrics {
+  credit: number;
+  expected_total: number;
+  paid: number;
+  principal_paid: number;
+  interest_received: number;
+  outstanding: number;
+  late_fees: number;
+  other_fees: number;
+  fees_received: number;
+  realized_profit: number;
+  days_overdue: number;
+  bad_debt: number;
+  contract_status: "normal" | "overdue" | "bad_debt" | "closed";
 }
 
 export interface NPGSummary {
@@ -57,7 +75,6 @@ export default function NPGPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [accounts, setAccounts] = useState<NPGAccount[]>([]);
-  const [summary, setSummary] = useState<NPGSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -115,17 +132,6 @@ export default function NPGPage() {
         setAccounts([]);
       }
 
-      const summaryResponse = await fetch(`${baseUrl}/npg/accounts/summary/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (summaryResponse.ok) {
-        const summaryData = await summaryResponse.json();
-        setSummary(summaryData);
-      }
     } catch (error) {
       console.error("❌ Error fetching NPG data:", error);
       setError(error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้");
@@ -167,6 +173,32 @@ export default function NPGPage() {
   const closedAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
     return isFinishedAccount(account) && matchesSearchAndPeriod(account);
   }) : [];
+
+  // ✅ สรุปภาพรวมทุกบัญชี (รวมบัญชีที่ปิดแล้ว) - คำนวณฝั่ง client จาก metrics ของแต่ละบัญชี
+  const portfolioSummary: NPGPortfolioSummary = useMemo(() => {
+    const list = Array.isArray(accounts) ? accounts : [];
+    const sum = (key: keyof NPGAccountMetrics) =>
+      list.reduce((total, a) => total + Number((a.metrics as any)?.[key] || 0), 0);
+
+    return {
+      total_accounts: list.length,
+      active_accounts: list.filter((a) => !isFinishedAccount(a)).length,
+      overdue_accounts: list.filter(
+        (a) => !isFinishedAccount(a) && (a.status === "overdue" || a.is_overdue === true)
+      ).length,
+      bad_debt_accounts: list.filter((a) => a.metrics?.contract_status === "bad_debt").length,
+      credit: sum("credit"),
+      expected_total: sum("expected_total"),
+      paid: sum("paid"),
+      principal_paid: sum("principal_paid"),
+      interest_received: sum("interest_received"),
+      outstanding: sum("outstanding"),
+      fees_received: sum("fees_received"),
+      realized_profit: sum("realized_profit"),
+      bad_debt: sum("bad_debt"),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts]);
 
   if (status === "loading" || loading) {
     return (
@@ -210,17 +242,7 @@ export default function NPGPage() {
         </div>
       </div>
 
-      {summary && (
-        <NPGSummary
-          summary={{
-            ...summary,
-            overdue_accounts: Array.isArray(accounts)
-              ? accounts.filter((a) => a.status === "overdue" || a.is_overdue === true).length
-              : summary.overdue_accounts,
-          }}
-          userRole={session?.user?.role}
-        />
-      )}
+      <NPGSummary summary={portfolioSummary} userRole={session?.user?.role} />
 
       <NPGTable
         accounts={filteredAccounts}

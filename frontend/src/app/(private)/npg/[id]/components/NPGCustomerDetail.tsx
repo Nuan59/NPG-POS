@@ -31,6 +31,10 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
+  Receipt,
+  Plus,
+  Trash2,
+  ClipboardList,
 } from "lucide-react";
 import { toast } from "sonner";
 import PaymentRowButtons from "./PaymentRowButtons";
@@ -69,7 +73,44 @@ interface AccountDetail {
   is_overdue?: boolean; // ✅ คำนวณสดจาก backend (status active + วันครบกำหนดผ่านมาแล้ว)
   estimated_late_fee?: number; // ✅ ค่าปรับโดยประมาณถ้าจ่ายวันนี้ (ยังไม่ได้บันทึกจริง)
   payments: Payment[];
+  fees?: Fee[]; // ✅ ค่าธรรมเนียมอื่นๆ
+  metrics?: Metrics; // ✅ ตัวเลขสรุปสัญญา (NPGSerializer.get_metrics)
 }
+
+interface Fee {
+  id: number;
+  fee_date: string;
+  description: string;
+  amount: number | string;
+  payment_method: string;
+  note: string;
+  created_by: string;
+}
+
+interface Metrics {
+  credit: number;
+  expected_total: number;
+  paid: number;
+  principal_paid: number;
+  interest_received: number;
+  outstanding: number;
+  late_fees: number;
+  other_fees: number;
+  fees_received: number;
+  realized_profit: number;
+  days_overdue: number;
+  bad_debt: number;
+  contract_status: "normal" | "overdue" | "bad_debt" | "closed";
+}
+
+const CONTRACT_STATUS: Record<Metrics["contract_status"], { label: string; cls: string }> = {
+  normal: { label: "ปกติ", cls: "bg-green-100 text-green-800" },
+  overdue: { label: "ค้างชำระ", cls: "bg-red-100 text-red-800" },
+  bad_debt: { label: "หนี้เสีย", cls: "bg-rose-700 text-white" },
+  closed: { label: "ปิดแล้ว", cls: "bg-gray-200 text-gray-700" },
+};
+
+const baht = (n: number | string | undefined) => `${Number(n || 0).toLocaleString()} ฿`;
 
 interface Payment {
   id: number;
@@ -107,6 +148,16 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [editCheckNumber, setEditCheckNumber] = useState<string>("");
   const [editPaymentDate, setEditPaymentDate] = useState<string>("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // ✅ ค่าธรรมเนียมอื่นๆ
+  const [isFeeDialogOpen, setIsFeeDialogOpen] = useState(false);
+  const [feeDescription, setFeeDescription] = useState("");
+  const [feeAmount, setFeeAmount] = useState("");
+  const [feeMethod, setFeeMethod] = useState("เงินสด");
+  const [feeNote, setFeeNote] = useState("");
+  const [isSavingFee, setIsSavingFee] = useState(false);
+  const [deletingFee, setDeletingFee] = useState<Fee | null>(null);
+  const [isDeletingFee, setIsDeletingFee] = useState(false);
 
   const isAdmin = String(session?.user?.role ?? "").toLowerCase() === "adm";
 
@@ -312,6 +363,91 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     }
   };
 
+  const resetFeeForm = () => {
+    setFeeDescription("");
+    setFeeAmount("");
+    setFeeMethod("เงินสด");
+    setFeeNote("");
+  };
+
+  const handleAddFee = async () => {
+    if (!session?.user?.accessToken) return;
+    const amount = parseFloat(feeAmount);
+    if (!feeDescription.trim()) {
+      toast.error("กรุณาระบุรายการค่าธรรมเนียม");
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("กรุณากรอกจำนวนเงินที่ถูกต้อง");
+      return;
+    }
+
+    setIsSavingFee(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/add_fee/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.user.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description: feeDescription.trim(),
+          amount,
+          payment_method: feeMethod,
+          note: feeNote,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success("บันทึกค่าธรรมเนียมสำเร็จ");
+        setIsFeeDialogOpen(false);
+        resetFeeForm();
+        fetchAccountDetail();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        toast.error(error.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      console.error("Add fee error:", error);
+      toast.error("ไม่สามารถบันทึกค่าธรรมเนียมได้");
+    } finally {
+      setIsSavingFee(false);
+    }
+  };
+
+  const handleDeleteFee = async () => {
+    if (!deletingFee || !session?.user?.accessToken) return;
+    setIsDeletingFee(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(
+        `${baseUrl}/npg/accounts/${customerId}/delete_fee/${deletingFee.id}/`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${session.user.accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        toast.success("ลบค่าธรรมเนียมสำเร็จ");
+        setDeletingFee(null);
+        fetchAccountDetail();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        toast.error(error.error || "เกิดข้อผิดพลาด");
+      }
+    } catch (error) {
+      console.error("Delete fee error:", error);
+      toast.error("ไม่สามารถลบค่าธรรมเนียมได้");
+    } finally {
+      setIsDeletingFee(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -483,6 +619,58 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           </div>
         </div>
       </div>
+
+      {/* ✅ สรุปสัญญา - พนักงานเห็นแค่ สถานะสัญญา / ชำระแล้ว / ยอดคงค้าง, admin เห็นทั้งหมด */}
+      {account.metrics && (() => {
+        const m = account.metrics;
+        const st = CONTRACT_STATUS[m.contract_status] || CONTRACT_STATUS.normal;
+        const rows: { label: string; value: string; adminOnly?: boolean; cls?: string }[] = [
+          { label: "สินเชื่อ (เงินต้น)", value: baht(m.credit), adminOnly: true },
+          { label: "ยอดชำระคาดการณ์", value: baht(m.expected_total), adminOnly: true },
+          { label: "ชำระแล้ว", value: baht(m.paid), cls: "text-green-600" },
+          { label: "เงินต้นชำระแล้ว", value: baht(m.principal_paid), adminOnly: true },
+          { label: "ยอดคงค้าง", value: baht(m.outstanding), cls: "text-orange-600" },
+          { label: "ดอกเบี้ยรับ", value: baht(m.interest_received), adminOnly: true },
+          {
+            label: "ค่าธรรมเนียมรับแล้ว",
+            value: `${baht(m.fees_received)} (ค่าปรับ ${baht(m.late_fees)} + อื่นๆ ${baht(m.other_fees)})`,
+            adminOnly: true,
+          },
+          { label: "กำไรรับจริง", value: baht(m.realized_profit), adminOnly: true, cls: "text-emerald-600" },
+          ...(m.bad_debt > 0
+            ? [{ label: "หนี้เสียคาดการณ์", value: baht(m.bad_debt), adminOnly: true, cls: "text-rose-700" }]
+            : []),
+        ];
+
+        return (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <ClipboardList size={20} />
+                สรุปสัญญา
+              </h2>
+              <div className="flex items-center gap-2">
+                {m.days_overdue > 0 && (
+                  <span className="text-sm text-red-600">เกินกำหนด {m.days_overdue} วัน</span>
+                )}
+                <span className={`text-sm font-semibold px-3 py-1 rounded-full ${st.cls}`}>
+                  {st.label}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+              {rows
+                .filter((r) => isAdmin || !r.adminOnly)
+                .map((r) => (
+                  <div key={r.label} className="flex justify-between">
+                    <span className="text-gray-600">{r.label}:</span>
+                    <span className={`font-medium ${r.cls || ""}`}>{r.value}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Action Buttons */}
       {account.status === "active" && (
@@ -739,6 +927,169 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             </Button>
             <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
               {isSavingEdit ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ ค่าธรรมเนียมอื่นๆ */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b flex items-center justify-between">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Receipt size={20} />
+            ค่าธรรมเนียมอื่นๆ
+          </h2>
+          <Button variant="outline" size="sm" onClick={() => setIsFeeDialogOpen(true)} className="gap-1">
+            <Plus className="h-4 w-4" />
+            บันทึกค่าธรรมเนียม
+          </Button>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>วันที่</TableHead>
+              <TableHead>รายการ</TableHead>
+              <TableHead className="text-right">จำนวนเงิน</TableHead>
+              <TableHead>วิธีชำระ</TableHead>
+              <TableHead>หมายเหตุ</TableHead>
+              <TableHead>ผู้บันทึก</TableHead>
+              {isAdmin && <TableHead className="text-center">จัดการ</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {!account.fees || account.fees.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-6 text-gray-500">
+                  ยังไม่มีค่าธรรมเนียม
+                </TableCell>
+              </TableRow>
+            ) : (
+              account.fees.map((fee) => (
+                <TableRow key={fee.id}>
+                  <TableCell>
+                    {new Date(fee.fee_date).toLocaleDateString("th-TH", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </TableCell>
+                  <TableCell>{fee.description}</TableCell>
+                  <TableCell className="text-right text-green-600 font-medium">{baht(fee.amount)}</TableCell>
+                  <TableCell className="text-gray-600">{fee.payment_method || "-"}</TableCell>
+                  <TableCell className="text-gray-600">{fee.note || "-"}</TableCell>
+                  <TableCell className="text-gray-600">{fee.created_by || "-"}</TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600"
+                        onClick={() => setDeletingFee(fee)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Add Fee Dialog */}
+      <Dialog
+        open={isFeeDialogOpen}
+        onOpenChange={(o) => {
+          if (isSavingFee) return;
+          setIsFeeDialogOpen(o);
+          if (!o) resetFeeForm();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>บันทึกค่าธรรมเนียม</DialogTitle>
+            <DialogDescription>
+              ค่าธรรมเนียมอื่นๆ ของลูกค้า {account.customer_name} (ไม่กระทบยอดหนี้คงเหลือ)
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>รายการ</Label>
+              <Input
+                value={feeDescription}
+                onChange={(e) => setFeeDescription(e.target.value)}
+                placeholder="เช่น ค่าทวงถาม"
+              />
+            </div>
+            <div>
+              <Label>จำนวนเงิน (฿)</Label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={feeAmount}
+                onChange={(e) => setFeeAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label>วิธีการชำระ</Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setFeeMethod(m)}
+                    className={`text-sm py-2 px-3 rounded border transition-colors ${
+                      feeMethod === m
+                        ? "bg-slate-800 text-white border-slate-800"
+                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>หมายเหตุ (ถ้ามี)</Label>
+              <Textarea value={feeNote} onChange={(e) => setFeeNote(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsFeeDialogOpen(false);
+                resetFeeForm();
+              }}
+              disabled={isSavingFee}
+            >
+              ยกเลิก
+            </Button>
+            <Button onClick={handleAddFee} disabled={isSavingFee}>
+              {isSavingFee ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Fee Dialog (adm เท่านั้น) */}
+      <Dialog open={!!deletingFee} onOpenChange={(o) => !o && !isDeletingFee && setDeletingFee(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ลบค่าธรรมเนียม?</DialogTitle>
+            <DialogDescription>
+              ต้องการลบ <strong>{deletingFee?.description}</strong> จำนวน{" "}
+              <strong>{baht(deletingFee?.amount)}</strong> ใช่ไหม? การดำเนินการนี้ไม่สามารถย้อนกลับได้
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeletingFee(null)} disabled={isDeletingFee}>
+              ยกเลิก
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteFee} disabled={isDeletingFee} className="gap-2">
+              <Trash2 className="h-4 w-4" />
+              {isDeletingFee ? "กำลังลบ..." : "ยืนยันลบ"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,6 +1,10 @@
 from rest_framework import serializers
 from api.models import NPGAccount, NPGPayment, Order, Customer
 from api.serializers import OrderSerializer
+from api.models.NPGPayment import NPGFee
+
+# ✅ เกินกำหนดเกินกี่วันถึงนับเป็น "หนี้เสีย"
+BAD_DEBT_DAYS = 90
 
 
 class NPGPaymentSerializer(serializers.ModelSerializer):
@@ -29,6 +33,17 @@ class NPGPaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
+class NPGFeeSerializer(serializers.ModelSerializer):
+    """Serializer สำหรับค่าธรรมเนียมอื่นๆ"""
+    class Meta:
+        model = NPGFee
+        fields = [
+            'id', 'account', 'fee_date', 'description', 'amount',
+            'payment_method', 'note', 'created_by', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at']
+
+
 class NPGAccountSerializer(serializers.ModelSerializer):
     """Serializer สำหรับบัญชี NPG"""
     
@@ -54,6 +69,12 @@ class NPGAccountSerializer(serializers.ModelSerializer):
 
     # ประวัติการชำระ
     payments = NPGPaymentSerializer(many=True, read_only=True)
+
+    # ✅ ค่าธรรมเนียมอื่นๆ
+    fees = NPGFeeSerializer(many=True, read_only=True)
+
+    # ✅ ตัวเลขสรุปสัญญา (คำนวณสดจากประวัติจริงทุกครั้ง)
+    metrics = serializers.SerializerMethodField()
 
     # ✅ คำนวณยอดคงเหลือ/ยอดชำระแล้ว/งวดที่ชำระ "สดใหม่" ทุกครั้งจากประวัติการชำระจริง
     # แทนที่จะเชื่อค่าที่บันทึกไว้ในคอลัมน์ (ซึ่งอาจผิดได้ถ้าตอนสร้างบัญชีคำนวณผิด เช่นบั๊ก period_type เดิม)
@@ -121,6 +142,8 @@ class NPGAccountSerializer(serializers.ModelSerializer):
             'is_overdue',
             'days_until_payment',
             'estimated_late_fee',
+            'fees',
+            'metrics',
             'created_at',
             'updated_at'
         ]
@@ -173,6 +196,74 @@ class NPGAccountSerializer(serializers.ModelSerializer):
         if days_late <= 3:
             return 0
         return days_late * 50
+
+
+    def get_metrics(self, obj):
+        """
+        ตัวเลขสรุปของสัญญานี้
+        - credit                 สินเชื่อ (ยอดจัด / เงินต้น)
+        - expected_total         ยอดชำระคาดการณ์ = ค่างวด x จำนวนงวด (เงินต้น + ดอกเบี้ยทั้งสัญญา)
+        - paid                   ชำระแล้ว (ค่างวดที่รับจริง ไม่รวมค่าปรับ/ค่าธรรมเนียม)
+        - principal_paid         เงินต้นชำระแล้ว - แบ่งตามสัดส่วนเงินต้น/ดอกเบี้ยในทุกงวด
+                                 (บัญชีปิดก่อนกำหนด = ได้เงินต้นคืนครบ)
+        - interest_received      ดอกเบี้ยรับ = ชำระแล้ว - เงินต้นชำระแล้ว
+        - outstanding            ยอดคงค้าง = ยอดชำระคาดการณ์ - ชำระแล้ว (ปิด/ชำระครบ = 0)
+        - late_fees / other_fees / fees_received  ค่าปรับล่าช้า + ค่าธรรมเนียมอื่น
+        - realized_profit        กำไรรับจริง = ดอกเบี้ยรับ + ค่าธรรมเนียมรับแล้ว
+        - days_overdue           จำนวนวันที่เกินกำหนด
+        - bad_debt               หนี้เสียคาดการณ์ = ยอดคงค้างถ้าเกินกำหนดเกิน BAD_DEBT_DAYS วัน
+        - contract_status        normal / overdue / bad_debt / closed
+        """
+        from django.utils import timezone
+
+        credit = float(obj.finance_amount or 0)
+        expected_total = float(obj.installment_amount or 0) * (obj.installment_count or 0)
+        payments = list(obj.payments.all())
+        paid = sum(float(p.amount_paid) for p in payments)
+        late_fees = sum(float(p.late_fee or 0) for p in payments)
+        other_fees = sum(float(f.amount) for f in obj.fees.all())
+
+        is_finished = obj.status in ('closed', 'completed')
+
+        if obj.status == 'closed':
+            principal_paid = credit
+        else:
+            ratio = (credit / expected_total) if expected_total > 0 else 1
+            principal_paid = min(paid * ratio, credit)
+        interest_received = max(paid - principal_paid, 0)
+
+        outstanding = 0 if is_finished else max(expected_total - paid, 0)
+
+        days_overdue = 0
+        if not is_finished and obj.next_payment_date:
+            days_overdue = max((timezone.now().date() - obj.next_payment_date).days, 0)
+
+        if is_finished:
+            contract_status = 'closed'
+        elif days_overdue > BAD_DEBT_DAYS:
+            contract_status = 'bad_debt'
+        elif days_overdue > 0:
+            contract_status = 'overdue'
+        else:
+            contract_status = 'normal'
+
+        fees_received = late_fees + other_fees
+
+        return {
+            'credit': round(credit, 2),
+            'expected_total': round(expected_total, 2),
+            'paid': round(paid, 2),
+            'principal_paid': round(principal_paid, 2),
+            'interest_received': round(interest_received, 2),
+            'outstanding': round(outstanding, 2),
+            'late_fees': round(late_fees, 2),
+            'other_fees': round(other_fees, 2),
+            'fees_received': round(fees_received, 2),
+            'realized_profit': round(interest_received + fees_received, 2),
+            'days_overdue': days_overdue,
+            'bad_debt': round(outstanding, 2) if contract_status == 'bad_debt' else 0,
+            'contract_status': contract_status,
+        }
 
 
 class NPGAccountSummarySerializer(serializers.Serializer):
