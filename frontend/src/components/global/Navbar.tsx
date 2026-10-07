@@ -98,11 +98,13 @@ export const Navbar = () => {
       >
         <div className="flex items-center gap-3 px-3 sm:px-6 h-16 xl:h-[77px]">
           {/* โลโก้ */}
-          <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group">
-            {/* ✅ โลโก้ NPG (public/logo.png) บนชิปขาว ให้ส่วนสีเทาของโลโก้ไม่จมกับพื้นเข้ม */}
-            <span className="flex items-center h-10 xl:h-12 px-2 xl:px-2.5 rounded-xl bg-white shadow-[0_6px_18px_-8px_rgba(242,107,29,0.7)] transition-transform group-hover:scale-105">
-              <img src="/logo.png" alt="นพดลมอเตอร์กรุ้ป" className="h-7 xl:h-9 w-auto" />
+          <Link href="/dashboard" className="flex items-center gap-3 shrink-0 group" aria-label="คาราเมโล POS หน้าหลัก">
+            {/* ✅ โลโก้ NPG - ตัดเอาเฉพาะสัญลักษณ์ส่วนบนของ public/logo.png (ไม่เอาตัวหนังสือด้านล่าง)
+                 ภาพจริงสูงราว 2 เท่าของกรอบ แล้วซ่อนครึ่งล่างด้วย overflow-hidden */}
+            <span className="block h-[22px] xl:h-[28px] overflow-hidden transition-transform group-hover:scale-105" aria-hidden="true">
+              <img src="/logo.png" alt="" className="h-[46px] xl:h-[58px] w-auto max-w-none" />
             </span>
+            <span className="w-px h-8 bg-white/15" />
             <span className="flex flex-col leading-[1.05]">
               <span className="flex items-center gap-1.5">
                 <span
@@ -171,7 +173,7 @@ export const Navbar = () => {
               onClick={() => signOut()}
               title="ออกจากระบบ"
               aria-label="ออกจากระบบ"
-              className="sm:hidden nav-icon-btn"
+              className="flex sm:hidden nav-icon-btn"
             >
               <LogOut size={17} strokeWidth={1.8} />
             </button>
@@ -180,7 +182,7 @@ export const Navbar = () => {
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               aria-label={menuOpen ? "ปิดเมนู" : "เปิดเมนู"}
-              className="xl:hidden nav-icon-btn"
+              className="flex xl:hidden nav-icon-btn"
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -216,6 +218,10 @@ export const Navbar = () => {
 
       <style jsx>{`
         /* ✅ ไอคอนแจ้งเตือนทุกตัวอยู่ในปุ่มวงกลมแบบกระจกจางๆ (ห่อจากภายนอก ไม่ต้องแก้ไฟล์แต่ละตัว) */
+        .nav-icon {
+          display: flex;
+        }
+        /* ⚠️ .nav-icon-btn ห้ามใส่ display ตรงนี้ - จะทับ sm:hidden / xl:hidden ของ Tailwind (เคยทำให้ปุ่มซ้ำโผล่บนจอใหญ่) */
         .nav-icon,
         .nav-icon-btn {
           position: relative;
@@ -225,7 +231,6 @@ export const Navbar = () => {
           border-radius: 9999px;
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          display: flex;
           align-items: center;
           justify-content: center;
           color: #e4e8ee;
