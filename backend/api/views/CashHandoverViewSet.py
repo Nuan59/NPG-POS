@@ -14,12 +14,11 @@
   POST   /cash-handover/<id>/cancel/       (เจ้าของใบ ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
   GET    /cash-handover/summary/           ตัวเลขสำหรับ badge
 """
-import re
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
 from django.db import transaction, IntegrityError
-from django.db.models import Max, Q
+from django.db.models import Max
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -91,8 +90,7 @@ def _collect_unsent(username=None):
 
     # 1) ขาย
     qs = Order.objects.filter(
-        Q(payment_type=CASH) | Q(notes__contains='เงินสด'),
-        transaction_type='ขาย', created_at__gte=start,
+        transaction_type='ขาย', payment_type=CASH, created_at__gte=start,
     ).select_related('customer', 'seller').prefetch_related('bikes', 'additional_fees')
     if username:
         qs = qs.filter(seller__username=username)
@@ -102,7 +100,7 @@ def _collect_unsent(username=None):
         if bike:
             desc += f" · {bike.model_name}"
         # ✅ เฉพาะเงินที่ต้องจ่ายในวันทำรายการ (หักส่วนผ่อนดาวน์ / มัดจำออกแล้ว)
-        add('sale', o.id, _sale_cash_today(o), desc, o.created_at, o.seller.username if o.seller else '')
+        add('sale', o.id, _sale_due_today(o), desc, o.created_at, o.seller.username if o.seller else '')
 
     # 2) งานบริการ (ซ่อม / ต่อภาษี+พรบ / อื่นๆ)
     qs = ServiceRecord.objects.filter(payment_type=CASH, created_at__gte=start).select_related('customer')
@@ -150,9 +148,10 @@ def _collect_unsent(username=None):
 def _sale_due_today(o):
     """
     ยอดที่ลูกค้าต้องจ่าย "ในวันที่ทำรายการ" ของงานขาย (ไม่ใช้ Order.total ตรงๆ)
-    - ไฟแนนซ์:  เงินดาวน์ + ค่าใช้จ่ายเพิ่มเติม - มัดจำ   (สูตรเดียวกับ "ยอดรวมชำระทั้งหมด" ในหน้ารายการขาย)
-                 แล้วหักส่วนที่ "ผ่อนดาวน์" ออก = ยอดคงเหลือของบัญชี NPG ประเภท down_payment
-                 (ส่วนนั้นลูกค้าจะทยอยจ่ายเป็นงวด → ขึ้นค้างส่งตอนบันทึกรับค่างวดแทน)
+    - ไฟแนนซ์:  เงินดาวน์ที่จ่ายวันนี้ + ค่าใช้จ่ายเพิ่มเติม - มัดจำ   (= "ยอดชำระรวม" ตอนกดสั่งซื้อ)
+                 เงินดาวน์ที่จ่ายวันนี้ = เงินดาวน์ทั้งหมด (down_payment)
+                   - ถ้าเปิดผ่อนดาวน์: หักยอดที่ยกไปผ่อน (finance_amount ของบัญชี NPG ประเภท down_payment)
+                     เหลือแค่ "งวดแรก (ชำระวันนี้)" - งวดถัดไปจะขึ้นค้างส่งตอนบันทึกรับค่างวดใน NPG
     - เงินสด:   ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติม - มัดจำ - ส่วนลด
     มัดจำไม่นับ เพราะรับไปแล้วตั้งแต่วันวางมัดจำ
     """
@@ -175,26 +174,6 @@ def _sale_due_today(o):
         due = Decimal(str(o.sale_price or 0)) + fees - deposit - Decimal(str(o.discount or 0))
 
     return max(due, Decimal('0'))
-
-
-# "ชำระเป็นเงินสด 7500 โอนBBL 2000" / "เงินสด 7,500" ในหมายเหตุ = ลูกค้าแบ่งจ่าย ส่วนเงินสดมีเท่านี้
-_CASH_IN_NOTE = re.compile(r'เงินสด\s*([\d,]+(?:\.\d+)?)')
-
-
-def _sale_cash_today(o):
-    """
-    เงินสดที่พนักงานรับมาจริงในวันทำรายการ
-    - ถ้าหมายเหตุระบุยอดเงินสดไว้ (แบ่งจ่ายเงินสด + โอน) ใช้ยอดนั้น (ไม่เกินยอดที่ต้องจ่ายวันนั้น)
-    - ไม่ระบุ + รูปแบบการชำระเป็นเงินสด → ทั้งก้อนที่ต้องจ่ายวันนั้น
-    """
-    due = _sale_due_today(o)
-    m = _CASH_IN_NOTE.search(o.notes or '')
-    if m:
-        try:
-            return min(Decimal(m.group(1).replace(',', '')), due)
-        except InvalidOperation:
-            pass
-    return due if o.payment_type == CASH else Decimal('0')
 
 
 def _row_json(r):
