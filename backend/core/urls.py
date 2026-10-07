@@ -20,6 +20,7 @@ from api.views import (
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.ServiceViewSet import ServiceViewSet
 from api.views.CashflowView import CashflowViewSet
+from api.views.CashHandoverViewSet import CashHandoverViewSet
 from api.views.TaskViewSet import TaskPostViewSet
 from api.views.AnnouncementViewSet import AnnouncementViewSet
 from api.views.AnnouncementSettingsView import AnnouncementSettingsView
@@ -573,6 +574,55 @@ def migrate_service_orders(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: สร้างตารางระบบส่งเงินสด (ใบส่งเงิน + รายการในใบ + วันเริ่มใช้ระบบ)
+# เรียกซ้ำได้ - วันเริ่มใช้ระบบตั้งครั้งแรกครั้งเดียว ไม่เปลี่ยนตอนเรียกซ้ำ
+def create_cash_handover_tables(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cash_handover_config (
+                    id SERIAL PRIMARY KEY,
+                    start_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute("INSERT INTO cash_handover_config (start_at) SELECT NOW() WHERE NOT EXISTS (SELECT 1 FROM cash_handover_config);")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cash_handover (
+                    id BIGSERIAL PRIMARY KEY,
+                    created_by_username VARCHAR(255) NOT NULL,
+                    created_by_name VARCHAR(255) NOT NULL DEFAULT '',
+                    total NUMERIC(12, 2) NOT NULL DEFAULT 0,
+                    note TEXT NOT NULL DEFAULT '',
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    received_amount NUMERIC(12, 2) NULL,
+                    received_by VARCHAR(255) NOT NULL DEFAULT '',
+                    received_at TIMESTAMPTZ NULL,
+                    received_note TEXT NOT NULL DEFAULT '',
+                    cashflow_entry_id BIGINT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS cash_handover_item (
+                    id BIGSERIAL PRIMARY KEY,
+                    handover_id BIGINT NOT NULL REFERENCES cash_handover(id) ON DELETE CASCADE,
+                    source VARCHAR(20) NOT NULL,
+                    source_id BIGINT NOT NULL,
+                    amount NUMERIC(12, 2) NOT NULL,
+                    description VARCHAR(500) NOT NULL DEFAULT '',
+                    record_date TIMESTAMPTZ NULL,
+                    UNIQUE (source, source_id)
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS cash_handover_status_idx ON cash_handover (status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS cash_handover_user_idx ON cash_handover (created_by_username);")
+            cursor.execute("SELECT start_at FROM cash_handover_config ORDER BY id LIMIT 1;")
+            start_at = cursor.fetchone()[0]
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตารางระบบส่งเงินเรียบร้อยแล้ว', 'start_at': start_at.isoformat()})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -585,6 +635,7 @@ router.register(r'npg/payments', NPGPaymentViewSet, basename='npg-payment')
 router.register(r'issues', IssueViewSet, basename='issue')
 router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 router.register(r'cashflow', CashflowViewSet, basename='cashflow')
+router.register(r'cash-handover', CashHandoverViewSet, basename='cash-handover')
 router.register(r'tasks/posts', TaskPostViewSet, basename='task-posts')
 router.register(r'announcements', AnnouncementViewSet, basename='announcements')
 
@@ -618,6 +669,7 @@ urlpatterns = [
     path('dev/create-npg-fee-table/', create_npg_fee_table),
     path('dev/create-service-record-table/', create_service_record_table),
     path('dev/migrate-service-orders/', migrate_service_orders),
+    path('dev/create-cash-handover-tables/', create_cash_handover_tables),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
