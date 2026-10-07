@@ -14,11 +14,12 @@
   POST   /cash-handover/<id>/cancel/       (เจ้าของใบ ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
   GET    /cash-handover/summary/           ตัวเลขสำหรับ badge
 """
+import re
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
 from django.db import transaction, IntegrityError
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -90,7 +91,8 @@ def _collect_unsent(username=None):
 
     # 1) ขาย
     qs = Order.objects.filter(
-        transaction_type='ขาย', payment_type=CASH, created_at__gte=start
+        Q(payment_type=CASH) | Q(notes__contains='เงินสด'),
+        transaction_type='ขาย', created_at__gte=start,
     ).select_related('customer', 'seller').prefetch_related('bikes', 'additional_fees')
     if username:
         qs = qs.filter(seller__username=username)
@@ -100,7 +102,7 @@ def _collect_unsent(username=None):
         if bike:
             desc += f" · {bike.model_name}"
         # ✅ เฉพาะเงินที่ต้องจ่ายในวันทำรายการ (หักส่วนผ่อนดาวน์ / มัดจำออกแล้ว)
-        add('sale', o.id, _sale_due_today(o), desc, o.created_at, o.seller.username if o.seller else '')
+        add('sale', o.id, _sale_cash_today(o), desc, o.created_at, o.seller.username if o.seller else '')
 
     # 2) งานบริการ (ซ่อม / ต่อภาษี+พรบ / อื่นๆ)
     qs = ServiceRecord.objects.filter(payment_type=CASH, created_at__gte=start).select_related('customer')
@@ -156,7 +158,13 @@ def _sale_due_today(o):
     """
     fees = sum(Decimal(str(f.amount or 0)) for f in o.additional_fees.all())
     deposit = Decimal(str(o.deposit or 0))
-    is_finance = bool(o.finance_provider) and Decimal(str(o.finance_amount or 0)) > 0
+    # ✅ นับเป็นไฟแนนซ์ถ้ามียอดจัด / จำนวนงวด / เงินดาวน์ อย่างใดอย่างหนึ่ง
+    # (บางออเดอร์ไม่ได้เก็บ finance_provider ไว้ เช่น เงินติดล้อ เลยเช็คจากตัวเลขแทน)
+    is_finance = (
+        Decimal(str(o.finance_amount or 0)) > 0
+        or (o.installment_count or 0) > 0
+        or Decimal(str(o.down_payment or 0)) > 0
+    )
 
     if is_finance:
         due = Decimal(str(o.down_payment or 0)) + fees - deposit
@@ -167,6 +175,26 @@ def _sale_due_today(o):
         due = Decimal(str(o.sale_price or 0)) + fees - deposit - Decimal(str(o.discount or 0))
 
     return max(due, Decimal('0'))
+
+
+# "ชำระเป็นเงินสด 7500 โอนBBL 2000" / "เงินสด 7,500" ในหมายเหตุ = ลูกค้าแบ่งจ่าย ส่วนเงินสดมีเท่านี้
+_CASH_IN_NOTE = re.compile(r'เงินสด\s*([\d,]+(?:\.\d+)?)')
+
+
+def _sale_cash_today(o):
+    """
+    เงินสดที่พนักงานรับมาจริงในวันทำรายการ
+    - ถ้าหมายเหตุระบุยอดเงินสดไว้ (แบ่งจ่ายเงินสด + โอน) ใช้ยอดนั้น (ไม่เกินยอดที่ต้องจ่ายวันนั้น)
+    - ไม่ระบุ + รูปแบบการชำระเป็นเงินสด → ทั้งก้อนที่ต้องจ่ายวันนั้น
+    """
+    due = _sale_due_today(o)
+    m = _CASH_IN_NOTE.search(o.notes or '')
+    if m:
+        try:
+            return min(Decimal(m.group(1).replace(',', '')), due)
+        except InvalidOperation:
+            pass
+    return due if o.payment_type == CASH else Decimal('0')
 
 
 def _row_json(r):
