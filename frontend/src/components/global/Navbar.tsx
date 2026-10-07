@@ -99,14 +99,9 @@ export const Navbar = () => {
         <div className="flex items-center gap-3 px-3 sm:px-6 h-16 xl:h-[77px]">
           {/* โลโก้ */}
           <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group">
-            <span
-              className="w-9 h-9 xl:w-[42px] xl:h-[42px] rounded-[12px] flex items-center justify-center text-white transition-transform group-hover:scale-105"
-              style={{
-                background: "linear-gradient(145deg, #FF9A52, #E85D10)",
-                boxShadow: "0 6px 18px -6px rgba(242,107,29,0.8), inset 0 1px 0 rgba(255,255,255,0.35)",
-              }}
-            >
-              <Bike size={22} strokeWidth={1.8} />
+            {/* ✅ โลโก้ NPG (public/logo.png) บนชิปขาว ให้ส่วนสีเทาของโลโก้ไม่จมกับพื้นเข้ม */}
+            <span className="flex items-center h-10 xl:h-12 px-2 xl:px-2.5 rounded-xl bg-white shadow-[0_6px_18px_-8px_rgba(242,107,29,0.7)] transition-transform group-hover:scale-105">
+              <img src="/logo.png" alt="นพดลมอเตอร์กรุ้ป" className="h-7 xl:h-9 w-auto" />
             </span>
             <span className="flex flex-col leading-[1.05]">
               <span className="flex items-center gap-1.5">
@@ -120,7 +115,6 @@ export const Navbar = () => {
                   POS
                 </span>
               </span>
-              <span className="hidden 2xl:block text-[12px] font-medium text-[#AEB7C4] tracking-wide">นพดลมอเตอร์กรุ้ป</span>
             </span>
           </Link>
 
