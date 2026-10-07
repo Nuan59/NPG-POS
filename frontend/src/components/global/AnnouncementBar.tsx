@@ -66,7 +66,7 @@ const AnnouncementBar = () => {
         title="กดเพื่อดูรายละเอียดประกาศ"
       >
         {/* ป้าย "ประกาศ" สีขาว + จุดเขียวกะพริบ */}
-        <span className="shrink-0 z-10 flex items-center gap-1.5 h-6 pl-2 pr-3 rounded-full bg-white text-[#E25A0E] text-[13px] font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.15)]">
+        <span className="shrink-0 z-10 flex items-center gap-1.5 h-6 pl-2 pr-3 rounded-full bg-white text-[#D9480F] text-[14px] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.15)]">
           <span className="live-dot h-[7px] w-[7px] rounded-full bg-green-500" />
           <Megaphone size={14} strokeWidth={2.2} />
           <span className="hidden sm:inline">ประกาศ</span>
@@ -74,7 +74,7 @@ const AnnouncementBar = () => {
 
         <div className="relative flex-1 min-w-0 overflow-hidden whitespace-nowrap">
           <div
-            className="inline-flex items-center animate-marquee text-sm sm:text-[15px] [text-shadow:0_1px_1px_rgba(0,0,0,0.15)]"
+            className="inline-flex items-center animate-marquee text-[15px] sm:text-base font-semibold tracking-wide [text-shadow:0_1px_2px_rgba(0,0,0,0.35)]"
             style={{ animationDuration: `${speedSeconds}s` }}
           >
             {copies.map((_, c) =>
@@ -89,7 +89,7 @@ const AnnouncementBar = () => {
         </div>
 
         {/* จำนวนประกาศ */}
-        <span className="shrink-0 z-10 text-xs font-medium px-2.5 py-0.5 rounded-full bg-[rgba(40,20,8,0.28)] border border-white/20 whitespace-nowrap">
+        <span className="shrink-0 z-10 text-[13px] font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(40,20,8,0.35)] border border-white/20 whitespace-nowrap">
           {active.length} ประกาศ
         </span>
       </button>

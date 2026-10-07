@@ -88,7 +88,7 @@ export const Navbar = () => {
       <div className="h-[3px]" style={{ background: "linear-gradient(90deg, #F26B1D, #FFB27A 50%, #F26B1D)" }} />
 
       <div
-        className="relative text-[#B9C1CD] shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]"
+        className="relative text-[#E2E7EE] shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]"
         style={{
           background:
             "radial-gradient(520px 140px at 0% 0%, rgba(242,107,29,0.24), rgba(242,107,29,0) 70%)," +
@@ -111,16 +111,16 @@ export const Navbar = () => {
             <span className="flex flex-col leading-[1.05]">
               <span className="flex items-center gap-1.5">
                 <span
-                  className="font-medium text-xl xl:text-[25px] bg-clip-text text-transparent whitespace-nowrap"
-                  style={{ backgroundImage: "linear-gradient(180deg, #FFB27A, #F47B2E)" }}
+                  className="font-semibold text-xl xl:text-[26px] bg-clip-text text-transparent whitespace-nowrap"
+                  style={{ backgroundImage: "linear-gradient(180deg, #FFC39A, #FF8A3D)" }}
                 >
                   คาราเมโล
                 </span>
-                <span className="text-[10px] font-semibold tracking-[1.5px] text-[#FFB27A] border border-[#FFB27A]/50 rounded-[5px] px-1.5">
+                <span className="text-[11px] font-bold tracking-[1.5px] text-[#FFC39A] border border-[#FFC39A]/70 rounded-[5px] px-1.5">
                   POS
                 </span>
               </span>
-              <span className="hidden 2xl:block text-[11px] text-[#7E8898] tracking-wide">นพดลมอเตอร์กรุ้ป</span>
+              <span className="hidden 2xl:block text-[12px] font-medium text-[#AEB7C4] tracking-wide">นพดลมอเตอร์กรุ้ป</span>
             </span>
           </Link>
 
@@ -134,11 +134,11 @@ export const Navbar = () => {
                   key={item.href}
                   href={item.href}
                   style={active ? ACTIVE_STYLE : undefined}
-                  className={`flex flex-col items-center gap-[3px] rounded-xl px-1.5 2xl:px-2.5 py-[7px] text-[12px] 2xl:text-[12.5px] whitespace-nowrap transition-colors ${
+                  className={`flex flex-col items-center gap-[3px] rounded-xl px-1.5 2xl:px-2.5 py-[7px] text-[13px] 2xl:text-[14px] font-semibold whitespace-nowrap transition-colors ${
                     active ? "text-white px-3 2xl:px-3.5" : "hover:text-white hover:bg-white/[0.06]"
                   }`}
                 >
-                  <Icon size={19} strokeWidth={active ? 1.9 : 1.7} />
+                  <Icon size={20} strokeWidth={active ? 2.2 : 2} />
                   {item.label}
                 </Link>
               );
@@ -154,12 +154,12 @@ export const Navbar = () => {
 
             <div className="hidden sm:flex items-center gap-2 ml-1 p-1 rounded-full bg-white/[0.05] border border-white/[0.08]">
               <span
-                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-medium text-[15px] shadow-[0_0_0_2px_rgba(255,154,82,0.35)]"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[15px] shadow-[0_0_0_2px_rgba(255,154,82,0.35)]"
                 style={{ background: "linear-gradient(145deg, #FF9A52, #E85D10)" }}
               >
                 {initial}
               </span>
-              <span className="hidden 2xl:block text-sm font-medium text-[#FFB27A] max-w-[120px] truncate">
+              <span className="hidden 2xl:block text-[15px] font-semibold text-[#FFB27A] max-w-[120px] truncate">
                 {displayName}
               </span>
               <button
@@ -207,11 +207,11 @@ export const Navbar = () => {
                   href={item.href}
                   onClick={() => setMenuOpen(false)}
                   style={active ? ACTIVE_STYLE : undefined}
-                  className={`flex flex-col items-center gap-1 py-3 text-[13px] rounded-xl transition-colors ${
-                    active ? "text-white" : "text-[#C9D0DA] bg-white/[0.05] hover:bg-white/10"
+                  className={`flex flex-col items-center gap-1 py-3 text-[14px] font-semibold rounded-xl transition-colors ${
+                    active ? "text-white" : "text-[#E2E7EE] bg-white/[0.06] hover:bg-white/10"
                   }`}
                 >
-                  <Icon size={20} strokeWidth={1.7} />
+                  <Icon size={21} strokeWidth={2} />
                   {item.label}
                 </Link>
               );
