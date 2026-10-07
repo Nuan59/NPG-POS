@@ -69,7 +69,7 @@ const StatusChip = ({ h }: { h: Handover }) => {
   if (h.status === "pending")
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-        <Clock size={12} /> รอ adm รับ
+        <Clock size={12} /> รอรับเงิน
       </span>
     );
   if (h.status === "mismatch")
@@ -181,7 +181,7 @@ export default function CashHandoverPanel() {
           note: sendNote,
         }),
       });
-      toast.success(`ส่งเงิน ${h.number} แล้ว รอ adm กดรับ`);
+      toast.success(`ส่งเงิน ${h.number} แล้ว รอรับเงิน`);
       setSendOpen(false);
       setSendNote("");
       load();
@@ -228,6 +228,12 @@ export default function CashHandoverPanel() {
   const pending = handovers.filter((h) => h.status === "pending");
   const done = handovers.filter((h) => h.status !== "pending");
 
+  // ✅ ไม่มีอะไรให้ทำ/ให้ดู → ไม่ต้องแสดงส่วนส่งเงินเลย
+  const hasAnything = isAdmin
+    ? pending.length > 0 || groups.length > 0 || done.length > 0
+    : unsent.length > 0 || handovers.length > 0;
+  if (loading || !hasAnything) return null;
+
   return (
     <section className="mb-8 space-y-4">
       <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -238,6 +244,7 @@ export default function CashHandoverPanel() {
       {/* ---------------- พนักงาน ---------------- */}
       {!isAdmin && (
         <>
+          {unsent.length > 0 && (
           <div className="bg-white rounded-xl border">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b">
               <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
@@ -257,12 +264,7 @@ export default function CashHandoverPanel() {
             </div>
 
             <div className="px-4 divide-y max-h-80 overflow-y-auto">
-              {loading ? (
-                <p className="py-6 text-center text-sm text-gray-400">กำลังโหลด...</p>
-              ) : unsent.length === 0 ? (
-                <p className="py-6 text-center text-sm text-gray-400">ไม่มีเงินสดค้างส่ง</p>
-              ) : (
-                unsent.map((item) => (
+              {unsent.map((item) => (
                   <label key={keyOf(item)} className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -274,8 +276,7 @@ export default function CashHandoverPanel() {
                       <ItemRow item={item} />
                     </div>
                   </label>
-                ))
-              )}
+              ))}
             </div>
 
             {unsent.length > 0 && (
@@ -294,6 +295,7 @@ export default function CashHandoverPanel() {
               </div>
             )}
           </div>
+          )}
 
           {handovers.length > 0 && (
             <div className="bg-white rounded-xl border">
@@ -333,6 +335,7 @@ export default function CashHandoverPanel() {
       {/* ---------------- adm ---------------- */}
       {isAdmin && (
         <>
+          {pending.length > 0 && (
           <div className="bg-white rounded-xl border">
             <p className="px-4 py-3 border-b text-sm font-medium flex items-center gap-2">
               รอรับเงิน
@@ -340,11 +343,6 @@ export default function CashHandoverPanel() {
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500 text-white">{pending.length}</span>
               )}
             </p>
-            {loading ? (
-              <p className="py-6 text-center text-sm text-gray-400">กำลังโหลด...</p>
-            ) : pending.length === 0 ? (
-              <p className="py-6 text-center text-sm text-gray-400">ไม่มีใบส่งเงินที่รอรับ</p>
-            ) : (
               <div className="divide-y">
                 {pending.map((h) => (
                   <div key={h.id} className="px-4 py-3">
@@ -386,14 +384,12 @@ export default function CashHandoverPanel() {
                   </div>
                 ))}
               </div>
-            )}
           </div>
+          )}
 
+          {groups.length > 0 && (
           <div className="bg-white rounded-xl border">
             <p className="px-4 py-3 border-b text-sm font-medium">เงินสดที่พนักงานยังไม่ได้ส่ง</p>
-            {groups.length === 0 ? (
-              <p className="py-6 text-center text-sm text-gray-400">ทุกคนส่งเงินครบแล้ว</p>
-            ) : (
               <div className="divide-y">
                 {groups.map((g) => (
                   <details key={g.username} className="group px-4">
@@ -407,8 +403,8 @@ export default function CashHandoverPanel() {
                   </details>
                 ))}
               </div>
-            )}
           </div>
+          )}
 
           {done.length > 0 && (
             <div className="bg-white rounded-xl border">
@@ -443,15 +439,15 @@ export default function CashHandoverPanel() {
       <Dialog open={sendOpen} onOpenChange={(o) => !busy && setSendOpen(o)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>ส่งเงินให้ adm {baht(selectedTotal)}</DialogTitle>
-            <DialogDescription>{selectedItems.length} รายการ · adm จะกดรับเมื่อได้เงินแล้ว</DialogDescription>
+            <DialogTitle>ส่งเงิน {baht(selectedTotal)}</DialogTitle>
+            <DialogDescription>{selectedItems.length} รายการ · จะขึ้นสถานะรับแล้วเมื่อได้รับเงิน</DialogDescription>
           </DialogHeader>
           <div className="max-h-56 overflow-y-auto divide-y border rounded-lg px-3">
             {selectedItems.map((i) => <ItemRow key={keyOf(i)} item={i} />)}
           </div>
           <div>
             <label htmlFor="send-note" className="text-sm font-medium">หมายเหตุ (ถ้ามี)</label>
-            <Textarea id="send-note" value={sendNote} onChange={(e) => setSendNote(e.target.value)} placeholder="เช่น ฝากไว้ในลิ้นชักโต๊ะ adm" />
+            <Textarea id="send-note" value={sendNote} onChange={(e) => setSendNote(e.target.value)} placeholder="เช่น ฝากไว้ในลิ้นชักโต๊ะ" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSendOpen(false)} disabled={busy}>ยกเลิก</Button>

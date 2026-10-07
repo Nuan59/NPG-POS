@@ -20,7 +20,7 @@ class CashHandoverConfig(models.Model):
 class CashHandover(models.Model):
     """ใบส่งเงิน 1 ใบ = พนักงานกดส่งเงินสด 1 ครั้ง (รวมได้หลายรายการ)"""
     STATUS_CHOICES = [
-        ('pending', 'รอ adm รับ'),
+        ('pending', 'รอรับเงิน'),
         ('received', 'รับแล้ว'),
         ('mismatch', 'รับแล้ว ยอดไม่ตรง'),
     ]
