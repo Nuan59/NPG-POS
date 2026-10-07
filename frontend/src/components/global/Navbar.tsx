@@ -97,25 +97,33 @@ export const Navbar = () => {
         }}
       >
         <div className="flex items-center gap-3 px-3 sm:px-6 h-16 xl:h-[77px]">
-          {/* โลโก้ */}
-          <Link href="/dashboard" className="flex items-center gap-3 shrink-0 group" aria-label="คาราเมโล POS หน้าหลัก">
-            {/* ✅ โลโก้ NPG - ตัดเอาเฉพาะสัญลักษณ์ส่วนบนของ public/logo.png (ไม่เอาตัวหนังสือด้านล่าง)
-                 ภาพจริงสูงราว 2 เท่าของกรอบ แล้วซ่อนครึ่งล่างด้วย overflow-hidden */}
-            <span className="block h-[22px] xl:h-[28px] overflow-hidden transition-transform group-hover:scale-105" aria-hidden="true">
-              <img src="/logo.png" alt="" className="h-[46px] xl:h-[58px] w-auto max-w-none" />
+          {/* โลโก้ - ใช้โลโก้จริง (public/logo.png) ไม่ดัดแปลง วางบนแผ่นขาวตัดเฉียงชิดขอบซ้าย
+               ให้สีส้ม/เทาของโลโก้ชัดเหมือนบนกระดาษ แล้วคั่นด้วยแถบส้มเฉียงตามสไตล์โลโก้ */}
+          <Link
+            href="/dashboard"
+            aria-label="คาราเมโล POS หน้าหลัก"
+            className="flex items-center self-stretch shrink-0 -ml-3 sm:-ml-6 group"
+          >
+            <span
+              className="flex items-center h-full bg-white pl-3 sm:pl-6 pr-9 xl:pr-11 shadow-[inset_0_-3px_0_#F26B1D]"
+              style={{ clipPath: "polygon(0 0, 100% 0, calc(100% - 26px) 100%, 0 100%)" }}
+            >
+              <img
+                src="/logo.png"
+                alt="นพดลมอเตอร์กรุ้ป"
+                className="h-10 xl:h-[52px] w-auto transition-transform group-hover:scale-[1.03]"
+              />
             </span>
-            <span className="w-px h-8 bg-white/15" />
-            <span className="flex flex-col leading-[1.05]">
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="font-semibold text-xl xl:text-[26px] bg-clip-text text-transparent whitespace-nowrap"
-                  style={{ backgroundImage: "linear-gradient(180deg, #FFC39A, #FF8A3D)" }}
-                >
-                  คาราเมโล
-                </span>
-                <span className="text-[11px] font-bold tracking-[1.5px] text-[#FFC39A] border border-[#FFC39A]/70 rounded-[5px] px-1.5">
-                  POS
-                </span>
+            <span className="block self-stretch w-[7px] -ml-[18px] bg-[#F26B1D]" style={{ transform: "skewX(-19deg)" }} />
+            <span className="hidden sm:flex items-center gap-1.5 ml-4">
+              <span
+                className="font-semibold text-xl xl:text-[26px] bg-clip-text text-transparent whitespace-nowrap"
+                style={{ backgroundImage: "linear-gradient(180deg, #FFC39A, #FF8A3D)" }}
+              >
+                คาราเมโล
+              </span>
+              <span className="text-[11px] font-bold tracking-[1.5px] text-[#FFC39A] border border-[#FFC39A]/70 rounded-[5px] px-1.5">
+                POS
               </span>
             </span>
           </Link>
