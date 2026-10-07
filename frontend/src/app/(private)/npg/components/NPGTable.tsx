@@ -27,6 +27,7 @@ interface NPGTableProps {
   onRefresh: () => void;
   hideStatusFilter?: boolean; // ✅ ซ่อน dropdown สถานะ (ใช้กับตารางบัญชีที่ปิดแล้วซึ่ง status ตายตัวอยู่แล้ว)
   title?: string; // ✅ หัวข้อการ์ด (ค่า default: "รายการลูกค้า NPG")
+  isAdmin?: boolean; // ✅ ป้าย "หนี้เสีย" แสดงเฉพาะ admin
 }
 
 export default function NPGTable({
@@ -40,6 +41,7 @@ export default function NPGTable({
   onRefresh,
   hideStatusFilter = false,
   title = "รายการลูกค้า NPG",
+  isAdmin = false,
 }: NPGTableProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("th-TH", {
@@ -269,17 +271,17 @@ export default function NPGTable({
                     </td>
                     <td className="p-3 text-center">
                       <div className="flex flex-col items-center gap-1">
-                        {/* ✅ เกินกำหนดเกิน 90 วัน = หนี้เสีย */}
+                        {/* ✅ หนี้เสีย (เกิน 90 วัน) แสดงเฉพาะ admin - พนักงานเห็นเป็น "เกินกำหนด" */}
                         {getStatusBadge(
-                          account.metrics?.contract_status === "bad_debt"
+                          isAdmin && (account as any).metrics?.contract_status === "bad_debt"
                             ? "bad_debt"
                             : isOverdue
                             ? "overdue"
                             : account.status
                         )}
-                        {isOverdue && !!account.metrics?.days_overdue && (
+                        {isOverdue && !!(account as any).metrics?.days_overdue && (
                           <span className="text-[10px] text-red-600">
-                            เกิน {account.metrics.days_overdue} วัน
+                            เกิน {(account as any).metrics.days_overdue} วัน
                           </span>
                         )}
                         {/* ✅ ป้าย "ผ่อนดาวน์" แยกต่างหาก - ไม่แทนที่ status ปกติ (active/overdue/completed ยังใช้เหมือนเดิม)

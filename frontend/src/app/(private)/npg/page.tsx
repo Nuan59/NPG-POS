@@ -82,6 +82,11 @@ export default function NPGPage() {
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [showClosed, setShowClosed] = useState<boolean>(false);
 
+  // ✅ admin เห็นป้าย/ตัวเลข "หนี้เสีย" - พนักงานไม่เห็น
+  const isAdmin = ["adm", "admin", "administrator"].includes(
+    String(session?.user?.role ?? "").toLowerCase()
+  );
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/login");
@@ -144,7 +149,7 @@ export default function NPGPage() {
   const matchesSearchAndPeriod = (account: NPGAccount) => {
     const matchesSearch =
       account.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.bike_info?.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      account.bike_info?.model_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       account.bike_info?.brand?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesPeriod =
@@ -245,6 +250,7 @@ export default function NPGPage() {
       <NPGSummary summary={portfolioSummary} userRole={session?.user?.role} />
 
       <NPGTable
+        isAdmin={isAdmin}
         accounts={filteredAccounts}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -275,6 +281,7 @@ export default function NPGPage() {
           {showClosed && (
             <div className="p-4 pt-0">
               <NPGTable
+        isAdmin={isAdmin}
                 accounts={closedAccounts}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}

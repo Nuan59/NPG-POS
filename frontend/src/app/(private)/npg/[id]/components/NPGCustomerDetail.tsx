@@ -623,7 +623,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       {/* ✅ สรุปสัญญา - พนักงานเห็นแค่ สถานะสัญญา / ชำระแล้ว / ยอดคงค้าง, admin เห็นทั้งหมด */}
       {account.metrics && (() => {
         const m = account.metrics;
-        const st = CONTRACT_STATUS[m.contract_status] || CONTRACT_STATUS.normal;
+        // ✅ หนี้เสียแสดงเฉพาะ admin - พนักงานเห็นเป็น "ค้างชำระ"
+        const statusKey = !isAdmin && m.contract_status === "bad_debt" ? "overdue" : m.contract_status;
+        const st = CONTRACT_STATUS[statusKey] || CONTRACT_STATUS.normal;
         const rows: { label: string; value: string; adminOnly?: boolean; cls?: string }[] = [
           { label: "สินเชื่อ (เงินต้น)", value: baht(m.credit), adminOnly: true },
           { label: "ยอดชำระคาดการณ์", value: baht(m.expected_total), adminOnly: true },
