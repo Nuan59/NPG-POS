@@ -25,7 +25,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from api.models import Order, User, NPGPayment
+from api.models import Order, User, NPGPayment, NPGAccount
 from api.models.ServiceRecord import ServiceRecord
 from api.models.CashHandover import CashHandover, CashHandoverItem, CashHandoverConfig
 from api.models.Cashflow import CashflowEntry
@@ -91,7 +91,7 @@ def _collect_unsent(username=None):
     # 1) ขาย
     qs = Order.objects.filter(
         transaction_type='ขาย', payment_type=CASH, created_at__gte=start
-    ).select_related('customer', 'seller').prefetch_related('bikes')
+    ).select_related('customer', 'seller').prefetch_related('bikes', 'additional_fees')
     if username:
         qs = qs.filter(seller__username=username)
     for o in qs:
@@ -99,7 +99,8 @@ def _collect_unsent(username=None):
         desc = f"ขาย O-{o.id:08d} · {o.customer.name if o.customer else '-'}"
         if bike:
             desc += f" · {bike.model_name}"
-        add('sale', o.id, o.total, desc, o.created_at, o.seller.username if o.seller else '')
+        # ✅ เฉพาะเงินที่ต้องจ่ายในวันทำรายการ (หักส่วนผ่อนดาวน์ / มัดจำออกแล้ว)
+        add('sale', o.id, _sale_due_today(o), desc, o.created_at, o.seller.username if o.seller else '')
 
     # 2) งานบริการ (ซ่อม / ต่อภาษี+พรบ / อื่นๆ)
     qs = ServiceRecord.objects.filter(payment_type=CASH, created_at__gte=start).select_related('customer')
@@ -144,6 +145,30 @@ def _collect_unsent(username=None):
     return rows
 
 
+def _sale_due_today(o):
+    """
+    ยอดที่ลูกค้าต้องจ่าย "ในวันที่ทำรายการ" ของงานขาย (ไม่ใช้ Order.total ตรงๆ)
+    - ไฟแนนซ์:  เงินดาวน์ + ค่าใช้จ่ายเพิ่มเติม - มัดจำ   (สูตรเดียวกับ "ยอดรวมชำระทั้งหมด" ในหน้ารายการขาย)
+                 แล้วหักส่วนที่ "ผ่อนดาวน์" ออก = ยอดคงเหลือของบัญชี NPG ประเภท down_payment
+                 (ส่วนนั้นลูกค้าจะทยอยจ่ายเป็นงวด → ขึ้นค้างส่งตอนบันทึกรับค่างวดแทน)
+    - เงินสด:   ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติม - มัดจำ - ส่วนลด
+    มัดจำไม่นับ เพราะรับไปแล้วตั้งแต่วันวางมัดจำ
+    """
+    fees = sum(Decimal(str(f.amount or 0)) for f in o.additional_fees.all())
+    deposit = Decimal(str(o.deposit or 0))
+    is_finance = bool(o.finance_provider) and Decimal(str(o.finance_amount or 0)) > 0
+
+    if is_finance:
+        due = Decimal(str(o.down_payment or 0)) + fees - deposit
+        dp_account = NPGAccount.objects.filter(order=o, account_type='down_payment').first()
+        if dp_account:
+            due -= Decimal(str(dp_account.finance_amount or 0))
+    else:
+        due = Decimal(str(o.sale_price or 0)) + fees - deposit - Decimal(str(o.discount or 0))
+
+    return max(due, Decimal('0'))
+
+
 def _row_json(r):
     return {
         'source': r['source'],
@@ -186,6 +211,18 @@ def _handover_json(h):
 
 class CashHandoverViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
+
+    def handle_exception(self, exc):
+        # ✅ error ที่ไม่ใช่ของ DRF (เช่น ตารางยังไม่ได้สร้าง) ให้ส่งข้อความจริงกลับไป แทนหน้า 500 เปล่าๆ
+        from rest_framework.exceptions import APIException
+        if isinstance(exc, APIException):
+            return super().handle_exception(exc)
+        import traceback
+        traceback.print_exc()
+        msg = f"{type(exc).__name__}: {exc}"
+        if 'cash_handover' in str(exc) and 'does not exist' in str(exc):
+            msg = 'ยังไม่ได้สร้างตารางระบบส่งเงิน กรุณาเปิด /dev/create-cash-handover-tables/ ก่อน'
+        return Response({'error': msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def list(self, request):
         qs = CashHandover.objects.prefetch_related('items').all()
