@@ -62,12 +62,15 @@ const TaskNotificationIcon = () => {
   return (
     <Link
       href="/tasks"
-      className="relative p-2 rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-110 transition-all duration-300"
+      className="relative w-full h-full flex items-center justify-center rounded-full"
       title={cashCount > 0 ? "งานที่มอบหมาย / ส่งเงิน" : "งานที่มอบหมาย"}
     >
-      <ClipboardList size={20} strokeWidth={2.5} className="text-white" />
+      <ClipboardList size={18} strokeWidth={1.8} className="text-[#E4E8EE]" />
       {totalCount > 0 && (
-        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+        <span
+          className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-medium rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-[0_0_0_2px_#2B3341]"
+          style={{ background: "linear-gradient(180deg, #FF6B6B, #E53935)" }}
+        >
           {totalCount}
         </span>
       )}

@@ -20,9 +20,9 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
 
 /**
- * แถบตัวหนังสือไหลใต้ Navbar - พื้นหลังส้มล้วน (ธีมร้าน) ตกแต่งแบบโมเดิร์น
+ * แถบตัวหนังสือไหลใต้ Navbar - แบบ G: ส้มไล่เฉด + ลายเส้นเฉียงจางๆ + ดาวประกายคั่นข้อความ
  * ความเร็ว (animation-duration) ดึงมาจาก /announcements/settings/ จริง - ตั้งได้จากหน้า "กระทู้" (admin เท่านั้น)
- * โชว์ประกาศที่ is_active=true สูงสุด 5 อัน (ต่อกันด้วย ★) กดที่แถบเปิดดูรายละเอียดเต็มได้
+ * โชว์ประกาศที่ is_active=true สูงสุด 5 อัน กดที่แถบเปิดดูรายละเอียดเต็มได้
  * ไม่มีประกาศที่เปิดอยู่เลย -> ไม่แสดงอะไร (return null) กันเปลืองพื้นที่เปล่าๆ
  */
 const AnnouncementBar = () => {
@@ -43,52 +43,55 @@ const AnnouncementBar = () => {
 
   if (!loaded || active.length === 0) return null;
 
-  const text = active.map((a) => a.content).join("   ★   ");
-  // ✅ ต่อข้อความซ้ำหลายรอบให้ยาวพอเสมอ แล้วค่อยแบ่งเป็น 2 ก้อนสำหรับลูปแบบไม่มีรอยต่อ
-  const repeated = Array(REPEAT_COUNT).fill(text).join("   ★   ");
-  const renderText = (t: string) =>
-    t.split("★").map((part, i) => (
-      <span key={i}>
-        {i > 0 && <span className="text-white/70 mx-1">★</span>}
-        {part}
-      </span>
-    ));
+  // ✅ 1 ชุด = ทุกประกาศ คั่นด้วยดาวประกาย / พิมพ์ซ้ำเป็นจำนวนคู่ เลื่อน -50% แล้ววนต่อได้ไม่มีรอยต่อ
+  const copies = Array.from({ length: REPEAT_COUNT });
+  const Sparkle = () => (
+    <svg width="12" height="12" viewBox="0 0 24 24" className="shrink-0 mx-6" fill="#FFE0C2" aria-hidden="true">
+      <path d="M12 0c.8 6.4 5.6 11.2 12 12-6.4.8-11.2 5.6-12 12-.8-6.4-5.6-11.2-12-12C6.4 11.2 11.2 6.4 12 0z" />
+    </svg>
+  );
 
   return (
     <>
       <button
         type="button"
         onClick={() => setDialogOpen(true)}
-        className="announcement-bar w-full relative overflow-hidden py-2.5 flex items-center shadow-lg cursor-pointer text-left border-b-2 border-orange-800/50 bg-orange-600"
+        className="w-full relative overflow-hidden h-9 flex items-center gap-3 px-3 sm:px-6 cursor-pointer text-left text-white"
+        style={{
+          background:
+            "repeating-linear-gradient(135deg, rgba(255,255,255,0.07) 0 10px, rgba(255,255,255,0) 10px 22px)," +
+            "linear-gradient(90deg, #E25A0E 0%, #F47B2E 50%, #E25A0E 100%)",
+          boxShadow: "0 4px 12px -6px rgba(226,90,14,0.6)",
+        }}
         title="กดเพื่อดูรายละเอียดประกาศ"
       >
-        {/* จุดลายจางๆ ให้พื้นหลังดูมีมิติแบบโมเดิร์น ไม่แบนเรียบ */}
-        <div className="dot-pattern absolute inset-0 pointer-events-none opacity-[0.12]" />
-        {/* เส้นไฮไลต์มันวาวบางๆ ที่ขอบบนสุด (glass sheen) */}
-        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
+        {/* ป้าย "ประกาศ" สีขาว + จุดเขียวกะพริบ */}
+        <span className="shrink-0 z-10 flex items-center gap-1.5 h-6 pl-2 pr-3 rounded-full bg-white text-[#E25A0E] text-[13px] font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.15)]">
+          <span className="live-dot h-[7px] w-[7px] rounded-full bg-green-500" />
+          <Megaphone size={14} strokeWidth={2.2} />
+          <span className="hidden sm:inline">ประกาศ</span>
+        </span>
 
-        {/* ไอคอนซ้าย - ป้ายขาวมนพร้อมจุดไฟกะพริบมุมขวาบน */}
-        <div className="flex items-center gap-1.5 shrink-0 pl-4 pr-3 z-10 bg-gradient-to-r from-orange-600 via-orange-600 to-transparent">
-          <span className="relative bg-white rounded-lg p-1.5 flex items-center justify-center shadow-md">
-            <Megaphone size={14} className="text-orange-600" strokeWidth={2.5} />
-            <span className="live-dot absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-400 border border-white" />
-          </span>
-        </div>
-
-        <div className="relative flex-1 overflow-hidden whitespace-nowrap z-10">
-          <div className="inline-flex animate-marquee" style={{ animationDuration: `${speedSeconds}s` }}>
-            <span className="mx-6 text-sm sm:text-base font-extrabold text-white tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.3)]">
-              {renderText(repeated)}
-            </span>
+        <div className="relative flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+          <div
+            className="inline-flex items-center animate-marquee text-sm sm:text-[15px] [text-shadow:0_1px_1px_rgba(0,0,0,0.15)]"
+            style={{ animationDuration: `${speedSeconds}s` }}
+          >
+            {copies.map((_, c) =>
+              active.map((a) => (
+                <span key={`${c}-${a.id}`} className="inline-flex items-center">
+                  {a.content}
+                  <Sparkle />
+                </span>
+              ))
+            )}
           </div>
         </div>
 
-        {/* ป้ายนับจำนวนประกาศฝั่งขวา - ธีมเดียวกับ badge แจ้งเตือนใน Navbar */}
-        <div className="shrink-0 pl-3 pr-4 z-10 bg-gradient-to-l from-orange-600 via-orange-600 to-transparent flex items-center">
-          <span className="bg-gray-900/70 text-white text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-            {active.length} ประกาศ
-          </span>
-        </div>
+        {/* จำนวนประกาศ */}
+        <span className="shrink-0 z-10 text-xs font-medium px-2.5 py-0.5 rounded-full bg-[rgba(40,20,8,0.28)] border border-white/20 whitespace-nowrap">
+          {active.length} ประกาศ
+        </span>
       </button>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -130,10 +133,6 @@ const AnnouncementBar = () => {
           animation-name: marquee;
           animation-timing-function: linear;
           animation-iteration-count: infinite;
-        }
-        .dot-pattern {
-          background-image: radial-gradient(#ffffff 1px, transparent 1px);
-          background-size: 14px 14px;
         }
         @keyframes liveDot {
           0%,
