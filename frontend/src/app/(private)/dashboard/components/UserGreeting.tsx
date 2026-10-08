@@ -6,84 +6,59 @@ import React, { useState, useEffect } from "react";
 const UserGreeting = () => {
   const { data: session } = useSession();
   const userInfo = session?.user;
-  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [now, setNow] = useState<Date | null>(null);
 
-  // ✅ แก้ hydration error: render เฉพาะฝั่ง client
+  // render เวลาเฉพาะฝั่ง client กัน hydration error
   useEffect(() => {
-    setCurrentTime(new Date());
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const getGreeting = () => {
-    if (!currentTime) return "สวัสดี";
-    const hour = currentTime.getHours();
-    if (hour < 12) return "สวัสดีตอนเช้า";
-    if (hour < 18) return "สวัสดีตอนบ่าย";
+  const greeting = (() => {
+    if (!now) return "สวัสดี";
+    const h = now.getHours();
+    if (h < 12) return "สวัสดีตอนเช้า";
+    if (h < 18) return "สวัสดีตอนบ่าย";
     return "สวัสดีตอนเย็น";
-  };
+  })();
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("th-TH", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("th-TH", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
+  const dateText = now
+    ? now.toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })
+    : "กำลังโหลด...";
+  const dayText = now ? now.toLocaleDateString("th-TH", { weekday: "long" }) : "";
+  const timeText = now
+    ? now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })
+    : "--:--:--";
 
   return (
-    <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-xl p-4 sm:p-8 text-white">
-      <div className="flex items-center justify-between">
+    <div className="relative overflow-hidden rounded-2xl bg-[#1e2432] text-white px-5 py-6 sm:px-8 sm:py-7">
+      {/* แถบส้มเฉียง */}
+      <div className="absolute top-0 bottom-0 -right-16 w-32 sm:w-80 bg-orange-500 -skew-x-[18deg]" />
+      <div className="hidden sm:block absolute top-0 bottom-0 right-[250px] w-[18px] bg-orange-400/60 -skew-x-[18deg]" />
+
+      <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm sm:text-lg font-medium opacity-90 mb-1">{getGreeting()}</p>
-          <h1 className="text-2xl sm:text-4xl font-black mb-2 sm:mb-4">
-            คุณ{userInfo?.name ?? userInfo?.username}
+          <p className="text-sm text-slate-300">{greeting}</p>
+          <h1 className="text-2xl sm:text-[34px] font-semibold mt-0.5 mb-3 sm:mb-4 leading-tight">
+            คุณ<span className="text-orange-400">{userInfo?.name ?? (userInfo as any)?.username}</span>
           </h1>
-          
-          <div className="flex flex-wrap items-center gap-2 sm:gap-6 text-xs sm:text-sm">
-            {/* ✅ แสดงเฉพาะเมื่อ currentTime มีค่าแล้ว */}
-            {currentTime ? (
-              <>
-                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
-                  <Calendar size={14} className="sm:w-[18px] sm:h-[18px]" />
-                  <span className="font-medium">{formatDate(currentTime)}</span>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
-                  <Clock size={14} className="sm:w-[18px] sm:h-[18px]" />
-                  <span className="font-medium font-mono">{formatTime(currentTime)}</span>
-                </div>
-              </>
-            ) : (
-              /* ✅ แสดง placeholder ระหว่างรอ */
-              <>
-                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
-                  <Calendar size={14} className="sm:w-[18px] sm:h-[18px]" />
-                  <span className="font-medium">กำลังโหลด...</span>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-white/20 px-2 sm:px-4 py-1 sm:py-2 rounded-lg backdrop-blur-sm">
-                  <Clock size={14} className="sm:w-[18px] sm:h-[18px]" />
-                  <span className="font-medium font-mono">--:--:--</span>
-                </div>
-              </>
-            )}
+          <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+            <div className="flex items-center gap-1.5 bg-white/10 border border-white/10 px-3 py-1.5 rounded-lg">
+              <Calendar size={15} />
+              <span>{dateText}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/10 border border-white/10 px-3 py-1.5 rounded-lg sm:hidden">
+              <Clock size={15} />
+              <span className="font-mono font-semibold">{timeText}</span>
+            </div>
           </div>
         </div>
 
-        {/* Decorative Circle */}
-        <div className="hidden md:block">
-          <div className="w-32 h-32 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-            <div className="w-24 h-24 bg-white/20 rounded-full"></div>
-          </div>
+        {/* นาฬิกาใหญ่ (จอใหญ่) */}
+        <div className="hidden sm:block text-right">
+          <p className="text-xs opacity-90">{dayText}</p>
+          <p className="font-mono text-3xl font-semibold leading-tight">{timeText}</p>
         </div>
       </div>
     </div>

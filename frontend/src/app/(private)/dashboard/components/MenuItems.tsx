@@ -12,155 +12,76 @@ import {
   BookOpen,
   MessageSquare,
   Wallet,
+  ChevronRight,
 } from "lucide-react";
-import Link from "next/link";
-import { useSession } from "next-auth/react";
 import React from "react";
 import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
 import { getRequiredPermission } from "@/util/RoutePermissions";
 
 const menuPages = [
-  {
-    href: "/sales",
-    gradient: "from-orange-400 to-orange-600",
-    hoverGradient: "hover:from-orange-500 hover:to-orange-700",
-    icon: <Receipt size={"2.5rem"} />,
-    label: "ขาย",
-    description: "สร้างคำสั่งซื้อใหม่",
-  },
-  {
-    href: "/customers",
-    gradient: "from-blue-400 to-blue-600",
-    hoverGradient: "hover:from-blue-500 hover:to-blue-700",
-    icon: <UsersRound size={"2.5rem"} />,
-    label: "ลูกค้า",
-    description: "จัดการข้อมูลลูกค้า",
-  },
-  {
-    href: "/inventory",
-    gradient: "from-emerald-400 to-emerald-600",
-    hoverGradient: "hover:from-emerald-500 hover:to-emerald-700",
-    icon: <ShoppingCart size={"2.5rem"} />,
-    label: "สินค้า",
-    description: "คลังสินค้าทั้งหมด",
-  },
-  {
-    href: "/gifts",
-    gradient: "from-pink-400 to-pink-600",
-    hoverGradient: "hover:from-pink-500 hover:to-pink-700",
-    icon: <Gift size={"2.5rem"} />,
-    label: "ของแถม",
-    description: "จัดการของแถม",
-  },
-  {
-    href: "/npg",
-    gradient: "from-purple-400 to-purple-600",
-    hoverGradient: "hover:from-purple-500 hover:to-purple-700",
-    icon: <CreditCard size={"2.5rem"} />,
-    label: "NPG",
-    description: "ระบบไฟแนนซ์",
-  },
-  {
-    href: "/storage",
-    gradient: "from-amber-400 to-amber-600",
-    hoverGradient: "hover:from-amber-500 hover:to-amber-700",
-    icon: <Warehouse size={"2.5rem"} />,
-    label: "คลัง",
-    description: "สถานที่จัดเก็บ",
-  },
-  {
-    href: "/cashflow",
-    gradient: "from-lime-400 to-lime-600",
-    hoverGradient: "hover:from-lime-500 hover:to-lime-700",
-    icon: <Wallet size={"2.5rem"} />,
-    label: "รายรับ-รายจ่าย",
-    description: "บันทึกเงินสด/โอนรายวัน",
-  },
-  {
-    href: "/registration",
-    gradient: "from-cyan-400 to-cyan-600",
-    hoverGradient: "hover:from-cyan-500 hover:to-cyan-700",
-    icon: <BookOpen size={"2.5rem"} />,
-    label: "ทะเบียน",
-    description: "จัดการทะเบียนรถ",
-  },
-  {
-    href: "/installment",
-    gradient: "from-slate-400 to-slate-600",
-    hoverGradient: "hover:from-slate-500 hover:to-slate-700",
-    icon: <Calculator size={"2.5rem"} />,
-    label: "คำนวณ",
-    description: "คำนวณค่างวด",
-  },
-  {
-    href: "/issues",
-    gradient: "from-indigo-400 to-indigo-600",
-    hoverGradient: "hover:from-indigo-500 hover:to-indigo-700",
-    icon: <MessageSquare size={"2.5rem"} />,
-    label: "กระทู้",
-    description: "แจ้งปัญหา/สอบถาม",
-  },
-  {
-    href: "/employees",
-    gradient: "from-teal-400 to-teal-600",
-    hoverGradient: "hover:from-teal-500 hover:to-teal-700",
-    icon: <Contact size={"2.5rem"} />,
-    label: "พนักงาน",
-    description: "จัดการพนักงาน",
-  },
-  {
-    href: "/reports",
-    gradient: "from-rose-400 to-rose-600",
-    hoverGradient: "hover:from-rose-500 hover:to-rose-700",
-    icon: <LineChart size={"2.5rem"} />,
-    label: "รายงาน",
-    description: "รายงานและสถิติ",
-  },
+  { href: "/sales", icon: Receipt, label: "ขาย", description: "สร้างคำสั่งซื้อใหม่", primary: true },
+  { href: "/customers", icon: UsersRound, label: "ลูกค้า", description: "จัดการข้อมูลลูกค้า" },
+  { href: "/inventory", icon: ShoppingCart, label: "สินค้า", description: "คลังสินค้าทั้งหมด" },
+  { href: "/gifts", icon: Gift, label: "ของแถม", description: "จัดการของแถม" },
+  { href: "/npg", icon: CreditCard, label: "NPG", description: "ระบบไฟแนนซ์" },
+  { href: "/storage", icon: Warehouse, label: "คลัง", description: "สถานที่จัดเก็บ" },
+  { href: "/cashflow", icon: Wallet, label: "รายรับ-รายจ่าย", description: "เงินสด/โอนรายวัน" },
+  { href: "/registration", icon: BookOpen, label: "ทะเบียน", description: "จัดการทะเบียนรถ" },
+  { href: "/installment", icon: Calculator, label: "คำนวณ", description: "คำนวณค่างวด" },
+  { href: "/issues", icon: MessageSquare, label: "กระทู้", description: "แจ้งปัญหา/สอบถาม" },
+  { href: "/employees", icon: Contact, label: "พนักงาน", description: "จัดการพนักงาน" },
+  { href: "/reports", icon: LineChart, label: "รายงาน", description: "รายงานและสถิติ" },
 ];
 
 const MenuItems = () => {
-  const { data: session } = useSession();
-  const userInfo = session?.user;
   const { loaded, canAccess } = useEmployeePermissions();
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6 mt-4 sm:mt-8">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {menuPages.map((item) => {
-        // ✅ ซ่อนการ์ดตามสิทธิ์จริง แทนการเช็คแค่ admin flag เดิม
+        // ซ่อนการ์ดตามสิทธิ์จริง
         const requiredPermission = getRequiredPermission(item.href);
         if (requiredPermission) {
-          if (!loaded) return null; // รอโหลดสิทธิ์ก่อน กันการ์ด flash
+          if (!loaded) return null;
           if (!canAccess(requiredPermission)) return null;
         }
 
+        const Icon = item.icon;
+        const primary = !!item.primary;
+
         return (
-          <a key={item.href} href={item.href} className="block">
+          <a
+            key={item.href}
+            href={item.href}
+            className={`group flex items-center gap-3 rounded-2xl border p-3 sm:p-4 transition-all duration-200 hover:-translate-y-0.5 ${
+              primary
+                ? "bg-orange-500 border-orange-500 text-white hover:shadow-[0_8px_20px_rgba(242,107,29,0.3)]"
+                : "bg-white border-gray-200 text-gray-800 hover:border-orange-500 hover:shadow-[0_8px_20px_rgba(242,107,29,0.12)]"
+            }`}
+          >
             <div
-              className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.gradient} ${item.hoverGradient} shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer h-28 sm:h-40`}
+              className={`flex-none w-10 h-10 sm:w-11 sm:h-11 rounded-xl grid place-items-center ${
+                primary ? "bg-white/20 text-white" : "bg-orange-50 text-orange-500"
+              }`}
             >
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute -right-8 -top-8 w-32 h-32 bg-white rounded-full"></div>
-                <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-white rounded-full"></div>
-              </div>
-
-              {/* Content */}
-              <div className="relative h-full flex flex-col justify-between p-3 sm:p-6 text-white">
-                <div className="flex items-start justify-between">
-                  <div className="p-2 sm:p-3 bg-white/20 backdrop-blur-sm rounded-xl group-hover:scale-110 transition-transform duration-300">
-                    {item.icon}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-base sm:text-2xl font-bold mb-1">{item.label}</h3>
-                  <p className="text-xs sm:text-sm text-white/90 hidden sm:block">{item.description}</p>
-                </div>
-              </div>
-
-              {/* Hover Effect */}
-              <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+              <Icon size={22} />
             </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-[15px] leading-tight">{item.label}</p>
+              <p
+                className={`hidden sm:block text-xs truncate ${
+                  primary ? "text-orange-100" : "text-gray-500"
+                }`}
+              >
+                {item.description}
+              </p>
+            </div>
+            <ChevronRight
+              size={18}
+              className={`hidden sm:block ml-auto flex-none transition-transform group-hover:translate-x-0.5 ${
+                primary ? "text-white" : "text-gray-300 group-hover:text-orange-500"
+              }`}
+            />
           </a>
         );
       })}

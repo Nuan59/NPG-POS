@@ -1,7 +1,6 @@
-import { Button } from "@/components/ui/button";
 import { IOrder } from "@/types/Order";
 import { getDate } from "@/util/GetDateString";
-import { Receipt, TrendingUp, Clock } from "lucide-react";
+import { Receipt } from "lucide-react";
 import Link from "next/link";
 import React from "react";
 
@@ -9,133 +8,101 @@ interface LatestSalesProps {
   sales: IOrder[];
 }
 
+// สีจุดตามประเภทการชำระ
+const PAY_COLORS: Record<string, string> = {
+  "เงินสด": "#eab308",
+  NPG: "#f26b1d",
+  Cathay: "#16a34a",
+  "ทรัพย์สยาม": "#2563eb",
+  Summit: "#9333ea",
+  "S Leasing": "#0891b2",
+  CIMB: "#dc2626",
+  "World Lease": "#4f46e5",
+  "เงินติดล้อ": "#65a30d",
+};
+
+const customerName = (sale: IOrder) =>
+  typeof sale.customer === "string" ? sale.customer : (sale.customer as any)?.name || "-";
+
+const PayTag = ({ method }: { method?: string }) => (
+  <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full border border-gray-200 bg-white whitespace-nowrap">
+    <i className="w-[7px] h-[7px] rounded-full" style={{ background: PAY_COLORS[method ?? ""] ?? "#9ca3af" }} />
+    {method ?? "-"}
+  </span>
+);
+
 const LatestSales = ({ sales }: LatestSalesProps) => {
   if (!sales || !Array.isArray(sales) || sales.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-md p-12 text-center">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Receipt size={40} className="text-gray-400" />
+      <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center">
+        <div className="w-14 h-14 bg-gray-100 rounded-xl grid place-items-center mx-auto mb-3">
+          <Receipt size={28} className="text-gray-400" />
         </div>
-        <p className="text-gray-500 text-lg">ยังไม่มีข้อมูลการขาย</p>
-        <p className="text-gray-400 text-sm mt-2">รายการขายจะแสดงที่นี่</p>
+        <p className="text-gray-500">ยังไม่มีข้อมูลการขาย</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <TrendingUp size={24} className="text-orange-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">การขายล่าสุด</h3>
-              <p className="text-sm text-gray-500">รายการขาย {sales.length} รายการ</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Clock size={16} />
-            <span>อัปเดตล่าสุด</span>
-          </div>
-        </div>
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+      {/* หัวตาราง */}
+      <div className="hidden md:grid grid-cols-[2fr_2fr_1.2fr_1fr_auto] gap-3 px-5 py-2.5 bg-slate-50 text-xs text-gray-500">
+        <span>ลูกค้า</span>
+        <span>สินค้า</span>
+        <span>วันที่ขาย</span>
+        <span>ประเภท</span>
+        <span className="w-[72px]" />
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-50 border-b">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">ลูกค้า</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">สินค้า</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">วันที่ขาย</th>
-              <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">ประเภท</th>
-              <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">ใบเสร็จ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.map((sale, index) => (
-              <tr
-                key={sale.id}
-                className={`border-b hover:bg-orange-50 transition-colors ${
-                  index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
-                }`}
-              >
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {(typeof sale.customer === 'string' 
-                        ? sale.customer 
-                        : sale.customer?.name || '?')[0].toUpperCase()}
-                    </div>
-                    <span className="font-medium text-gray-800">
-                      {typeof sale.customer === 'string' 
-                        ? sale.customer 
-                        : sale.customer?.name || '-'}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  {sale.bikes && sale.bikes.length > 0 ? (
-                    <div>
-                      <div className="font-medium text-gray-800">
-                        {sale.bikes[0].model_name}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {sale.bikes[0].model_code}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  <span className="text-gray-600">
-                    {sale.sale_date ? getDate(sale.sale_date) : '-'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  {(() => {
-                    const method = sale.payment_method;
-                    const colorClass =
-                      method === "เงินสด" ? "bg-yellow-50 text-black" :
-                      method === "Cathay" ? "bg-green-100 text-green-800" :
-                      method === "ทรัพย์สยาม" ? "bg-blue-100 text-blue-800" :
-                      method === "NPG" ? "bg-orange-500 text-white" :
-                      method === "Summit" ? "bg-purple-100 text-purple-800" :
-                      method === "S Leasing" ? "bg-cyan-100 text-cyan-800" :
-                      method === "CIMB" ? "bg-red-100 text-red-800" :
-                      method === "World Lease" ? "bg-indigo-100 text-indigo-800" :
-                      method === "เงินติดล้อ" ? "bg-lime-100 text-lime-800" :
-                      "bg-gray-100 text-gray-800";
+      {sales.map((sale) => {
+        const name = customerName(sale);
+        const bike = sale.bikes?.[0];
+        return (
+          <div
+            key={sale.id}
+            className="grid grid-cols-[1fr_auto] md:grid-cols-[2fr_2fr_1.2fr_1fr_auto] gap-3 items-center px-4 md:px-5 py-3 border-t border-gray-100 first:border-t-0 md:first:border-t hover:bg-orange-50/40 transition-colors"
+          >
+            {/* ลูกค้า (+ ข้อมูลย่อบนมือถือ) */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex-none w-9 h-9 rounded-xl bg-[#1e2432] text-white grid place-items-center text-sm">
+                {name[0]?.toUpperCase() ?? "?"}
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-gray-800 truncate">{name}</p>
+                <p className="md:hidden text-xs text-gray-500 truncate">
+                  {bike?.model_name ?? "-"} · {sale.sale_date ? getDate(sale.sale_date) : "-"}
+                </p>
+              </div>
+            </div>
 
-                    return (
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${colorClass}`}>
-                        {method ?? "-"}
-                      </span>
-                    );
-                  })()}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <Link href={`/sales/${sale.id}/receipt`}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="hover:bg-orange-100 hover:text-orange-600"
-                    >
-                      <Receipt className="w-4 h-4 mr-2" />
-                      ดูใบเสร็จ
-                    </Button>
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            <div className="hidden md:block min-w-0">
+              {bike ? (
+                <>
+                  <p className="font-medium text-sm text-gray-800 truncate">{bike.model_name}</p>
+                  <p className="text-xs text-gray-500 truncate">{bike.model_code}</p>
+                </>
+              ) : (
+                <span className="text-gray-400">-</span>
+              )}
+            </div>
+
+            <div className="hidden md:block text-sm text-gray-500">
+              {sale.sale_date ? getDate(sale.sale_date) : "-"}
+            </div>
+
+            <div className="hidden md:block">
+              <PayTag method={sale.payment_method} />
+            </div>
+
+            <Link
+              href={`/sales/${sale.id}/receipt`}
+              className="text-sm text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg whitespace-nowrap hover:bg-orange-50"
+            >
+              ใบเสร็จ
+            </Link>
+          </div>
+        );
+      })}
     </div>
   );
 };
