@@ -1,69 +1,38 @@
 "use client";
 
-import { PaymentType, TransferBank, PaymentTypeSection } from "../shared/PaymentSection";
+import { SummaryFooterShell } from "../shared/PaymentSection";
 import { ServiceItem, calculateServiceItemsTotal } from "./ServiceItems";
 
 interface ServiceOrderFooterProps {
   items: ServiceItem[];
-
-  paymentType: PaymentType;
-  setPaymentType: (value: PaymentType) => void;
-  transferBank: TransferBank;
-  setTransferBank: (value: TransferBank) => void;
-  checkNumber: string;
-  setCheckNumber: (value: string) => void;
-  splitCash: string;
-  setSplitCash: (value: string) => void;
-
   onSubmit: () => void;
+  // ✅ กำลังบันทึก - ล็อกปุ่มกันกดซ้ำ
+  isSubmitting?: boolean;
+  // ✅ ข้อความบอกว่ายังขาดอะไร
+  hint?: string;
 }
 
 /**
- * Footer สำหรับประเภท "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
- * แสดงยอดรวม (คำนวณจากผลรวมของทุกรายการ) + ปุ่ม "บันทึกรายการ"
+ * ท้ายการ์ดสำหรับ "ซ่อม" / "ต่อภาษี+พรบ" / "อื่นๆ"
+ * แสดงรายการ + ยอดรวม + ปุ่ม "บันทึกรายการ"
+ * (รูปแบบการชำระย้ายไปอยู่ในส่วนเนื้อหาของการ์ดใน index.tsx แล้ว)
  */
-const ServiceOrderFooter = ({
-  items,
-  paymentType,
-  setPaymentType,
-  transferBank,
-  setTransferBank,
-  checkNumber,
-  setCheckNumber,
-  splitCash,
-  setSplitCash,
-  onSubmit,
-}: ServiceOrderFooterProps) => {
+const ServiceOrderFooter = ({ items, onSubmit, isSubmitting = false, hint }: ServiceOrderFooterProps) => {
   const total = calculateServiceItemsTotal(items);
+  const lines = items
+    .filter((i) => i.description.trim() !== "" && i.amount > 0)
+    .map((i) => ({ label: i.description.trim(), amount: i.amount }));
 
   return (
-    <>
-      <PaymentTypeSection
-        paymentType={paymentType}
-        setPaymentType={setPaymentType}
-        transferBank={transferBank}
-        setTransferBank={setTransferBank}
-        checkNumber={checkNumber}
-        setCheckNumber={setCheckNumber}
-        splitCash={splitCash}
-        setSplitCash={setSplitCash}
-        total={total}
-      />
-
-      <div className="sticky">
-        <div className="w-full border-slate-700 border-b mt-2"></div>
-        <div className="flex justify-between p-2 text-lg">
-          <span>ยอดรวม</span>
-          <span>฿ {total.toLocaleString()}</span>
-        </div>
-        <button
-          onClick={onSubmit}
-          className="bg-slate-900 hover:bg-slate-950 p-2 px-9 rounded-lg text-slate-50 text-lg w-full"
-        >
-          บันทึกรายการ
-        </button>
-      </div>
-    </>
+    <SummaryFooterShell
+      lines={lines}
+      totalLabel="ยอดรวม"
+      total={total}
+      buttonLabel="บันทึกรายการ"
+      onSubmit={onSubmit}
+      isSubmitting={isSubmitting}
+      hint={hint}
+    />
   );
 };
 

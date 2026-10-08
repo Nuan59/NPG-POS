@@ -234,3 +234,48 @@ export const calculateTotalPayment = (
 ): number => {
   return (down_payment || 0) + totalAdditionalFees - (deposit || 0);
 };
+// ================== ผ่อนดาวน์ (ใช้ร่วมกัน index.tsx + FinanceSection) ==================
+
+/**
+ * ✅ คำนวณผ่อนดาวน์จุดเดียว (เดิมเขียนซ้ำ 2 ที่ แก้สูตรแล้วต้องแก้ 2 ไฟล์)
+ * - remainingBalance = เงินดาวน์ - งวดแรก (ไม่ติดลบ)
+ * - perRemainingInstallment = (คงเหลือ + ดอกเบี้ยต่อเดือน × จำนวนงวด) / จำนวนงวด
+ */
+export const calculateDownPaymentInstallment = (
+  downPayment: number,
+  firstPayment: number,
+  installmentCount: string,
+  interestRate: string
+): { remainingBalance: number; perRemainingInstallment: number } => {
+  const remainingBalance = Math.max((downPayment || 0) - (firstPayment || 0), 0);
+  const count = toNumber(installmentCount);
+  if (remainingBalance <= 0 || count <= 0) {
+    return { remainingBalance, perRemainingInstallment: 0 };
+  }
+  const rate = toNumber(interestRate);
+  const total = remainingBalance + remainingBalance * (rate / 100) * count;
+  return { remainingBalance, perRemainingInstallment: roundByMethod(total / count, "standard") };
+};
+
+// ================== ERROR MESSAGE ==================
+
+/**
+ * ✅ แปลง error จาก backend เป็นข้อความอ่านรู้เรื่อง รองรับทุกรูปแบบ
+ * - "ข้อความ" / { error } / { detail } / { message } / { field: ["msg"] } / { field: "msg" }
+ * (เดิมใช้ error[key][0] ถ้าค่าเป็น string จะได้ตัวอักษรตัวเดียว)
+ */
+export const getErrorMessage = (err: any, fallback = "บันทึกไม่สำเร็จ"): string => {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (typeof err.error === "string") return err.error;
+  if (typeof err.detail === "string") return err.detail;
+  if (typeof err.message === "string") return err.message;
+  if (typeof err === "object") {
+    const parts = Object.entries(err).map(([key, value]) => {
+      const msg = Array.isArray(value) ? value[0] : typeof value === "object" ? JSON.stringify(value) : value;
+      return `${key}: ${msg}`;
+    });
+    if (parts.length > 0) return parts.join(" / ");
+  }
+  return fallback;
+};

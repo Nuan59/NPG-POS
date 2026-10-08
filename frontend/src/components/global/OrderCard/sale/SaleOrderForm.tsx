@@ -1,19 +1,11 @@
 "use client";
 
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import { numberToInput } from "../shared/Financecalculations";
 import type { FinanceProvider, NpgPeriod } from "../shared/Financecalculations";
-import { FinanceSection } from "../shared/PaymentSection";
+import { numberToInput } from "../shared/Financecalculations";
+import { FinanceSection, FormRow, SegButtons, StepLabel } from "../shared/PaymentSection";
 
-const labelCls = "text-sm font-medium min-w-[100px]";
-const inputCls = "w-40 text-right p-2 text-sm";
+const inputCls = "w-36 h-9 text-right text-sm bg-white";
 
 interface SaleOrderFormProps {
   sellPrice: string;
@@ -58,7 +50,7 @@ interface SaleOrderFormProps {
 
 /**
  * ฟอร์มราคา/การชำระเงินสำหรับประเภท "ขาย" เท่านั้น
- * (ย้ายออกมาจาก index.tsx เดิม - logic ไม่เปลี่ยนแปลงแม้แต่บรรทัดเดียว)
+ * ✅ "เงินสด/ไฟแนนซ์" เป็นปุ่มสลับ / ไฟแนนซ์มีช่องเลขใบมัดจำแล้ว
  */
 const SaleOrderForm = ({
   sellPrice,
@@ -97,12 +89,11 @@ const SaleOrderForm = ({
 }: SaleOrderFormProps) => {
   return (
     <>
-      <Separator className="my-4" />
+      <StepLabel step={4} label="ราคา" />
 
-      <div className="space-y-3">
-        {/* ราคาขาย */}
-        <div className="flex justify-between items-center p-2">
-          <label className={labelCls}>ขาย</label>
+      <div className="bg-white border border-slate-200 rounded-2xl px-3 py-1">
+        {/* ราคาขาย (เติมจากราคาตั้งของรถให้อัตโนมัติ แก้เองได้) */}
+        <FormRow label="ราคาขาย">
           <Input
             type="text"
             inputMode="decimal"
@@ -111,72 +102,59 @@ const SaleOrderForm = ({
             className={inputCls}
             placeholder="0"
           />
-        </div>
+        </FormRow>
 
         {/* ประเภทการซื้อ */}
-        <div className="flex justify-between items-center p-2">
-          <label className={labelCls}>ประเภทการซื้อ</label>
-          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-            <SelectTrigger className="w-40 text-sm p-2">
-              {paymentMethod || "เลือก"}
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="เงินสด">เงินสด</SelectItem>
-              <SelectItem value="ไฟแนนซ์">ไฟแนนซ์</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <FormRow label="ประเภทการซื้อ">
+          <SegButtons
+            options={[
+              { value: "เงินสด", label: "เงินสด" },
+              { value: "ไฟแนนซ์", label: "ไฟแนนซ์" },
+            ]}
+            value={paymentMethod}
+            onChange={setPaymentMethod}
+          />
+        </FormRow>
 
-        {/* ถ้าเลือกเงินสด */}
+        {/* เงินสด */}
         {paymentMethod === "เงินสด" && (
           <>
-            <div className="mt-2 flex justify-between items-center p-2">
-              <label className={labelCls}>มัดจำ</label>
+            <FormRow label="มัดจำ">
               <Input
                 type="text"
                 inputMode="decimal"
                 value={numberToInput(deposit || 0)}
-                onChange={(e) =>
-                  setDeposit(
-                    e.target.value.trim() === "" ? 0 : Number(e.target.value)
-                  )
-                }
+                onChange={(e) => setDeposit(e.target.value.trim() === "" ? 0 : Number(e.target.value))}
                 className={inputCls}
               />
-            </div>
+            </FormRow>
 
-            {/* ช่องเลขใบมัดจำ - แสดงเมื่อมัดจำ > 0 */}
+            {/* เลขใบมัดจำ - แสดงเมื่อมัดจำ > 0 */}
             {deposit > 0 && (
-              <div className="mt-1 flex justify-between items-center p-2">
-                <label className={labelCls}>เลขใบมัดจำ</label>
+              <FormRow label="เลขใบมัดจำ" sub>
                 <Input
                   type="text"
                   value={depositReceiptNo}
                   onChange={(e) => setDepositReceiptNo(e.target.value)}
-                  className={inputCls}
+                  className="w-32 h-8 text-right text-sm bg-white"
                   placeholder="MD-XXXX"
                 />
-              </div>
+              </FormRow>
             )}
 
-            <div className="mt-2 flex justify-between items-center p-2">
-              <label className={labelCls}>ส่วนลด</label>
+            <FormRow label="ส่วนลด">
               <Input
                 type="text"
                 inputMode="decimal"
                 value={numberToInput(discount || 0)}
-                onChange={(e) =>
-                  setDiscount(
-                    e.target.value.trim() === "" ? 0 : Number(e.target.value)
-                  )
-                }
+                onChange={(e) => setDiscount(e.target.value.trim() === "" ? 0 : Number(e.target.value))}
                 className={inputCls}
               />
-            </div>
+            </FormRow>
           </>
         )}
 
-        {/* ถ้าเลือกไฟแนนซ์ */}
+        {/* ไฟแนนซ์ */}
         {paymentMethod === "ไฟแนนซ์" && (
           <FinanceSection
             financeProvider={financeProvider}
@@ -187,6 +165,8 @@ const SaleOrderForm = ({
             setBikeSize={setBikeSize}
             deposit={deposit}
             setDeposit={setDeposit}
+            depositReceiptNo={depositReceiptNo}
+            setDepositReceiptNo={setDepositReceiptNo}
             discount={discount || 0}
             setDiscount={setDiscount}
             down_payment={downPayment || 0}

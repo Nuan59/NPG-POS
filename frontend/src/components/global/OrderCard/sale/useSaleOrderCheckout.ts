@@ -1,10 +1,11 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { IOrder } from "@/types/Order";
 import { createOrder } from "@/services/OrderService";
-import { parseSellPrice, toNumber } from "../shared/Financecalculations";
+import { parseSellPrice, toNumber, getErrorMessage } from "../shared/Financecalculations";
 import type { FinanceProvider, NpgPeriod } from "../shared/Financecalculations";
 import { PaymentType, TransferBank } from "../shared/PaymentSection";
 
@@ -50,7 +51,7 @@ interface UseSaleOrderCheckoutParams {
 
 /**
  * Logic การสร้างออเดอร์ประเภท "ขาย"
- * (ย้ายออกมาจาก index.tsx เดิม - logic ไม่เปลี่ยนแปลงแม้แต่บรรทัดเดียว)
+ * ✅ payload ที่ส่งไป backend เหมือนเดิมทุก field - เพิ่มแค่การตรวจก่อนส่ง + กันกดซ้ำ + จัดการ error
  */
 export const useSaleOrderCheckout = ({
   orderCustomer,
@@ -86,26 +87,73 @@ export const useSaleOrderCheckout = ({
   downPaymentNextPaymentDate,
 }: UseSaleOrderCheckoutParams) => {
   const router = useRouter();
+  // ✅ กันกดซ้ำ - ref เช็คทันที (state อัปเดตไม่ทันถ้ากดเบิ้ลเร็วๆ) + state ไว้ล็อกปุ่ม
+  const submittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /** ตรวจข้อมูลก่อนส่ง - คืนข้อความผิดพลาด หรือ "" ถ้าผ่าน */
+  const validate = (): string => {
+    if (!orderCustomer) return "กรุณาเลือกลูกค้าก่อนชำระเงิน";
+    if (!orderBike) return "กรุณาเลือกรถก่อนชำระเงิน";
+
+    const sell = parseSellPrice(sellPrice);
+    if (sell <= 0) return "กรุณากรอกราคาขายก่อนชำระเงิน";
+
+    if (paymentMethod !== "เงินสด" && paymentMethod !== "ไฟแนนซ์") {
+      return "กรุณาเลือกประเภทการซื้อ (เงินสด/ไฟแนนซ์)";
+    }
+
+    if (paymentMethod === "ไฟแนนซ์") {
+      if (!financeProvider) return "กรุณาเลือกบริษัทไฟแนนซ์";
+      if (financeProvider === "NPG" && !npgPeriod) return "กรุณาเลือกประเภทดอกเบี้ย (รายเดือน/รายปี)";
+      if (toNumber(financeAmount) <= 0) return "ยอดจัดต้องมากกว่า 0 (ตรวจราคาขาย/ส่วนลด/เงินดาวน์)";
+      if (interest.trim() === "") return "กรุณากรอกดอกเบี้ย (ไม่มีดอกเบี้ยให้ใส่ 0)";
+      if (toNumber(installmentCount) <= 0) return "กรุณากรอกจำนวนงวด";
+
+      if (downPaymentInstallment) {
+        const first = downPaymentFirstPaymentAmount || 0;
+        if (first <= 0) return "ผ่อนดาวน์: กรอกยอดงวดแรกที่รับวันนี้";
+        if (first > (down_payment || 0)) return "ผ่อนดาวน์: งวดแรกต้องไม่เกินเงินดาวน์";
+        if (downPaymentRemainingBalance > 0) {
+          if (toNumber(downPaymentInstallmentCount) <= 0) return "ผ่อนดาวน์: กรอกจำนวนงวดที่เหลือ";
+          if (!downPaymentNextPaymentDate) return "ผ่อนดาวน์: เลือกวันครบกำหนดงวดถัดไป";
+        }
+      }
+    }
+
+    const payTotal = paymentMethod === "ไฟแนนซ์" ? totalPayment : cashTotal;
+    if (payTotal < 0) return "ยอดชำระติดลบ - ตรวจมัดจำ/ส่วนลดอีกครั้ง";
+
+    // ✅ ต้องเลือกรูปแบบการชำระทุกครั้งที่มียอดต้องจ่าย (ระบบส่งเงินสดใช้ค่านี้ตัดสินว่าต้องส่งเงินไหม)
+    if (payTotal > 0) {
+      if (!paymentType) return "กรุณาเลือกรูปแบบการชำระ";
+      if ((paymentType === "เงินโอน" || paymentType === "แบ่งจ่าย") && !transferBank) {
+        return "กรุณาเลือกธนาคารที่โอนเข้า";
+      }
+      if (paymentType === "เช็ค" && !checkNumber.trim()) return "กรุณากรอกเลขที่เช็ค";
+      // แบ่งจ่าย - เงินสดต้องมากกว่า 0 และน้อยกว่ายอดชำระรวม (ที่เหลือคือโอน)
+      const splitCashNumber = toNumber(splitCash);
+      if (paymentType === "แบ่งจ่าย" && (splitCashNumber <= 0 || splitCashNumber >= payTotal)) {
+        return `แบ่งจ่าย: กรอกยอดเงินสดให้มากกว่า 0 และน้อยกว่า ฿${payTotal.toLocaleString()}`;
+      }
+    }
+    return "";
+  };
+
+  // ✅ โชว์ใต้ปุ่มได้ทันทีว่ายังขาดอะไร (คำนวณใหม่ทุก render - ไม่มี side effect)
+  const validationMessage = validate();
 
   const handleOrderCheckout = async () => {
-    if (!orderCustomer) {
-      toast.info("Select customer before checkout");
+    if (submittingRef.current) return;
+
+    const error = validate();
+    if (error) {
+      toast.info(error);
       return;
     }
 
     const sell = parseSellPrice(sellPrice);
-    if (sell <= 0) {
-      toast.info("กรุณากรอกราคาขายก่อนชำระเงิน");
-      return;
-    }
-
-    // ✅ แบ่งจ่าย - เงินสดต้องมากกว่า 0 และน้อยกว่ายอดชำระรวม (ที่เหลือคือโอน)
-    const payTotal = paymentMethod === "ไฟแนนซ์" ? totalPayment : cashTotal;
     const splitCashNumber = toNumber(splitCash);
-    if (paymentType === "แบ่งจ่าย" && (splitCashNumber <= 0 || splitCashNumber >= payTotal)) {
-      toast.info(`แบ่งจ่าย: กรอกยอดเงินสดให้มากกว่า 0 และน้อยกว่า ฿${payTotal.toLocaleString()}`);
-      return;
-    }
 
     const payload = {
       customer: orderCustomer.id,
@@ -168,22 +216,33 @@ export const useSaleOrderCheckout = ({
         paymentMethod === "ไฟแนนซ์" && downPaymentInstallment ? downPaymentNextPaymentDate : "",
     } as IOrder;
 
-    const checkout = await createOrder(payload);
-    if (checkout.status === "success") {
-      const data = await checkout.data;
-      const orderId = data.data;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const checkout = await createOrder(payload);
+      if (checkout?.status === "success") {
+        const data = await checkout.data;
+        const orderId = data?.data;
 
-      toast.success("ชำระเงินสำเร็จ!");
-
-      resetOrder();
-      router.push(`/sales/${orderId}/documents`);
-    } else {
-      const error = await checkout.data;
-      Object.keys(error).map((key) => {
-        toast.error(`${key}: ${error[key][0]}`);
-      });
+        toast.success("ชำระเงินสำเร็จ!");
+        resetOrder();
+        if (orderId) {
+          router.push(`/sales/${orderId}/documents`);
+        } else {
+          router.push("/sales");
+        }
+      } else {
+        const error = await checkout?.data;
+        toast.error(getErrorMessage(error, "สั่งซื้อไม่สำเร็จ"));
+      }
+    } catch (err) {
+      console.error("❌ sale checkout error:", err);
+      toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ ลองใหม่อีกครั้ง");
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
-  return { handleOrderCheckout };
+  return { handleOrderCheckout, isSubmitting, validationMessage };
 };

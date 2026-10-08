@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useContext, useEffect, useMemo, useState } from "react";
-import { Separator } from "@/components/ui/separator";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, ShoppingCart } from "lucide-react";
 import { IBike } from "@/types/Bike";
 import { getBike } from "@/services/InventoryService";
 import { OrderContext } from "@/context/OrderContext";
+import { toast } from "sonner";
 
 // ✅ shared/ - ใช้ร่วมกันทุกประเภทธุรกรรม
 import OrderCustomer from "./shared/OrderCustomer";
@@ -25,14 +25,15 @@ import {
   calculateCashTotal,
   calculateTotalPayment,
   isBigBike,
-  toNumber,
-  roundByMethod,
+  parseSellPrice,
+  calculateDownPaymentInstallment,
 } from "./shared/Financecalculations";
 import {
   PaymentType,
   TransferBank,
   PaymentTypeSection,
   OrderSummaryFooter,
+  StepLabel,
 } from "./shared/PaymentSection";
 
 // ✅ sale/ - เฉพาะประเภท "ขาย"
@@ -43,7 +44,7 @@ import { useSaleOrderCheckout } from "./sale/useSaleOrderCheckout";
 import ServiceOrderForm from "./service/ServiceOrderForm";
 import ServiceOrderFooter from "./service/ServiceOrderFooter";
 import { useServiceOrderCheckout } from "./service/useServiceOrderCheckout";
-import type { ServiceItem } from "./service/ServiceItems";
+import { calculateServiceItemsTotal, type ServiceItem } from "./service/ServiceItems";
 
 import { TransactionType } from "./types";
 
@@ -113,23 +114,20 @@ const OrderCard = () => {
     return d.toISOString().slice(0, 10);
   });
 
-  // ✅ ยอดคงเหลือหลังหักงวดแรกที่กรอกเอง
-  const downPaymentRemainingBalance = useMemo(() => {
-    const total = down_payment || 0;
-    const first = downPaymentFirstPaymentAmount || 0;
-    return Math.max(total - first, 0);
-  }, [down_payment, downPaymentFirstPaymentAmount]);
-
-  // ✅ ค่างวดที่เหลือต่องวด (งวดที่ 2 เป็นต้นไป) - คำนวณแบบเดียวกับใน FinanceSection
-  const downPaymentPerRemainingInstallment = useMemo(() => {
-    const count = toNumber(downPaymentInstallmentCount);
-    if (downPaymentRemainingBalance <= 0 || count <= 0) return 0;
-
-    const rate = toNumber(downPaymentInterestRate);
-    const interestPerMonth = downPaymentRemainingBalance * (rate / 100);
-    const total = downPaymentRemainingBalance + interestPerMonth * count;
-    return roundByMethod(total / count, "standard");
-  }, [downPaymentRemainingBalance, downPaymentInstallmentCount, downPaymentInterestRate]);
+  // ✅ ผ่อนดาวน์ - ใช้สูตรกลางจาก Financecalculations (ตัวเดียวกับที่ FinanceSection โชว์ ไม่มีทางไม่ตรงกัน)
+  const {
+    remainingBalance: downPaymentRemainingBalance,
+    perRemainingInstallment: downPaymentPerRemainingInstallment,
+  } = useMemo(
+    () =>
+      calculateDownPaymentInstallment(
+        down_payment || 0,
+        downPaymentFirstPaymentAmount || 0,
+        downPaymentInstallmentCount,
+        downPaymentInterestRate
+      ),
+    [down_payment, downPaymentFirstPaymentAmount, downPaymentInstallmentCount, downPaymentInterestRate]
+  );
 
   useEffect(() => {
     if (bikeDisplay) {
@@ -166,15 +164,98 @@ const OrderCard = () => {
     isBigBike: bikeSize === "L",
   });
 
+  // ✅ โหลดข้อมูลรถล่าสุด - ถอดรถออกแล้วต้องล้าง bikeDisplay ด้วย (เดิมค้างไว้ ทำให้เลขไมล์/ขนาดรถไม่ถูกล้าง)
+  // กันผลลัพธ์เก่ามาทับ (เลือกรถคันใหม่ระหว่างที่คันเก่ายังโหลดไม่เสร็จ) ด้วย flag cancelled
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
-      if (orderBike) {
+      if (!orderBike) {
+        setBikeDisplay(null);
+        return;
+      }
+      try {
         const bike = await getBike(orderBike.id);
-        setBikeDisplay(bike);
+        if (!cancelled) setBikeDisplay(bike || orderBike);
+      } catch (error) {
+        console.error("❌ getBike error:", error);
+        // โหลดไม่ได้ก็ยังโชว์ข้อมูลรถจาก context ไว้ก่อน ไม่ให้การ์ดหาย
+        if (!cancelled) setBikeDisplay(orderBike);
       }
     };
     fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [orderBike, totalPrice]);
+
+  // ✅ เลือกรถคันใหม่ในแท็บ "ขาย" → เติมราคาขายจากราคาตั้งของรถให้อัตโนมัติ (แก้เองได้)
+  // เติมครั้งเดียวต่อรถ 1 คัน - ไม่ทับราคาที่พนักงานแก้ไปแล้ว
+  const prefilledBikeIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!bikeDisplay) {
+      prefilledBikeIdRef.current = null;
+      return;
+    }
+    if (transactionType !== "ขาย") return;
+    if (prefilledBikeIdRef.current === bikeDisplay.id) return;
+    prefilledBikeIdRef.current = bikeDisplay.id;
+    const price = parseSellPrice((bikeDisplay as any).sale_price ?? "");
+    if (price > 0) setSellPrice(String(price));
+  }, [bikeDisplay, transactionType]);
+
+  // ✅ สลับแท็บข้ามกลุ่ม ขาย <-> ซ่อม/ภาษี/อื่นๆ → ล้างรถ
+  // แท็บขายใช้รถในสต็อก (ยังไม่ขาย) / แท็บอื่นใช้รถของลูกค้า - ถ้าไม่ล้างจะขายรถลูกค้าซ้ำ หรือบันทึกซ่อมให้รถในสต็อก
+  const handleTransactionTypeChange = (type: TransactionType) => {
+    const crossingGroup = (transactionType === "ขาย") !== (type === "ขาย");
+    if (crossingGroup && orderBike) {
+      removeBikeFromOrder();
+      toast.info("ล้างรถออกแล้ว เพราะเปลี่ยนประเภทงาน");
+    }
+    setTransactionType(type);
+  };
+
+  // ✅ เปลี่ยน/ลบลูกค้า ระหว่างอยู่แท็บ ซ่อม/ภาษี/อื่นๆ → ล้างรถ (รถเป็นของลูกค้าคนเดิม)
+  const prevCustomerIdRef = useRef<number | null>(orderCustomer?.id ?? null);
+  useEffect(() => {
+    const currentId = orderCustomer?.id ?? null;
+    if (prevCustomerIdRef.current === currentId) return;
+    prevCustomerIdRef.current = currentId;
+    if (transactionType !== "ขาย" && orderBike) {
+      removeBikeFromOrder();
+      toast.info("ล้างรถออกแล้ว เพราะเปลี่ยนลูกค้า");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderCustomer?.id]);
+
+  // ✅ ล้างทุกอย่างหลังบันทึกสำเร็จ - resetOrder() ล้างแค่ใน context
+  // state ในการ์ดนี้ (ราคาขาย/มัดจำ/รายการซ่อม/รูปแบบชำระ ฯลฯ) เดิมค้างไปออเดอร์ถัดไป
+  const resetAll = () => {
+    resetOrder();
+    setTransactionType("ขาย");
+    setOtherTransactionDetail("");
+    setServiceItems([]);
+    setServiceDetail("");
+    setMileage("");
+    setSellPrice("");
+    setDeposit(0);
+    setDepositReceiptNo("");
+    setPaymentType("");
+    setTransferBank("");
+    setCheckNumber("");
+    setSplitCash("");
+    setFinanceProvider("");
+    setNpgPeriod("");
+    setInterest("");
+    setInstallmentCount("");
+    setDownPaymentInstallment(false);
+    setDownPaymentFirstPaymentAmount(0);
+    setDownPaymentInstallmentCount("");
+    setDownPaymentInterestRate("");
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    setDownPaymentNextPaymentDate(d.toISOString().slice(0, 10));
+    prefilledBikeIdRef.current = null;
+  };
 
   const totalAdditionalFees = useMemo(
     () => calculateTotalAdditionalFees(orderAdditionalFees),
@@ -203,14 +284,21 @@ const OrderCard = () => {
     downPaymentFirstPaymentAmount,
   ]);
 
+  // ยอดรวมงานบริการ (ใช้คำนวณส่วนโอนของแบ่งจ่าย)
+  const serviceTotal = useMemo(() => calculateServiceItemsTotal(serviceItems), [serviceItems]);
+
   // ✅ logic checkout แยกไฟล์ตามประเภทธุรกรรม (sale/, service/)
-  const { handleOrderCheckout } = useSaleOrderCheckout({
+  const {
+    handleOrderCheckout,
+    isSubmitting: isSaleSubmitting,
+    validationMessage: saleValidationMessage,
+  } = useSaleOrderCheckout({
     orderCustomer,
     orderBike,
     orderAdditionalFees,
     orderGifts,
     notes,
-    resetOrder,
+    resetOrder: resetAll,
     sellPrice,
     deposit,
     discount,
@@ -238,13 +326,17 @@ const OrderCard = () => {
     downPaymentNextPaymentDate,
   });
 
-  const { handleServiceCheckout } = useServiceOrderCheckout({
+  const {
+    handleServiceCheckout,
+    isSubmitting: isServiceSubmitting,
+    validationMessage: serviceValidationMessage,
+  } = useServiceOrderCheckout({
     orderCustomer,
     orderBike,
     orderAdditionalFees,
     orderGifts,
     notes,
-    resetOrder,
+    resetOrder: resetAll,
     transactionType,
     otherTransactionDetail,
     serviceItems,
@@ -256,82 +348,78 @@ const OrderCard = () => {
     mileage,
   });
 
+  const isSale = transactionType === "ขาย";
+
   return (
-    <div className="w-full h-full flex flex-col bg-slate-50 shadow-lg overflow-y-auto">
+    <div className="w-full h-full flex flex-col bg-slate-50 shadow-lg overflow-hidden">
       <div className="flex-1 overflow-y-auto p-4">
-        <h1 className="text-2xl font-extrabold mb-5 text-center">รายการสั่งซื้อ</h1>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="w-1 h-[18px] bg-orange-500 rounded-sm -skew-x-12" />
+          <h1 className="text-lg font-semibold">รายการสั่งซื้อ</h1>
+        </div>
 
         <TransactionTypeTabs
           value={transactionType}
-          onChange={setTransactionType}
+          onChange={handleTransactionTypeChange}
           otherDetail={otherTransactionDetail}
           onOtherDetailChange={setOtherTransactionDetail}
         />
 
+        {/* 1. ลูกค้า */}
+        <StepLabel step={1} label="ลูกค้า" />
         <OrderCustomer />
 
-        {/* รายการรถ - แท็บ "ขาย" เลือกจากคลังสินค้า (รถยังไม่ขาย) / แท็บอื่นเลือกจากรถที่ลูกค้าคนนี้เคยซื้อไปแล้ว */}
+        {/* 2. รถ - แท็บ "ขาย" เลือกจากคลังสินค้า (รถยังไม่ขาย) / แท็บอื่นเลือกจากรถของลูกค้าคนนี้ */}
+        <StepLabel step={2} label="รถ" hint={isSale ? undefined : "(รถของลูกค้า)"} />
         {orderBike && bikeDisplay ? (
           <OrderBike bike={bikeDisplay} onRemove={removeBikeFromOrder} />
-        ) : transactionType === "ขาย" ? (
+        ) : isSale ? (
           <Link href="/inventory">
-            <div className="flex items-center justify-between mt-3 gap-2 text-slate-900 cursor-pointer border-2 border-dashed border-slate-500 rounded-lg p-4 hover:bg-slate-200 transition-colors">
-              <ShoppingCart opacity="60%" size={18} />
-              <span className="text-base font-semibold">เพิ่มรถ</span>
+            <div className="flex items-center gap-2.5 bg-white border-[1.5px] border-dashed border-slate-300 rounded-2xl p-3 text-[#1e2432] hover:border-orange-500 transition-colors cursor-pointer">
+              <ShoppingCart size={20} className="text-slate-400" />
+              <span className="font-medium">เพิ่มรถ</span>
+              <span className="ml-auto text-xs text-slate-400">เลือกจากคลังสินค้า</span>
             </div>
           </Link>
         ) : (
           <OrderOwnedBikeSelect />
         )}
 
-        {/* ✅ ของแถม + ค่าใช้จ่ายเพิ่มเติม - เฉพาะ "ขาย" เท่านั้น (ซ่อม/ต่อภาษี+พรบ/อื่นๆ ไม่ต้องใช้) */}
-        {transactionType === "ขาย" && (
+        {/* 3. ของแถม + ค่าใช้จ่ายเพิ่มเติม - เฉพาะ "ขาย" เท่านั้น */}
+        {isSale && (
           <>
-          {/* ของแถม */}
-          {orderGifts.length > 0 && (
-            <>
-              <Separator className="my-3" />
-              <div className="space-y-2">
-                <h1 className="font-semibold text-lg">ของแถม</h1>
+            <StepLabel step={3} label="ของแถม / ค่าใช้จ่ายเพิ่มเติม" />
+            {(orderGifts.length > 0 || orderAdditionalFees.length > 0) && (
+              <div className="space-y-1.5 mb-2">
                 {orderGifts.map((gift) => (
                   <OrderGift key={gift.id} gift={gift} />
                 ))}
+                {orderAdditionalFees.map((fee) => (
+                  <OrderFee key={fee.id} fee={fee} />
+                ))}
               </div>
-            </>
-          )}
+            )}
 
-          <Separator className="my-3" />
+            <div className="grid grid-cols-2 gap-2">
+              <OrderGiftDialog>
+                <button className="flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-xl border-[1.5px] border-dashed border-slate-300 bg-white text-[#1e2432] hover:border-orange-500 hover:text-orange-600 transition-colors">
+                  <Plus size={16} />
+                  ของแถม
+                </button>
+              </OrderGiftDialog>
 
-          {/* ค่าใช้จ่ายเพิ่มเติม */}
-          <div className="mb-3">
-            <h1 className="font-semibold text-lg mb-2">ค่าใช้จ่ายเพิ่มเติม</h1>
-            <div className="space-y-2">
-              {orderAdditionalFees.map((fee) => (
-                <OrderFee key={fee.id} fee={fee} />
-              ))}
+              <AdditionalFeeDialog>
+                <button className="flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-xl border-[1.5px] border-dashed border-slate-300 bg-white text-[#1e2432] hover:border-orange-500 hover:text-orange-600 transition-colors">
+                  <Plus size={16} />
+                  ค่าใช้จ่าย
+                </button>
+              </AdditionalFeeDialog>
             </div>
-          </div>
-
-          <div className="flex gap-3">
-            <OrderGiftDialog>
-              <button className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-950 p-4 rounded-lg text-slate-50 text-base transition-colors">
-                <Plus size={18} />
-                <span className="font-medium">เพิ่มของแถม</span>
-              </button>
-            </OrderGiftDialog>
-
-            <AdditionalFeeDialog>
-              <button className="flex-1 flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-950 p-4 rounded-lg text-slate-50 text-base transition-colors">
-                <Plus size={18} />
-                <span className="font-medium">เพิ่มค่าใช้จ่าย</span>
-              </button>
-            </AdditionalFeeDialog>
-          </div>
           </>
         )}
 
-        {/* ส่วนของการคำนวณราคา - เฉพาะ "ขาย" (ไม่เปลี่ยนแปลงจากเดิม) */}
-        {transactionType === "ขาย" && orderBike && bikeDisplay && (
+        {/* 4. ราคา - เฉพาะ "ขาย" (ต้องเลือกรถก่อน) */}
+        {isSale && orderBike && bikeDisplay && (
           <SaleOrderForm
             sellPrice={sellPrice}
             setSellPrice={setSellPrice}
@@ -369,8 +457,8 @@ const OrderCard = () => {
           />
         )}
 
-        {/* ส่วนของการคำนวณราคา - ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่บังคับต้องเลือกรถ) */}
-        {transactionType !== "ขาย" && (
+        {/* 3. รายการ - ซ่อม / ต่อภาษี+พรบ / อื่นๆ (บังคับเลือกรถตอนบันทึก) */}
+        {!isSale && (
           <ServiceOrderForm
             transactionType={transactionType}
             items={serviceItems}
@@ -382,12 +470,11 @@ const OrderCard = () => {
             setMileage={setMileage}
           />
         )}
-      </div>
 
-      {/* Footer สรุปยอด - "ขาย" (ไม่เปลี่ยนแปลงจากเดิม ต้องเลือกรถก่อน) */}
-      {transactionType === "ขาย" && orderBike && (
-        <>
+        {/* รูปแบบการชำระ - ขาย (ต้องมีรถก่อน) / บริการ (โชว์เสมอ) */}
+        {(!isSale || orderBike) && (
           <PaymentTypeSection
+            step={isSale ? 5 : 4}
             paymentType={paymentType}
             setPaymentType={setPaymentType}
             transferBank={transferBank}
@@ -396,33 +483,38 @@ const OrderCard = () => {
             setCheckNumber={setCheckNumber}
             splitCash={splitCash}
             setSplitCash={setSplitCash}
-            total={payment_method === "ไฟแนนซ์" ? totalPayment : cashTotal}
+            total={isSale ? (payment_method === "ไฟแนนซ์" ? totalPayment : cashTotal) : serviceTotal}
           />
+        )}
+      </div>
 
-          <OrderSummaryFooter
-            payment_method={payment_method}
-            installmentPerPeriod={installmentPerPeriod}
-            installmentLabel={installmentLabel}
-            totalPayment={totalPayment}
-            cashTotal={cashTotal}
-            handleOrderCheckout={handleOrderCheckout}
-          />
-        </>
+      {/* ท้ายการ์ด - "ขาย" (ต้องเลือกรถก่อน) */}
+      {isSale && orderBike && (
+        <OrderSummaryFooter
+          payment_method={payment_method}
+          installmentPerPeriod={installmentPerPeriod}
+          installmentLabel={installmentLabel}
+          totalPayment={totalPayment}
+          cashTotal={cashTotal}
+          handleOrderCheckout={handleOrderCheckout}
+          downPaymentInstallment={payment_method === "ไฟแนนซ์" && downPaymentInstallment}
+          isSubmitting={isSaleSubmitting}
+          sellPrice={parseSellPrice(sellPrice)}
+          totalAdditionalFees={totalAdditionalFees}
+          discount={discount || 0}
+          deposit={deposit || 0}
+          downPaymentToday={downPaymentInstallment ? downPaymentFirstPaymentAmount || 0 : down_payment || 0}
+          hint={saleValidationMessage}
+        />
       )}
 
-      {/* Footer สรุปยอด - ซ่อม / ต่อภาษี+พรบ / อื่นๆ (ไม่บังคับต้องเลือกรถ) */}
-      {transactionType !== "ขาย" && (
+      {/* ท้ายการ์ด - ซ่อม / ต่อภาษี+พรบ / อื่นๆ */}
+      {!isSale && (
         <ServiceOrderFooter
           items={serviceItems}
-          paymentType={paymentType}
-          setPaymentType={setPaymentType}
-          transferBank={transferBank}
-          setTransferBank={setTransferBank}
-          checkNumber={checkNumber}
-          setCheckNumber={setCheckNumber}
-          splitCash={splitCash}
-          setSplitCash={setSplitCash}
           onSubmit={handleServiceCheckout}
+          isSubmitting={isServiceSubmitting}
+          hint={serviceValidationMessage}
         />
       )}
     </div>

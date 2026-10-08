@@ -6,22 +6,26 @@ interface OrderBikeProps {
   onRemove: () => void;
 }
 
+/** การ์ดรถที่เลือก - พื้นกรม แถบส้มเฉียง (เข้าชุดกับ navbar) */
 const OrderBike = ({ bike, onRemove }: OrderBikeProps) => {
-  return (
-    <div className="shadow p-4 mt-3 rounded-lg bg-slate-700 text-slate-50 relative">
-      <div className="flex justify-between items-start pr-10">
-        <div className="flex flex-col">
-          <span className="text-lg font-bold">{bike.model_name}</span>
-          <span className="text-sm opacity-80">{bike.model_code}</span>
-        </div>
-      </div>
+  const plate = (bike as any).registration_plate;
+  const color = (bike as any).color;
+  const sub = [plate, bike.model_code, color ? `สี${color}` : ""].filter(Boolean).join(" · ");
 
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-[#1e2432] text-white pl-4 pr-3 py-3.5 flex items-center">
+      <div className="absolute top-0 bottom-0 -right-6 w-16 bg-orange-500 -skew-x-[18deg]" />
+      <div className="min-w-0 pr-3">
+        <p className="text-[17px] font-semibold leading-tight truncate">{bike.model_name}</p>
+        {sub && <p className="text-xs text-slate-300 truncate">{sub}</p>}
+      </div>
       <button
         type="button"
         onClick={onRemove}
-        className="absolute right-3 top-1/2 -translate-y-1/2 bg-slate-200 h-8 w-8 rounded-md flex items-center justify-center"
+        className="relative z-10 ml-auto shrink-0 h-8 w-8 rounded-lg bg-white/95 text-[#1e2432] grid place-items-center hover:bg-white"
+        title="เอารถออก"
       >
-        <X size={18} className="text-slate-900" />
+        <X size={16} />
       </button>
     </div>
   );

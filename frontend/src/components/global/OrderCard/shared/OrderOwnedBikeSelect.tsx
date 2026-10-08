@@ -88,28 +88,28 @@ const OrderOwnedBikeSelect = () => {
 
   if (!orderCustomer) {
     return (
-      <div className="flex items-center justify-center gap-2 mt-3 text-slate-500 border-2 border-dashed border-slate-300 rounded-lg p-4">
-        <BikeIcon opacity="60%" size={18} />
+      <div className="flex items-center gap-2.5 text-slate-400 bg-white border-[1.5px] border-dashed border-slate-200 rounded-2xl p-3">
+        <BikeIcon size={20} />
         <span className="text-sm">กรุณาเลือกลูกค้าก่อนจึงจะเลือกรถได้</span>
       </div>
     );
   }
 
   return (
-    <div className="relative mt-3">
+    <div className="relative">
       <button
         onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center justify-between gap-2 w-full text-slate-900 cursor-pointer border-2 border-dashed border-slate-500 rounded-lg p-4 hover:bg-slate-200 transition-colors"
+        className="w-full flex items-center gap-2.5 bg-white border-[1.5px] border-dashed border-slate-300 rounded-2xl p-3 text-[#1e2432] hover:border-orange-500 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <BikeIcon opacity="60%" size={18} />
-          <span className="text-base font-semibold">เลือกรถของลูกค้า</span>
-        </div>
-        {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        <BikeIcon size={20} className="text-slate-400" />
+        <span className="font-medium">เลือกรถของลูกค้า</span>
+        <span className="ml-auto text-slate-400">
+          {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </span>
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 shadow-lg w-full left-0 top-full mt-2 rounded-lg bg-white text-slate-900 max-h-72 overflow-hidden border border-gray-200">
+        <div className="absolute z-50 shadow-lg w-full left-0 top-full mt-1.5 rounded-xl bg-white text-slate-900 max-h-80 overflow-hidden border border-slate-200 flex flex-col">
           <div className="sticky top-0 bg-white border-b border-gray-200">
             <div className="flex items-center px-3 py-2">
               <Search className="text-gray-400 mr-2" size={18} />
@@ -118,7 +118,7 @@ const OrderOwnedBikeSelect = () => {
                 placeholder="ค้นหารุ่นรถ/เลขตัวถัง..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 text-base bg-transparent border-none focus:outline-none focus:ring-0 placeholder-gray-400"
+                className="flex-1 text-sm bg-transparent border-none focus:outline-none focus:ring-0 placeholder-gray-400"
                 autoFocus
               />
             </div>
@@ -142,10 +142,10 @@ const OrderOwnedBikeSelect = () => {
                 <li
                   key={bike.id}
                   onClick={() => handleSelectBike(bike)}
-                  className="px-4 py-3 text-base hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+                  className="px-4 py-2.5 text-sm hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-b-0 transition-colors"
                 >
                   <div className="font-medium">{bike.model_name}</div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-xs text-slate-500">
                     {(bike as any).registration_plate || bike.model_code} • {bike.chassi || "ไม่มีเลขตัวถัง"}
                   </div>
                 </li>
