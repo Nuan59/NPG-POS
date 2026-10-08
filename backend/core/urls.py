@@ -623,6 +623,19 @@ def create_cash_handover_tables(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: เพิ่มคอลัมน์ cash_amount (ยอดเงินสดกรณีแบ่งจ่าย) ให้ Order / service_record / npg_payments
+def add_cash_amount_columns(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        order_table = django_apps.get_model('api', 'Order')._meta.db_table
+        with connection.cursor() as cursor:
+            for table in (order_table, 'service_record', 'npg_payments'):
+                cursor.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS cash_amount NUMERIC(12, 2) NULL;')
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์ cash_amount เรียบร้อยแล้ว', 'tables': [order_table, 'service_record', 'npg_payments']})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -670,6 +683,7 @@ urlpatterns = [
     path('dev/create-service-record-table/', create_service_record_table),
     path('dev/migrate-service-orders/', migrate_service_orders),
     path('dev/create-cash-handover-tables/', create_cash_handover_tables),
+    path('dev/add-cash-amount-columns/', add_cash_amount_columns),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

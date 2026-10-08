@@ -12,6 +12,8 @@ interface ServiceOrderFooterProps {
   setTransferBank: (value: TransferBank) => void;
   checkNumber: string;
   setCheckNumber: (value: string) => void;
+  splitCash: string;
+  setSplitCash: (value: string) => void;
 
   onSubmit: () => void;
 }
@@ -28,6 +30,8 @@ const ServiceOrderFooter = ({
   setTransferBank,
   checkNumber,
   setCheckNumber,
+  splitCash,
+  setSplitCash,
   onSubmit,
 }: ServiceOrderFooterProps) => {
   const total = calculateServiceItemsTotal(items);
@@ -41,6 +45,9 @@ const ServiceOrderFooter = ({
         setTransferBank={setTransferBank}
         checkNumber={checkNumber}
         setCheckNumber={setCheckNumber}
+        splitCash={splitCash}
+        setSplitCash={setSplitCash}
+        total={total}
       />
 
       <div className="sticky">

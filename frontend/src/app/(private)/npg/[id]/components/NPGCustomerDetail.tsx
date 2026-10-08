@@ -122,6 +122,7 @@ interface Payment {
   transfer_bank?: string;
   check_number?: string;
   late_fee?: number; // ✅ ค่าปรับจ่ายล่าช้าจริงที่คิดตอนบันทึกรายการนี้
+  cash_amount?: number | string | null; // ✅ ยอดเงินสด (กรณีแบ่งจ่าย)
   note: string;
 }
 
@@ -135,6 +136,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [paymentMethodType, setPaymentMethodType] = useState<string>("เงินสด");
   const [transferBank, setTransferBank] = useState<string>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
+  // ✅ แบ่งจ่าย - ยอดส่วนที่เป็นเงินสด (ที่เหลือ = โอน)
+  const [splitCash, setSplitCash] = useState<string>("");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isCloseAccountDialogOpen, setIsCloseAccountDialogOpen] = useState(false);
   const [closeAccountAmount, setCloseAccountAmount] = useState<number>(0);
@@ -238,6 +241,14 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
+    // ✅ แบ่งจ่าย - เงินสดต้องมากกว่า 0 และน้อยกว่ายอดที่รับทั้งหมด (ค่างวด + ค่าปรับ)
+    const payTotal = amount + (account.estimated_late_fee || 0);
+    const cashPart = parseFloat(splitCash);
+    if (paymentMethodType === "แบ่งจ่าย" && (isNaN(cashPart) || cashPart <= 0 || cashPart >= payTotal)) {
+      toast.error(`แบ่งจ่าย: กรอกยอดเงินสดให้มากกว่า 0 และน้อยกว่า ${payTotal.toLocaleString()} ฿`);
+      return;
+    }
+
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/record_payment/`, {
@@ -250,8 +261,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           amount_paid: amount,
           note: paymentNote,
           payment_method: paymentMethodType,
-          transfer_bank: paymentMethodType === "เงินโอน" ? transferBank : "",
+          transfer_bank: paymentMethodType === "เงินโอน" || paymentMethodType === "แบ่งจ่าย" ? transferBank : "",
           check_number: paymentMethodType === "เช็ค" ? checkNumber : "",
+          cash_amount: paymentMethodType === "แบ่งจ่าย" ? cashPart : null,
         }),
       });
 
@@ -264,6 +276,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         setPaymentMethodType("เงินสด");
         setTransferBank("");
         setCheckNumber("");
+        setSplitCash("");
         // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
         router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
       } else {
@@ -726,12 +739,15 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             )}
             <div>
               <Label>วิธีการชำระ</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
+              <div className="grid grid-cols-4 gap-2 mt-1">
+                {["เงินสด", "เงินโอน", "เช็ค", "แบ่งจ่าย"].map((m) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setPaymentMethodType(m)}
+                    onClick={() => {
+                      setPaymentMethodType(m);
+                      if (m !== "แบ่งจ่าย") setSplitCash("");
+                    }}
                     className={`text-sm py-2 px-3 rounded border transition-colors ${
                       paymentMethodType === m
                         ? "bg-slate-800 text-white border-slate-800"
@@ -743,7 +759,33 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                 ))}
               </div>
 
-              {paymentMethodType === "เงินโอน" && (
+              {/* ✅ แบ่งจ่าย: กรอกเงินสด ส่วนที่เหลือคือโอน */}
+              {paymentMethodType === "แบ่งจ่าย" && (() => {
+                const payTotal = (parseFloat(paymentAmount) || 0) + (account.estimated_late_fee || 0);
+                const cashPart = parseFloat(splitCash) || 0;
+                return (
+                  <div className="mt-2 p-3 rounded-lg bg-orange-50 border border-orange-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <Label htmlFor="split-cash">เงินสด (฿)</Label>
+                      <Input
+                        id="split-cash"
+                        type="number"
+                        value={splitCash}
+                        onChange={(e) => setSplitCash(e.target.value)}
+                        className="w-36 text-right bg-white"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>เงินโอน</span>
+                      <span className="w-36 text-right pr-3">{Math.max(payTotal - cashPart, 0).toLocaleString()} ฿</span>
+                    </div>
+                    <p className="text-xs text-gray-500">ยอดรับทั้งหมด {payTotal.toLocaleString()} ฿ (รวมค่าปรับถ้ามี)</p>
+                  </div>
+                );
+              })()}
+
+              {(paymentMethodType === "เงินโอน" || paymentMethodType === "แบ่งจ่าย") && (
                 <div className="flex gap-2 mt-2">
                   {["KBank", "BBL"].map((b) => (
                     <button
@@ -1153,6 +1195,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                     {payment.payment_method || "-"}
                     {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
                     {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
+                    {payment.payment_method === "แบ่งจ่าย" && payment.cash_amount != null
+                      ? ` (สด ${Number(payment.cash_amount).toLocaleString()}${payment.transfer_bank ? ` / โอน ${payment.transfer_bank}` : ""})`
+                      : ""}
                   </TableCell>
                   <TableCell className="text-gray-600">{payment.note || "-"}</TableCell>
                   <TableCell className="text-center">

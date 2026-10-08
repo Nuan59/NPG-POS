@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Banknote, ChevronDown, Send, CheckCircle2, AlertTriangle, Clock, X } from "lucide-react";
+import { Banknote, ChevronDown, Send, CheckCircle2, AlertTriangle, Clock, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -120,6 +120,10 @@ export default function CashHandoverPanel() {
   const [mismatchFor, setMismatchFor] = useState<Handover | null>(null);
   const [mismatchAmount, setMismatchAmount] = useState("");
   const [mismatchNote, setMismatchNote] = useState("");
+
+  // ✅ adm แก้ยอดเงินสดของรายการที่ยังไม่ได้ส่ง (กรณีลูกค้าแบ่งจ่าย เงินสด + โอน แต่ตอนทำรายการเลือกเงินสดทั้งก้อน)
+  const [cashEditFor, setCashEditFor] = useState<CashItem | null>(null);
+  const [cashEditValue, setCashEditValue] = useState("");
 
   const api = useCallback(
     async (path: string, init?: RequestInit) => {
@@ -399,7 +403,29 @@ export default function CashHandoverPanel() {
                       <span className="text-xs text-gray-400">{g.count} รายการ</span>
                       <span className="ml-auto font-semibold tabular-nums text-amber-700">{baht(g.total)}</span>
                     </summary>
-                    <div className="divide-y pb-3 pl-7">{g.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
+                    <div className="divide-y pb-3 pl-7">
+                      {g.items.map((i) => (
+                        <div key={keyOf(i)} className="flex items-center gap-1">
+                          <div className="flex-1 min-w-0">
+                            <ItemRow item={i} />
+                          </div>
+                          {i.source !== "npg_fee" && (
+                            <button
+                              type="button"
+                              aria-label="แก้ยอดเงินสด"
+                              title="แก้ยอดเงินสด (ลูกค้าแบ่งจ่ายเงินสด + โอน)"
+                              onClick={() => {
+                                setCashEditFor(i);
+                                setCashEditValue(String(i.amount));
+                              }}
+                              className="shrink-0 p-1.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </details>
                 ))}
               </div>
@@ -453,6 +479,52 @@ export default function CashHandoverPanel() {
             <Button variant="outline" onClick={() => setSendOpen(false)} disabled={busy}>ยกเลิก</Button>
             <Button onClick={submit} disabled={busy} className="gap-2 bg-orange-600 hover:bg-orange-700">
               <Send size={16} /> {busy ? "กำลังส่ง..." : "ยืนยันส่งเงิน"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* adm: แก้ยอดเงินสดของรายการที่ยังไม่ได้ส่ง */}
+      <Dialog open={!!cashEditFor} onOpenChange={(o) => !o && !busy && setCashEditFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>แก้ยอดเงินสด</DialogTitle>
+            <DialogDescription>{cashEditFor?.description}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="cash-edit" className="text-sm font-medium">ยอดที่ลูกค้าจ่ายเป็นเงินสด (฿)</label>
+            <Input id="cash-edit" type="number" value={cashEditValue} onChange={(e) => setCashEditValue(e.target.value)} />
+            <p className="text-xs text-gray-500">
+              ส่วนที่เหลือถือเป็นเงินโอน ไม่ต้องส่ง · เว้นว่างแล้วบันทึก = กลับไปใช้ยอดเต็มตามรายการ
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCashEditFor(null)} disabled={busy}>ยกเลิก</Button>
+            <Button
+              disabled={busy || (cashEditValue !== "" && Number(cashEditValue) < 0)}
+              onClick={async () => {
+                if (!cashEditFor) return;
+                setBusy(true);
+                try {
+                  await api("set-cash-amount/", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      source: cashEditFor.source,
+                      source_id: cashEditFor.source_id,
+                      cash_amount: cashEditValue === "" ? null : Number(cashEditValue),
+                    }),
+                  });
+                  toast.success("แก้ยอดเงินสดแล้ว");
+                  setCashEditFor(null);
+                  load();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "แก้ยอดไม่สำเร็จ");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              บันทึก
             </Button>
           </DialogFooter>
         </DialogContent>

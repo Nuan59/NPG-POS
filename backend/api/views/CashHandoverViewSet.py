@@ -36,6 +36,15 @@ except ImportError:  # ยังไม่ได้ deploy ระบบค่า�
     NPGFee = None
 
 CASH = 'เงินสด'
+SPLIT = 'แบ่งจ่าย'
+CASH_TYPES = (CASH, SPLIT)
+
+
+def _cash_part(full, cash_amount):
+    """ยอดเงินสดของรายการ: ระบุยอดเงินสดไว้ (แบ่งจ่าย / adm แก้ย้อนหลัง) ใช้ยอดนั้น ไม่เกินยอดเต็ม, ไม่ระบุ = ยอดเต็ม"""
+    if cash_amount is None:
+        return full
+    return min(Decimal(str(cash_amount)), full)
 
 
 # ---------------------------------------------------------------- helpers
@@ -90,7 +99,7 @@ def _collect_unsent(username=None):
 
     # 1) ขาย
     qs = Order.objects.filter(
-        transaction_type='ขาย', payment_type=CASH, created_at__gte=start,
+        transaction_type='ขาย', payment_type__in=CASH_TYPES, created_at__gte=start,
     ).select_related('customer', 'seller').prefetch_related('bikes', 'additional_fees')
     if username:
         qs = qs.filter(seller__username=username)
@@ -100,26 +109,26 @@ def _collect_unsent(username=None):
         if bike:
             desc += f" · {bike.model_name}"
         # ✅ เฉพาะเงินที่ต้องจ่ายในวันทำรายการ (หักส่วนผ่อนดาวน์ / มัดจำออกแล้ว)
-        add('sale', o.id, _sale_due_today(o), desc, o.created_at, o.seller.username if o.seller else '')
+        add('sale', o.id, _cash_part(_sale_due_today(o), o.cash_amount), desc, o.created_at, o.seller.username if o.seller else '')
 
     # 2) งานบริการ (ซ่อม / ต่อภาษี+พรบ / อื่นๆ)
-    qs = ServiceRecord.objects.filter(payment_type=CASH, created_at__gte=start).select_related('customer')
+    qs = ServiceRecord.objects.filter(payment_type__in=CASH_TYPES, created_at__gte=start).select_related('customer')
     if username:
         qs = qs.filter(created_by=username)
     for r in qs:
         label = r.transaction_type_detail if r.transaction_type == 'อื่นๆ' and r.transaction_type_detail else r.transaction_type
         desc = f"{label} S-{r.id:08d} · {r.customer.name if r.customer else '-'}"
-        add('service', r.id, r.total, desc, r.created_at, r.created_by)
+        add('service', r.id, _cash_part(Decimal(str(r.total or 0)), r.cash_amount), desc, r.created_at, r.created_by)
 
     # 3) ค่างวด NPG (รวมค่าปรับที่เก็บพร้อมงวด)
-    qs = NPGPayment.objects.filter(payment_method=CASH, created_at__gte=start).select_related(
+    qs = NPGPayment.objects.filter(payment_method__in=CASH_TYPES, created_at__gte=start).select_related(
         'account__order__customer', 'created_by'
     )
     if username:
         qs = qs.filter(created_by__username=username)
     for p in qs:
         customer = p.account.order.customer.name if p.account and p.account.order and p.account.order.customer else '-'
-        amount = Decimal(str(p.amount_paid or 0)) + Decimal(str(p.late_fee or 0))
+        amount = _cash_part(Decimal(str(p.amount_paid or 0)) + Decimal(str(p.late_fee or 0)), p.cash_amount)
         desc = f"ค่างวด NPG #{p.account_id} งวดที่ {p.installment_number} · {customer}"
         if p.late_fee:
             desc += f" (รวมค่าปรับ {p.late_fee:,.0f})"
@@ -260,6 +269,46 @@ class CashHandoverViewSet(viewsets.ViewSet):
 
         rows = _collect_unsent(request.user.username)
         return Response([_row_json(r) for r in rows])
+
+    @action(detail=False, methods=['post'], url_path='set-cash-amount')
+    def set_cash_amount(self, request):
+        """
+        (adm) แก้ยอดเงินสดของรายการที่ยังไม่ได้ส่ง - ใช้กับรายการเก่าที่ลูกค้าแบ่งจ่ายเงินสด/โอน
+        body: { source: sale|service|npg_payment, source_id, cash_amount }   cash_amount = null → กลับไปใช้ยอดเต็ม
+        """
+        if not _is_admin(request):
+            return Response({'error': 'เฉพาะ adm เท่านั้น'}, status=status.HTTP_403_FORBIDDEN)
+
+        source = request.data.get('source')
+        model = {'sale': Order, 'service': ServiceRecord, 'npg_payment': NPGPayment}.get(source)
+        if model is None:
+            return Response({'error': 'แก้ยอดเงินสดได้เฉพาะ ขาย / งานบริการ / ค่างวด NPG'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            source_id = int(request.data.get('source_id'))
+        except (TypeError, ValueError):
+            return Response({'error': 'source_id ไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if CashHandoverItem.objects.filter(source=source, source_id=source_id).exists():
+            return Response({'error': 'รายการนี้ส่งเงินไปแล้ว แก้ยอดไม่ได้'}, status=status.HTTP_400_BAD_REQUEST)
+
+        obj = model.objects.filter(pk=source_id).first()
+        if not obj:
+            return Response({'error': 'ไม่พบรายการ'}, status=status.HTTP_404_NOT_FOUND)
+
+        raw = request.data.get('cash_amount')
+        if raw in (None, ''):
+            obj.cash_amount = None
+        else:
+            try:
+                value = Decimal(str(raw))
+            except InvalidOperation:
+                return Response({'error': 'ยอดเงินสดไม่ใช่ตัวเลข'}, status=status.HTTP_400_BAD_REQUEST)
+            if value < 0:
+                return Response({'error': 'ยอดเงินสดต้องไม่ติดลบ'}, status=status.HTTP_400_BAD_REQUEST)
+            obj.cash_amount = value
+        obj.save(update_fields=['cash_amount'])
+        return Response({'message': 'แก้ยอดเงินสดแล้ว', 'cash_amount': float(obj.cash_amount) if obj.cash_amount is not None else None})
 
     @action(detail=False, methods=['get'])
     def summary(self, request):

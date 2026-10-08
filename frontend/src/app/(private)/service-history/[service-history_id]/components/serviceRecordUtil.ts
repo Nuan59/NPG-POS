@@ -30,6 +30,7 @@ export interface ServiceRecord {
   payment_type: string;
   transfer_bank: string;
   check_number: string;
+  cash_amount: number | string | null;
   notes: string;
   created_by: string;
 }
@@ -44,6 +45,11 @@ export const getTypeLabel = (r: ServiceRecord) =>
   r.transaction_type === "อื่นๆ" && r.transaction_type_detail ? r.transaction_type_detail : r.transaction_type;
 
 export const getPaymentLabel = (r: ServiceRecord) => {
+  if (r.payment_type === "แบ่งจ่าย") {
+    const cash = Number(r.cash_amount || 0);
+    const transfer = Math.max(Number(r.total || 0) - cash, 0);
+    return `เงินสด ${cash.toLocaleString()} / โอน${r.transfer_bank ? ` ${r.transfer_bank}` : ""} ${transfer.toLocaleString()}`;
+  }
   if (r.payment_type === "เงินโอน" && r.transfer_bank) return `เงินโอน (${r.transfer_bank})`;
   if (r.payment_type === "เช็ค" && r.check_number) return `เช็ค เลขที่ ${r.check_number}`;
   return r.payment_type || "-";

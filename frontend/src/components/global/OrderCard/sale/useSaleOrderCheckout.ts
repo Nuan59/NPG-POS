@@ -33,6 +33,7 @@ interface UseSaleOrderCheckoutParams {
   paymentType: PaymentType;
   transferBank: TransferBank;
   checkNumber: string;
+  splitCash: string;
 
   totalPayment: number;
   cashTotal: number;
@@ -73,6 +74,7 @@ export const useSaleOrderCheckout = ({
   paymentType,
   transferBank,
   checkNumber,
+  splitCash,
   totalPayment,
   cashTotal,
   downPaymentInstallment,
@@ -94,6 +96,14 @@ export const useSaleOrderCheckout = ({
     const sell = parseSellPrice(sellPrice);
     if (sell <= 0) {
       toast.info("กรุณากรอกราคาขายก่อนชำระเงิน");
+      return;
+    }
+
+    // ✅ แบ่งจ่าย - เงินสดต้องมากกว่า 0 และน้อยกว่ายอดชำระรวม (ที่เหลือคือโอน)
+    const payTotal = paymentMethod === "ไฟแนนซ์" ? totalPayment : cashTotal;
+    const splitCashNumber = toNumber(splitCash);
+    if (paymentType === "แบ่งจ่าย" && (splitCashNumber <= 0 || splitCashNumber >= payTotal)) {
+      toast.info(`แบ่งจ่าย: กรอกยอดเงินสดให้มากกว่า 0 และน้อยกว่า ฿${payTotal.toLocaleString()}`);
       return;
     }
 
@@ -130,8 +140,9 @@ export const useSaleOrderCheckout = ({
 
       // รูปแบบการชำระ
       payment_type: paymentType,
-      transfer_bank: paymentType === "เงินโอน" ? transferBank : "",
+      transfer_bank: paymentType === "เงินโอน" || paymentType === "แบ่งจ่าย" ? transferBank : "",
       check_number: paymentType === "เช็ค" ? checkNumber : "",
+      cash_amount: paymentType === "แบ่งจ่าย" ? splitCashNumber : null,
 
       notes: depositReceiptNo
         ? `DEPOSIT_RECEIPT:${depositReceiptNo}${notes ? `\n${notes}` : ""}`

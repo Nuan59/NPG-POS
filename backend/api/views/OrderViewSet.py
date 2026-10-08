@@ -99,6 +99,9 @@ class OrderViewSet(viewsets.ModelViewSet):
             payment_type = request.data.get('payment_type', '')  # รูปแบบการชำระ
             transfer_bank = request.data.get('transfer_bank', '')
             check_number = request.data.get('check_number', '')
+            # ✅ แบ่งจ่าย - ยอดส่วนที่เป็นเงินสด (ที่เหลือคือเงินโอน)
+            cash_amount_raw = request.data.get('cash_amount')
+            cash_amount = float(cash_amount_raw) if payment_type == 'แบ่งจ่าย' and cash_amount_raw not in (None, '') else None
 
             # ✅ ผ่อนดาวน์
             down_payment_installment = request.data.get('down_payment_installment', False)
@@ -137,6 +140,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     payment_type=payment_type,  # รูปแบบการชำระ
                     transfer_bank=transfer_bank,
                     check_number=check_number,
+                    cash_amount=cash_amount,
                     
                     notes=request.data.get('notes', ''),
                     registration_status='CPL',

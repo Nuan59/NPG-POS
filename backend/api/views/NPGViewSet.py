@@ -31,6 +31,11 @@ def _payment_method_label(payment):
         return f"เช็ค{num}"
     if payment.payment_method == "เงินสด":
         return "เงินสด"
+    if payment.payment_method == "แบ่งจ่าย":
+        total = float(payment.amount_paid or 0) + float(payment.late_fee or 0)
+        cash = float(payment.cash_amount or 0)
+        bank = f" {payment.transfer_bank}" if payment.transfer_bank else ""
+        return f"เงินสด {cash:,.0f} / โอน{bank} {max(total - cash, 0):,.0f}"
     return payment.payment_method or "-"
 
 
@@ -200,6 +205,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         payment_method = request.data.get('payment_method', '')
         transfer_bank = request.data.get('transfer_bank', '')
         check_number = request.data.get('check_number', '')
+        cash_amount_raw = request.data.get('cash_amount')
         
         if amount_paid <= 0:
             return Response({'error': 'จำนวนเงินต้องมากกว่า 0'}, status=status.HTTP_400_BAD_REQUEST)
@@ -214,6 +220,19 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         payment_date = timezone.now().date()
         late_fee, days_late = _calculate_late_fee(due_date, payment_date)
 
+        # ✅ แบ่งจ่าย - ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดที่รับทั้งหมด (ค่างวด + ค่าปรับ)
+        cash_amount = None
+        if payment_method == 'แบ่งจ่าย':
+            try:
+                cash_amount = float(cash_amount_raw)
+            except (TypeError, ValueError):
+                cash_amount = None
+            if cash_amount is None or cash_amount <= 0 or cash_amount >= amount_paid + late_fee:
+                return Response(
+                    {'error': f'แบ่งจ่าย: ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดรวม {amount_paid + late_fee:,.0f} บาท'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         payment = NPGPayment.objects.create(
             account=account,
             payment_date=payment_date,
@@ -224,6 +243,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             transfer_bank=transfer_bank,
             check_number=check_number,
             late_fee=late_fee,
+            cash_amount=cash_amount,
             note=note,
             created_by=request.user
         )

@@ -97,6 +97,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'payment_type',         # รูปแบบการชำระ (เดิม: ชำระด้วย)
             'transfer_bank',        # ธนาคารโอน
             'check_number',         # เลขที่เช็ค
+            'cash_amount',          # ✅ ยอดเงินสด (กรณีแบ่งจ่าย)
             
             # สถานะและอื่นๆ
             'registration_status',

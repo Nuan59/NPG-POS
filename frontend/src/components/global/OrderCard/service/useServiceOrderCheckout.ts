@@ -25,6 +25,7 @@ interface UseServiceOrderCheckoutParams {
   paymentType: PaymentType;
   transferBank: TransferBank;
   checkNumber: string;
+  splitCash: string;
 
   mileage: string;
 }
@@ -47,6 +48,7 @@ export const useServiceOrderCheckout = ({
   paymentType,
   transferBank,
   checkNumber,
+  splitCash,
   mileage,
 }: UseServiceOrderCheckoutParams) => {
   const router = useRouter();
@@ -75,6 +77,14 @@ export const useServiceOrderCheckout = ({
       return;
     }
 
+    // ✅ แบ่งจ่าย - เงินสดต้องมากกว่า 0 และน้อยกว่ายอดรวม (ที่เหลือคือโอน)
+    const itemsTotal = validItems.reduce((sum, i) => sum + i.amount, 0);
+    const splitCashNumber = Number(splitCash) || 0;
+    if (paymentType === "แบ่งจ่าย" && (splitCashNumber <= 0 || splitCashNumber >= itemsTotal)) {
+      toast.info(`แบ่งจ่าย: กรอกยอดเงินสดให้มากกว่า 0 และน้อยกว่า ฿${itemsTotal.toLocaleString()}`);
+      return;
+    }
+
     const payload = {
       customer: orderCustomer.id,
       bike: orderBike.id,
@@ -86,8 +96,9 @@ export const useServiceOrderCheckout = ({
         amount,
       })),
       payment_type: paymentType,
-      transfer_bank: paymentType === "เงินโอน" ? transferBank : "",
+      transfer_bank: paymentType === "เงินโอน" || paymentType === "แบ่งจ่าย" ? transferBank : "",
       check_number: paymentType === "เช็ค" ? checkNumber : "",
+      cash_amount: paymentType === "แบ่งจ่าย" ? splitCashNumber : null,
       notes: serviceDetail || notes || "",
     };
 

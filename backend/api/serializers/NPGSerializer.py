@@ -24,6 +24,10 @@ class NPGPaymentSerializer(serializers.ModelSerializer):
             'installment_number',
             'remaining_balance_after',
             'late_fee',
+            'payment_method',
+            'transfer_bank',
+            'check_number',
+            'cash_amount',      # ✅ ยอดเงินสด (กรณีแบ่งจ่าย)
             'note',
             'created_by',
             'created_by_name',

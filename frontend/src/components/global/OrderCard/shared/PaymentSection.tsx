@@ -17,7 +17,8 @@ import { FinanceProvider, NpgPeriod, numberToInput, toNumber, roundByMethod } fr
  */
 
 // ================== TYPES ==================
-export type PaymentType = "เงินสด" | "สินเชื่อ FN" | "เงินโอน" | "เช็ค" | "";
+// ✅ "แบ่งจ่าย" = จ่ายเงินสดส่วนหนึ่ง + โอนส่วนที่เหลือ (ยอดเงินสดเก็บใน cash_amount ใช้กับระบบส่งเงินสด)
+export type PaymentType = "เงินสด" | "สินเชื่อ FN" | "เงินโอน" | "เช็ค" | "แบ่งจ่าย" | "";
 export type TransferBank = "KBank" | "BBL" | "";
 
 // ================== STYLES ==================
@@ -385,6 +386,10 @@ interface PaymentTypeSectionProps {
   setTransferBank: (value: TransferBank) => void;
   checkNumber: string;
   setCheckNumber: (value: string) => void;
+  // ✅ แบ่งจ่าย - ยอดเงินสด (ที่เหลือ = โอน) + ยอดชำระรวมไว้คำนวณส่วนโอน
+  splitCash?: string;
+  setSplitCash?: (value: string) => void;
+  total?: number;
 }
 
 export const PaymentTypeSection: React.FC<PaymentTypeSectionProps> = ({
@@ -394,7 +399,15 @@ export const PaymentTypeSection: React.FC<PaymentTypeSectionProps> = ({
   setTransferBank,
   checkNumber,
   setCheckNumber,
+  splitCash = "",
+  setSplitCash,
+  total = 0,
 }) => {
+  const splitCashNumber = toNumber(splitCash);
+  const splitTransfer = Math.max((total || 0) - splitCashNumber, 0);
+  const splitInvalid =
+    paymentType === "แบ่งจ่าย" && splitCash.trim() !== "" && (splitCashNumber <= 0 || splitCashNumber >= total);
+
   // ฟังก์ชันสำหรับ toggle payment type (กดซ้ำเพื่อยกเลิก)
   const handlePaymentTypeToggle = (type: PaymentType) => {
     if (paymentType === type) {
@@ -402,11 +415,13 @@ export const PaymentTypeSection: React.FC<PaymentTypeSectionProps> = ({
       setPaymentType("");
       setTransferBank("");
       setCheckNumber("");
+      setSplitCash?.("");
     } else {
       // ถ้ากดปุ่มใหม่ → เลือกแบบนั้น
       setPaymentType(type);
-      if (type !== "เงินโอน") setTransferBank("");
+      if (type !== "เงินโอน" && type !== "แบ่งจ่าย") setTransferBank("");
       if (type !== "เช็ค") setCheckNumber("");
+      if (type !== "แบ่งจ่าย") setSplitCash?.("");
     }
   };
 
@@ -415,7 +430,7 @@ export const PaymentTypeSection: React.FC<PaymentTypeSectionProps> = ({
       <label className="text-sm font-medium mb-2 block">รูปแบบการชำระ</label>
       
       {/* ปุ่มเลือกประเภทการชำระ - เพิ่มเงินสด */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
+      <div className={`grid ${setSplitCash ? "grid-cols-4" : "grid-cols-3"} gap-2 mb-2`}>
         <button
           type="button"
           onClick={() => handlePaymentTypeToggle("เงินสด")}
@@ -451,10 +466,48 @@ export const PaymentTypeSection: React.FC<PaymentTypeSectionProps> = ({
         >
           เช็ค
         </button>
+
+        {setSplitCash && (
+          <button
+            type="button"
+            onClick={() => handlePaymentTypeToggle("แบ่งจ่าย")}
+            className={`text-xs py-2 px-3 rounded border transition-colors ${
+              paymentType === "แบ่งจ่าย"
+                ? "bg-orange-600 text-white border-orange-600"
+                : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+            }`}
+          >
+            แบ่งจ่าย
+          </button>
+        )}
       </div>
 
-      {/* เลือกธนาคาร (สำหรับเงินโอน) */}
-      {paymentType === "เงินโอน" && (
+      {/* ✅ แบ่งจ่าย: กรอกยอดเงินสด ระบบคิดส่วนโอนให้ (ยอดรวม - เงินสด) */}
+      {paymentType === "แบ่งจ่าย" && setSplitCash && (
+        <div className="mb-2 p-2 rounded-lg bg-orange-50 border border-orange-200 space-y-1.5">
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-medium">เงินสด</label>
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={splitCash}
+              onChange={(e) => setSplitCash(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="0"
+              className="w-32 text-right p-1 text-sm bg-white"
+            />
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <span className="font-medium">เงินโอน</span>
+            <span className="w-32 text-right pr-1">฿ {splitTransfer.toLocaleString()}</span>
+          </div>
+          {splitInvalid && (
+            <p className="text-xs text-red-600">ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดชำระรวม ฿{(total || 0).toLocaleString()}</p>
+          )}
+        </div>
+      )}
+
+      {/* เลือกธนาคาร (สำหรับเงินโอน / ส่วนโอนของแบ่งจ่าย) */}
+      {(paymentType === "เงินโอน" || paymentType === "แบ่งจ่าย") && (
         <div className="flex gap-2 mb-2">
           <button
             type="button"

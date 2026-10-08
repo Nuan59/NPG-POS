@@ -89,6 +89,8 @@ const OrderCard = () => {
   const [paymentType, setPaymentType] = useState<PaymentType>("");
   const [transferBank, setTransferBank] = useState<TransferBank>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
+  // ✅ แบ่งจ่าย - ยอดส่วนที่เป็นเงินสด (ที่เหลือคือโอน)
+  const [splitCash, setSplitCash] = useState<string>("");
 
   // Finance controls (เฉพาะ "ขาย")
   const [financeProvider, setFinanceProvider] = useState<FinanceProvider>("");
@@ -224,6 +226,7 @@ const OrderCard = () => {
     paymentType,
     transferBank,
     checkNumber,
+    splitCash,
     totalPayment,
     cashTotal,
     downPaymentInstallment,
@@ -249,6 +252,7 @@ const OrderCard = () => {
     paymentType,
     transferBank,
     checkNumber,
+    splitCash,
     mileage,
   });
 
@@ -390,6 +394,9 @@ const OrderCard = () => {
             setTransferBank={setTransferBank}
             checkNumber={checkNumber}
             setCheckNumber={setCheckNumber}
+            splitCash={splitCash}
+            setSplitCash={setSplitCash}
+            total={payment_method === "ไฟแนนซ์" ? totalPayment : cashTotal}
           />
 
           <OrderSummaryFooter
@@ -413,6 +420,8 @@ const OrderCard = () => {
           setTransferBank={setTransferBank}
           checkNumber={checkNumber}
           setCheckNumber={setCheckNumber}
+          splitCash={splitCash}
+          setSplitCash={setSplitCash}
           onSubmit={handleServiceCheckout}
         />
       )}

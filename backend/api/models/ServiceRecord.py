@@ -33,6 +33,10 @@ class ServiceRecord(models.Model):
     payment_type = models.CharField(max_length=50, blank=True, default='', verbose_name='รูปแบบการชำระ')
     transfer_bank = models.CharField(max_length=50, blank=True, default='', verbose_name='ธนาคารโอน')
     check_number = models.CharField(max_length=100, blank=True, default='', verbose_name='เลขที่เช็ค')
+    # ✅ แบ่งจ่าย (payment_type/payment_method = "แบ่งจ่าย") - ยอดส่วนที่เป็นเงินสด ที่เหลือคือเงินโอน
+    # ใช้กับระบบส่งเงินสด: มีค่า = นับเฉพาะยอดนี้เป็นเงินค้างส่ง / null = ใช้ยอดเต็มตามรูปแบบการชำระ
+    # adm แก้ย้อนหลังได้จากหน้า งานของฉัน (ส่งเงินสด) - คอลัมน์สร้างผ่าน /dev/add-cash-amount-columns/
+    cash_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='ยอดเงินสด (แบ่งจ่าย)')
 
     notes = models.TextField(blank=True, default='', verbose_name='หมายเหตุ')
     created_by = models.CharField(max_length=255, blank=True, default='', verbose_name='ผู้บันทึก')

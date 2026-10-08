@@ -32,7 +32,7 @@ class ServiceRecordSerializer(serializers.ModelSerializer):
             'bike',
             'transaction_type', 'transaction_type_detail', 'mileage',
             'items', 'total',
-            'payment_type', 'transfer_bank', 'check_number',
+            'payment_type', 'transfer_bank', 'check_number', 'cash_amount',
             'notes', 'created_by', 'created_at',
         ]
 
@@ -113,6 +113,18 @@ class ServiceViewSet(viewsets.ModelViewSet):
             mileage = None
 
         payment_type = data.get('payment_type', '') or ''
+        total = sum(i['amount'] for i in items)
+
+        # ✅ แบ่งจ่าย - ต้องระบุยอดเงินสด มากกว่า 0 และน้อยกว่ายอดรวม
+        cash_amount = None
+        if payment_type == 'แบ่งจ่าย':
+            try:
+                cash_amount = float(data.get('cash_amount'))
+            except (TypeError, ValueError):
+                cash_amount = None
+            if cash_amount is None or cash_amount <= 0 or cash_amount >= total:
+                return Response({'error': 'แบ่งจ่าย: ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดรวม'}, status=status.HTTP_400_BAD_REQUEST)
+
         record = ServiceRecord.objects.create(
             service_date=timezone.now().date(),
             customer=customer,
@@ -121,9 +133,10 @@ class ServiceViewSet(viewsets.ModelViewSet):
             transaction_type_detail=detail if transaction_type == 'อื่นๆ' else '',
             mileage=mileage,
             items=items,
-            total=sum(i['amount'] for i in items),
+            total=total,
             payment_type=payment_type,
-            transfer_bank=(data.get('transfer_bank') or '') if payment_type == 'เงินโอน' else '',
+            transfer_bank=(data.get('transfer_bank') or '') if payment_type in ('เงินโอน', 'แบ่งจ่าย') else '',
+            cash_amount=cash_amount,
             check_number=(data.get('check_number') or '') if payment_type == 'เช็ค' else '',
             notes=data.get('notes', '') or '',
             created_by=getattr(request.user, 'username', '') or '',
