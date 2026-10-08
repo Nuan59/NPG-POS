@@ -13,6 +13,12 @@ import AuthProvider from "@/providers/AuthProvider";
 
 export const metadata: Metadata = {
 	title: "Caramelo POS",
+	// ✅ ไอคอนแท็บ = โลโก้ร้าน (ไฟล์อยู่ใน public/) ตั้งชื่อใหม่กันเบราว์เซอร์/CDN จำไอคอนเก่า
+	icons: {
+		icon: "/favicon-npg.ico",
+		shortcut: "/favicon-npg.ico",
+		apple: "/favicon-npg.ico",
+	},
 };
 
 export default function RootLayout({
