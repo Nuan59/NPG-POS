@@ -75,7 +75,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=13),
+    # ✅ access token อายุสั้น (frontend ต่ออายุให้เองด้วย refresh token ผู้ใช้ไม่ต้องล็อกอินใหม่)
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=1),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=5),
     "TOKEN_OBTAIN_SERIALIZER": "api.serializers.CustomTokenObtainPairSerializer",
 }

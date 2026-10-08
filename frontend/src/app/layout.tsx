@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import { Prompt } from "next/font/google";
-const prompt = Prompt({ weight: "100", subsets: ["latin", "thai"] });
+// ✅ โหลดหลายน้ำหนัก (เดิมโหลดแค่ "100" บางที่สุด ตัวหนา/ตัวปกติเลยแสดงไม่ได้ → ตัวหนังสือจางทั้งเว็บ)
+const prompt = Prompt({
+	weight: ["100", "300", "400", "500", "600", "700"],
+	subsets: ["latin", "thai"],
+	display: "swap",
+});
 import { Toaster } from "@/components/ui/sonner";
 import AuthProvider from "@/providers/AuthProvider";
 

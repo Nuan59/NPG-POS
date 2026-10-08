@@ -1,37 +1,36 @@
-import { getSession } from "next-auth/react";
+import { getSession, signOut } from "next-auth/react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./AuthOptions";
 
+let redirectingToLogin = false;
+
+/**
+ * fetch ที่แนบ token ของ backend ให้อัตโนมัติ (ใช้ได้ทั้ง server และ client)
+ * ✅ ฝั่งหน้าเว็บ: ถ้า backend ตอบ 401 (token ใช้ไม่ได้แล้ว) → พาไปหน้าล็อกอิน แทนที่หน้าจะพัง
+ */
 export const authorizedFetch = async (
-  url: string,
-  options: RequestInit = {}
+	url: string,
+	options: RequestInit = {}
 ): Promise<Response | null> => {
-  let backendToken: string | null = null;
+	const isServer = typeof window === "undefined";
 
-  // ตรวจสอบว่าอยู่ใน Server หรือ Client
-  const isServer = typeof window === "undefined";
+	const session = isServer ? await getServerSession(authOptions) : await getSession();
+	if (!session) return null;
 
-  if (isServer) {
-    // Server-side: ใช้ getServerSession
-    const session = await getServerSession(authOptions);
-    if (!session) return null;
-    backendToken = (session as any)?.user?.accessToken ?? null;
-  } else {
-    // Client-side: ใช้ getSession
-    const session = await getSession();
-    if (!session) return null;
-    backendToken = (session as any)?.user?.accessToken ?? null;
-  }
+	const backendToken = (session as any)?.user?.accessToken ?? null;
 
-  const headers: HeadersInit = {
-    ...(options.headers || {}),
-    ...(backendToken ? { Authorization: `Bearer ${backendToken}` } : {}),
-  };
+	const headers: HeadersInit = {
+		...(options.headers || {}),
+		...(backendToken ? { Authorization: `Bearer ${backendToken}` } : {}),
+	};
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
+	const res = await fetch(url, { ...options, headers });
 
-  return res;
+	if (!isServer && res.status === 401 && !redirectingToLogin) {
+		redirectingToLogin = true;
+		const back = window.location.pathname + window.location.search;
+		signOut({ callbackUrl: `/login?expired=1&callbackUrl=${encodeURIComponent(back)}` });
+	}
+
+	return res;
 };
