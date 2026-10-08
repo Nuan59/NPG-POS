@@ -33,10 +33,11 @@ export default withAuth(
 
 /**
  * ✅ กันทุกหน้า (เดิมกันแค่ 7 หน้า - /npg /cashflow /tasks /registration ฯลฯ เข้าได้โดยไม่ล็อกอิน)
- * ยกเว้น: หน้าล็อกอิน, API routes (เช็ค session เองข้างใน), ไฟล์ระบบของ Next และไฟล์รูป/ไอคอน
+ * ยกเว้น: หน้าล็อกอิน, API routes (เช็ค session เองข้างใน), ไฟล์ระบบของ Next
+ * และไฟล์ทุกชนิดที่มีนามสกุล (รูป ฟอนต์ pdf ฯลฯ ในโฟลเดอร์ public) - กันไฟล์พวกนี้ถูกบังคับล็อกอิน
  */
 export const config = {
 	matcher: [
-		"/((?!login|api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|txt|xml)$).*)",
+		"/((?!login|api|_next|.*\\.).*)",
 	],
 };
