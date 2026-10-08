@@ -350,12 +350,13 @@ const OrderCard = () => {
 
   const isSale = transactionType === "ขาย";
 
+  // ✅ font-medium + text-slate-900 ทั้งการ์ด - ฟอนต์หลักของเว็บบาง อ่านยาก
   return (
-    <div className="w-full h-full flex flex-col bg-slate-50 shadow-lg overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-slate-50 shadow-lg overflow-hidden font-medium text-slate-900">
       <div className="flex-1 overflow-y-auto p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="w-1 h-[18px] bg-orange-500 rounded-sm -skew-x-12" />
-          <h1 className="text-lg font-semibold">รายการสั่งซื้อ</h1>
+          <h1 className="text-lg font-bold">รายการสั่งซื้อ</h1>
         </div>
 
         <TransactionTypeTabs
@@ -376,9 +377,9 @@ const OrderCard = () => {
         ) : isSale ? (
           <Link href="/inventory">
             <div className="flex items-center gap-2.5 bg-white border-[1.5px] border-dashed border-slate-300 rounded-2xl p-3 text-[#1e2432] hover:border-orange-500 transition-colors cursor-pointer">
-              <ShoppingCart size={20} className="text-slate-400" />
-              <span className="font-medium">เพิ่มรถ</span>
-              <span className="ml-auto text-xs text-slate-400">เลือกจากคลังสินค้า</span>
+              <ShoppingCart size={20} className="text-slate-500" />
+              <span className="font-semibold">เพิ่มรถ</span>
+              <span className="ml-auto text-xs text-slate-500">เลือกจากคลังสินค้า</span>
             </div>
           </Link>
         ) : (

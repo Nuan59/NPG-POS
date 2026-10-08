@@ -32,7 +32,7 @@ const TransactionTypeTabs = ({ value, onChange, otherDetail, onOtherDetailChange
             type="button"
             onClick={() => onChange(type)}
             className={`text-[13px] py-2 px-1 rounded-lg transition-colors ${
-              value === type ? "bg-[#1e2432] text-white font-medium" : "text-slate-500 hover:text-slate-700"
+              value === type ? "bg-[#1e2432] text-white font-semibold" : "text-slate-600 hover:text-slate-700"
             }`}
           >
             {TAB_LABEL[type] ?? type}

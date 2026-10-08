@@ -16,8 +16,8 @@ const OrderBike = ({ bike, onRemove }: OrderBikeProps) => {
     <div className="relative overflow-hidden rounded-2xl bg-[#1e2432] text-white pl-4 pr-3 py-3.5 flex items-center">
       <div className="absolute top-0 bottom-0 -right-6 w-16 bg-orange-500 -skew-x-[18deg]" />
       <div className="min-w-0 pr-3">
-        <p className="text-[17px] font-semibold leading-tight truncate">{bike.model_name}</p>
-        {sub && <p className="text-xs text-slate-300 truncate">{sub}</p>}
+        <p className="text-[17px] font-bold leading-tight truncate">{bike.model_name}</p>
+        {sub && <p className="text-xs text-slate-200 truncate">{sub}</p>}
       </div>
       <button
         type="button"

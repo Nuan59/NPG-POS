@@ -88,7 +88,7 @@ const OrderOwnedBikeSelect = () => {
 
   if (!orderCustomer) {
     return (
-      <div className="flex items-center gap-2.5 text-slate-400 bg-white border-[1.5px] border-dashed border-slate-200 rounded-2xl p-3">
+      <div className="flex items-center gap-2.5 text-slate-500 bg-white border-[1.5px] border-dashed border-slate-200 rounded-2xl p-3">
         <BikeIcon size={20} />
         <span className="text-sm">กรุณาเลือกลูกค้าก่อนจึงจะเลือกรถได้</span>
       </div>
@@ -101,9 +101,9 @@ const OrderOwnedBikeSelect = () => {
         onClick={() => setIsOpen((v) => !v)}
         className="w-full flex items-center gap-2.5 bg-white border-[1.5px] border-dashed border-slate-300 rounded-2xl p-3 text-[#1e2432] hover:border-orange-500 transition-colors"
       >
-        <BikeIcon size={20} className="text-slate-400" />
-        <span className="font-medium">เลือกรถของลูกค้า</span>
-        <span className="ml-auto text-slate-400">
+        <BikeIcon size={20} className="text-slate-500" />
+        <span className="font-semibold">เลือกรถของลูกค้า</span>
+        <span className="ml-auto text-slate-500">
           {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </span>
       </button>
@@ -144,8 +144,8 @@ const OrderOwnedBikeSelect = () => {
                   onClick={() => handleSelectBike(bike)}
                   className="px-4 py-2.5 text-sm hover:bg-orange-50 cursor-pointer border-b border-slate-100 last:border-b-0 transition-colors"
                 >
-                  <div className="font-medium">{bike.model_name}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="font-semibold">{bike.model_name}</div>
+                  <div className="text-xs text-slate-600">
                     {(bike as any).registration_plate || bike.model_code} • {bike.chassi || "ไม่มีเลขตัวถัง"}
                   </div>
                 </li>
@@ -159,7 +159,7 @@ const OrderOwnedBikeSelect = () => {
               setIsOpen(false);
               setRegisterDialogOpen(true);
             }}
-            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-orange-600 hover:bg-orange-50 border-t border-gray-200 transition-colors"
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-orange-600 hover:bg-orange-50 border-t border-gray-200 transition-colors"
           >
             <Plus size={16} />
             ลงทะเบียนรถใหม่ (ลูกค้าไม่ได้ซื้อกับเรา)

@@ -14,21 +14,21 @@ const OrderFee = ({ fee }: OrderFeeProps) => {
 
   return (
     <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-sm">
-      <span className="w-6 h-6 shrink-0 rounded-lg bg-orange-50 text-orange-500 grid place-items-center text-xs font-semibold">
+      <span className="w-6 h-6 shrink-0 rounded-lg bg-orange-50 text-orange-500 grid place-items-center text-xs font-bold">
         ฿
       </span>
       <span className="truncate">{fee.description}</span>
-      <span className="ml-auto font-medium whitespace-nowrap">{Number(fee.amount || 0).toLocaleString()}</span>
+      <span className="ml-auto font-semibold whitespace-nowrap">{Number(fee.amount || 0).toLocaleString()}</span>
 
       <AdditionalFeeDialog fee={fee}>
-        <button type="button" className="p-1 text-slate-400 hover:text-orange-500" title="แก้ไข">
+        <button type="button" className="p-1 text-slate-500 hover:text-orange-500" title="แก้ไข">
           <Pencil size={14} />
         </button>
       </AdditionalFeeDialog>
       <button
         type="button"
         onClick={() => removeAdditionalFee(fee.id)}
-        className="p-1 text-slate-400 hover:text-red-600"
+        className="p-1 text-slate-500 hover:text-red-600"
         title="ลบ"
       >
         <X size={15} />

@@ -36,7 +36,7 @@ const ServiceOrderForm = ({
     <>
       {/* ✅ เลขไมล์ - ใช้ทำประวัติการรับบริการของรถ + ช่วยสังเกตความผิดปกติ (กันทุจริต) */}
       {showMileage && (
-        <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
+        <div className="flex items-center gap-2 mt-2 text-sm text-slate-600">
           <span>เลขไมล์</span>
           <Input
             type="text"

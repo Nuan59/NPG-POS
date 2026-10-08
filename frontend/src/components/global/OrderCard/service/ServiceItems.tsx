@@ -50,7 +50,7 @@ const ServiceItems = ({ items, setItems }: ServiceItemsProps) => {
     <div>
       <div className="bg-white border border-slate-200 rounded-2xl px-3 py-1">
         {items.length === 0 && (
-          <div className="text-sm text-slate-400 text-center py-3">
+          <div className="text-sm text-slate-500 text-center py-3">
             ยังไม่มีรายการ กด &quot;เพิ่มรายการ&quot; เพื่อเริ่มต้น
           </div>
         )}
@@ -78,7 +78,7 @@ const ServiceItems = ({ items, setItems }: ServiceItemsProps) => {
             <button
               type="button"
               onClick={() => removeItem(item.id)}
-              className="text-slate-400 hover:text-red-600 grid place-items-center h-9"
+              className="text-slate-500 hover:text-red-600 grid place-items-center h-9"
               title="ลบรายการ"
             >
               <X className="h-4 w-4" />

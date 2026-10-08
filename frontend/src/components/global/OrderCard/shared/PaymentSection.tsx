@@ -43,9 +43,9 @@ export const StepLabel = ({
   required?: boolean;
   hint?: string;
 }) => (
-  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-4 mb-1.5">
+  <div className="flex items-center gap-1.5 text-sm text-slate-700 mt-4 mb-1.5">
     {step !== undefined && (
-      <span className="w-[18px] h-[18px] rounded-md bg-[#1e2432] text-white text-[11px] grid place-items-center">
+      <span className="w-[18px] h-[18px] rounded-md bg-[#1e2432] text-white text-xs grid place-items-center">
         {step}
       </span>
     )}
@@ -67,7 +67,7 @@ export const FormRow = ({
 }) => (
   <div
     className={`flex justify-between items-center gap-2 py-1.5 border-t border-slate-100 first:border-t-0 ${
-      sub ? "text-xs text-slate-500" : "text-sm"
+      sub ? "text-xs text-slate-600" : "text-sm"
     }`}
   >
     <span>{label}</span>
@@ -94,8 +94,8 @@ export function SegButtons<T extends string>({
           onClick={() => onChange(opt.value)}
           className={`text-[13px] px-3 py-1 rounded-md transition-colors ${
             value === opt.value
-              ? "bg-white text-[#1e2432] font-medium shadow-sm"
-              : "text-slate-500 hover:text-slate-700"
+              ? "bg-white text-[#1e2432] font-semibold shadow-sm"
+              : "text-slate-600 hover:text-slate-700"
           }`}
         >
           {opt.label}
@@ -376,7 +376,7 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
                     : "-"}
                 </b>
               </FormRow>
-              <p className="text-[11px] text-slate-500 pb-1.5">
+              <p className="text-xs text-slate-600 pb-1.5">
                 * งวดที่เหลือ ระบบจะสร้างบัญชีผ่อนดาวน์ไว้ในเมนู NPG ให้อัตโนมัติหลังบันทึกออเดอร์
               </p>
             </div>
@@ -388,7 +388,7 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
               type="text"
               value={financeAmount ? Number(financeAmount).toLocaleString() : ""}
               readOnly
-              className="w-36 h-9 text-right text-sm bg-slate-100 text-slate-500"
+              className="w-36 h-9 text-right text-sm bg-slate-100 text-slate-600"
             />
           </FormRow>
 
@@ -593,7 +593,7 @@ export const SummaryFooterShell = ({
     <div className="absolute -right-8 top-0 w-24 h-1.5 bg-orange-500 -skew-x-[30deg]" />
 
     {lines.map((l, idx) => (
-      <div key={`${idx}-${l.label}`} className="flex justify-between text-xs text-slate-300 py-0.5">
+      <div key={`${idx}-${l.label}`} className="flex justify-between text-xs text-slate-200 py-0.5">
         <span className="truncate pr-2">{l.label}</span>
         <span className="whitespace-nowrap">
           {l.info
@@ -611,20 +611,20 @@ export const SummaryFooterShell = ({
       }`}
     >
       <span className="text-sm">{totalLabel}</span>
-      <b className="text-2xl font-semibold text-orange-400">฿ {total.toLocaleString()}</b>
+      <b className="text-2xl font-bold text-orange-400">฿ {total.toLocaleString()}</b>
     </div>
 
     <button
       type="button"
       onClick={onSubmit}
       disabled={isSubmitting}
-      className="w-full rounded-xl py-3 text-base font-medium bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:bg-slate-600 disabled:text-slate-300 disabled:cursor-wait"
+      className="w-full rounded-xl py-3 text-base font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:bg-slate-600 disabled:text-slate-200 disabled:cursor-wait"
     >
       {isSubmitting ? "กำลังบันทึก..." : buttonLabel}
     </button>
 
     {/* บอกล่วงหน้าว่ายังขาดอะไร (กดได้ แต่จะเตือนแบบเดียวกัน) */}
-    <p className="text-[11px] text-orange-300 text-center mt-1.5 min-h-[14px]">{hint}</p>
+    <p className="text-xs text-orange-300 text-center mt-1.5 min-h-[14px]">{hint}</p>
   </div>
 );
 

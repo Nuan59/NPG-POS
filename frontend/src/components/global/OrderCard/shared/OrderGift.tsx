@@ -18,17 +18,17 @@ const OrderGift = ({ gift }: OrderGiftProps) => {
         <Gift size={13} />
       </span>
       <span className="truncate">{gift.name}</span>
-      <span className="ml-auto font-medium whitespace-nowrap">× {gift.amount}</span>
+      <span className="ml-auto font-semibold whitespace-nowrap">× {gift.amount}</span>
 
       <OrderGiftDialog gift={gift}>
-        <button type="button" className="p-1 text-slate-400 hover:text-orange-500" title="แก้ไข">
+        <button type="button" className="p-1 text-slate-500 hover:text-orange-500" title="แก้ไข">
           <Pencil size={14} />
         </button>
       </OrderGiftDialog>
       <button
         type="button"
         onClick={() => removeOrderGift(gift.id)}
-        className="p-1 text-slate-400 hover:text-red-600"
+        className="p-1 text-slate-500 hover:text-red-600"
         title="ลบ"
       >
         <X size={15} />
