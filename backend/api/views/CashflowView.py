@@ -1,11 +1,13 @@
 from decimal import Decimal, InvalidOperation
 from datetime import date
+from zoneinfo import ZoneInfo
 import traceback
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Sum, F
+from django.utils import timezone
 
 from api.models.Cashflow import CashflowEntry, CashflowDayMeta
 
@@ -18,8 +20,15 @@ def _net_expr():
 def _section_opening(section: str, date_str: str) -> Decimal:
     """
     ยอดยกมาของ section (cash/transfer) ณ วันที่ date_str (ยอดก่อนเริ่มวันนั้น)
-    หา override ล่าสุดก่อนหน้าวันนี้ก่อน ถ้าไม่มีให้เริ่มจาก 0 ที่รายการแรกสุด
+    - cash: สะสมต่อเนื่อง หา override ล่าสุดก่อนหน้าวันนี้ก่อน ถ้าไม่มีให้เริ่มจาก 0 ที่รายการแรกสุด
+    - transfer: ✅ ไม่ยกยอดข้ามวัน เริ่มที่ 0 ทุกวัน (ใช้ override ของ "วันนั้นเอง" ถ้าเคยตั้งไว้)
     """
+    if section == "transfer":
+        meta = CashflowDayMeta.objects.filter(date=date_str).first()
+        if meta and meta.transfer_opening_override is not None:
+            return Decimal(meta.transfer_opening_override)
+        return Decimal("0")
+
     override_field = "cash_opening_override" if section == "cash" else "transfer_opening_override"
 
     latest_override = (
@@ -271,7 +280,7 @@ class CashflowViewSet(viewsets.ViewSet):
         for d in dates:
             d_str = d.isoformat()
             cash_opening = _section_opening("cash", d_str)
-            transfer_opening = _section_opening("transfer", d_str)
+            transfer_opening = _section_opening("transfer", d_str)  # ✅ โอน = 0 ทุกวัน (ไม่ยกยอด)
             cash_net = CashflowEntry.objects.filter(date=d, section="cash").aggregate(t=Sum(_net_expr())).get("t") or Decimal("0")
             transfer_net = CashflowEntry.objects.filter(date=d, section="transfer").aggregate(t=Sum(_net_expr())).get("t") or Decimal("0")
             days.append({
@@ -281,7 +290,8 @@ class CashflowViewSet(viewsets.ViewSet):
             })
 
         last_cash_closing = days[-1]["cashClosing"] if days else Decimal("0")
-        last_transfer_closing = days[-1]["transferClosing"] if days else Decimal("0")
+        # ✅ โอนไม่ยกยอดข้ามวัน → ยอดโอนของทั้งเดือน = ผลรวมยอดโอนแต่ละวัน
+        last_transfer_closing = sum((d["transferClosing"] for d in days), Decimal("0"))
 
         return Response({
             "month": yyyy_mm,
@@ -294,7 +304,8 @@ class CashflowViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["get"], url_path="today-summary")
     def today_summary(self, request):
-        date_str = date.today().isoformat()
+        # ✅ ใช้วันที่ตามเวลาไทย (เซิร์ฟเวอร์เป็น UTC ช่วง 00:00-07:00 จะได้วันที่ของเมื่อวาน)
+        date_str = timezone.localtime(timezone.now(), ZoneInfo("Asia/Bangkok")).date().isoformat()
         payload = _build_day_payload(date_str)
         return Response({
             "date": date_str,

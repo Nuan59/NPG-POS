@@ -70,7 +70,7 @@ const CashflowMonthDialog = ({ isAdmin, date, monthData, onClose }: CashflowMont
                 <tr className="text-gray-500 border-b">
                   <th className="text-left py-1">วันที่</th>
                   <th className="text-right py-1">คงเหลือเงินสด</th>
-                  <th className="text-right py-1">คงเหลือโอน</th>
+                  <th className="text-right py-1">ยอดโอนวันนั้น</th>
                 </tr>
               </thead>
               <tbody>

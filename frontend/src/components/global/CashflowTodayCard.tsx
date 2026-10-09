@@ -39,7 +39,7 @@ const CashflowTodayCard = () => {
             <div className="text-lg font-bold text-emerald-700">{fmt(data.cashClosing)} บาท</div>
           </div>
           <div>
-            <div className="text-xs text-sky-600 mb-0.5">โอนคงเหลือ</div>
+            <div className="text-xs text-sky-600 mb-0.5">โอนวันนี้</div>
             <div className="text-lg font-bold text-sky-700">{fmt(data.transferClosing)} บาท</div>
           </div>
         </div>

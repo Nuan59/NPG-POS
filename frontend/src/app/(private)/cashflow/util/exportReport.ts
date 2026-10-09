@@ -35,7 +35,7 @@ export function exportDailyExcel(input: DailyExportInput) {
   const summaryAoa: (string | number)[][] = [
     ["วันที่", input.date],
     ["ยอดคงเหลือเงินสด", input.cashClosing],
-    ["ยอดคงเหลือโอน", input.transferClosing],
+    ["ยอดโอนวันนี้ (ไม่ยกยอด)", input.transferClosing],
     ["รวมทั้งหมด", input.cashClosing + input.transferClosing],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryAoa), "สรุป");
@@ -59,7 +59,7 @@ export function exportMonthlyExcel(monthData: CashflowMonthData) {
     ["รวมสุทธิ (เงินสด)", cashNet],
     ["รวมสุทธิ (โอน)", transferNet],
     [],
-    ["วันที่", "คงเหลือเงินสด", "คงเหลือโอน"],
+    ["วันที่", "คงเหลือเงินสด", "ยอดโอนวันนั้น"],
     ...monthData.days.map((d) => [d.date, d.cashClosing, d.transferClosing]),
   ];
 
@@ -80,7 +80,7 @@ export function exportRangeExcel(days: DayCashflowData[]) {
     ["รวมสุทธิ (เงินสด)", netCash],
     ["รวมสุทธิ (โอน)", netTransfer],
     [],
-    ["วันที่", "คงเหลือเงินสด", "คงเหลือโอน"],
+    ["วันที่", "คงเหลือเงินสด", "ยอดโอนวันนั้น"],
     ...days.map((d) => [d.date, d.cashClosing, d.transferClosing]),
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryAoa), "สรุปรายวัน");

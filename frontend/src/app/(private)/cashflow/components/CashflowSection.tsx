@@ -27,7 +27,7 @@ const CashflowSection = ({
   const style = ACCENT[accent];
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   let running = opening;
-  const totals: Record<RowType, number> = { income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0 };
+  const totals: Record<RowType, number> = { income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0, cashIn: 0 };
 
   const computed = rows.map((r) => {
     running += signedAmount(r);
