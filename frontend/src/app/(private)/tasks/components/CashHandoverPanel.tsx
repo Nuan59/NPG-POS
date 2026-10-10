@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { Banknote, ChevronDown, Send, CheckCircle2, AlertTriangle, Clock, X, Pencil } from "lucide-react";
+import { Banknote, ChevronDown, Send, CheckCircle2, AlertTriangle, Clock, X, Pencil, Ban, Undo2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +34,7 @@ interface Handover {
   created_by_name: string;
   total: number;
   note: string;
-  status: "pending" | "received" | "mismatch";
+  status: "pending" | "received" | "mismatch" | "excluded";
   received_amount: number | null;
   received_by: string;
   received_at: string | null;
@@ -100,7 +100,11 @@ const ItemRow = ({ item }: { item: CashItem }) => {
 /**
  * ส่งเงินสดให้ adm
  * - พนักงาน: เห็นเงินสดค้างส่งของตัวเอง เลือกรายการแล้วกดส่ง + ประวัติใบส่งเงิน
- * - adm: ใบส่งเงินที่รอรับ (กดรับ / ยอดไม่ตรง) + ภาพรวมค้างส่งของพนักงานแต่ละคน
+ * - adm: แก้ได้ทุกอย่าง
+ *   · ใบที่รอรับ: รับ / ยอดไม่ตรง / แก้ยอดรายการ / เอารายการออก / ยกเลิกใบ
+ *   · ค้างส่ง (พนักงานยังไม่กดส่ง): รับเงินแทน / แก้ยอดเงินสด / ตัดออก (ไม่ต้องส่ง)
+ *   · รับแล้ว: แก้ยอดที่รับ / ยกเลิกการรับ → รายรับในหน้า รายรับ-รายจ่าย แก้/ลบตามให้อัตโนมัติ
+ *   · ตัดออกแล้ว: คืนรายการกลับไปค้างส่ง
  */
 export default function CashHandoverPanel() {
   const { data: session, status } = useSession();
@@ -125,6 +129,21 @@ export default function CashHandoverPanel() {
   const [cashEditFor, setCashEditFor] = useState<CashItem | null>(null);
   const [cashEditValue, setCashEditValue] = useState("");
 
+  // ✅ adm: รายการที่ตัดออก / เลือกรายการค้างส่ง / dialog ต่างๆ
+  const [excluded, setExcluded] = useState<Handover[]>([]);
+  const [admSel, setAdmSel] = useState<Set<string>>(new Set()); // key = username|source-id
+  const [directFor, setDirectFor] = useState<{ group: UnsentGroup; items: CashItem[] } | null>(null);
+  const [directAmount, setDirectAmount] = useState("");
+  const [directNote, setDirectNote] = useState("");
+  const [excludeFor, setExcludeFor] = useState<{ group: UnsentGroup; items: CashItem[] } | null>(null);
+  const [excludeNote, setExcludeNote] = useState("");
+  const [itemEdit, setItemEdit] = useState<{ h: Handover; item: CashItem } | null>(null);
+  const [itemEditValue, setItemEditValue] = useState("");
+  const [recvEdit, setRecvEdit] = useState<Handover | null>(null);
+  const [recvEditAmount, setRecvEditAmount] = useState("");
+  const [recvEditNote, setRecvEditNote] = useState("");
+  const [confirmAct, setConfirmAct] = useState<{ title: string; desc: string; label: string; run: () => Promise<void> } | null>(null);
+
   const api = useCallback(
     async (path: string, init?: RequestInit) => {
       const res = await fetch(`${API_BASE_URL}/cash-handover/${path}`, {
@@ -143,9 +162,11 @@ export default function CashHandoverPanel() {
     setLoading(true);
     try {
       if (isAdmin) {
-        const [g, h] = await Promise.all([api("unsent/?all=1"), api("?limit=30")]);
+        const [g, h, x] = await Promise.all([api("unsent/?all=1"), api("?limit=30"), api("?status=excluded&limit=30")]);
         setGroups(Array.isArray(g) ? g : []);
         setHandovers(Array.isArray(h) ? h : []);
+        setExcluded(Array.isArray(x) ? x : []);
+        setAdmSel(new Set());
       } else {
         const [u, h] = await Promise.all([api("unsent/"), api("?limit=10")]);
         setUnsent(Array.isArray(u) ? u : []);
@@ -227,6 +248,38 @@ export default function CashHandoverPanel() {
     }
   };
 
+  // ✅ adm: เรียก action แล้วโหลดใหม่ (ใช้ร่วมกันทุกปุ่ม)
+  const act = async (path: string, body: object, okMsg: string, after?: () => void) => {
+    setBusy(true);
+    try {
+      await api(path, { method: "POST", body: JSON.stringify(body) });
+      toast.success(okMsg);
+      after?.();
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ทำรายการไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const selKey = (g: UnsentGroup, i: CashItem) => `${g.username}|${keyOf(i)}`;
+  const groupSelected = (g: UnsentGroup) => g.items.filter((i) => admSel.has(selKey(g, i)));
+  const toggleAdm = (k: string) =>
+    setAdmSel((prev) => {
+      const next = new Set(prev);
+      next.has(k) ? next.delete(k) : next.add(k);
+      return next;
+    });
+  const toggleGroupAll = (g: UnsentGroup) =>
+    setAdmSel((prev) => {
+      const next = new Set(prev);
+      const all = g.items.every((i) => next.has(selKey(g, i)));
+      g.items.forEach((i) => (all ? next.delete(selKey(g, i)) : next.add(selKey(g, i))));
+      return next;
+    });
+  const itemRef = (i: CashItem) => ({ source: i.source, source_id: i.source_id });
+
   if (status !== "authenticated") return null;
 
   const pending = handovers.filter((h) => h.status === "pending");
@@ -234,7 +287,7 @@ export default function CashHandoverPanel() {
 
   // ✅ ไม่มีอะไรให้ทำ/ให้ดู → ไม่ต้องแสดงส่วนส่งเงินเลย
   const hasAnything = isAdmin
-    ? pending.length > 0 || groups.length > 0 || done.length > 0
+    ? pending.length > 0 || groups.length > 0 || done.length > 0 || excluded.length > 0
     : unsent.length > 0 || handovers.length > 0;
   if (loading || !hasAnything) return null;
 
@@ -363,6 +416,22 @@ export default function CashHandoverPanel() {
                       <span className="ml-auto text-lg font-bold tabular-nums">{baht(h.total)}</span>
                       <div className="flex gap-2 w-full sm:w-auto">
                         <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() =>
+                            setConfirmAct({
+                              title: `ยกเลิกใบ ${h.number}`,
+                              desc: `${h.items.length} รายการ ${baht(h.total)} จะกลับไปเป็นค้างส่งของ ${h.created_by_name}`,
+                              label: "ยกเลิกใบ",
+                              run: () => act(`${h.id}/cancel/`, {}, `ยกเลิก ${h.number} แล้ว รายการกลับไปค้างส่ง`),
+                            })
+                          }
+                        >
+                          ยกเลิกใบ
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           disabled={busy}
@@ -383,7 +452,45 @@ export default function CashHandoverPanel() {
                       <summary className="text-xs text-gray-500 cursor-pointer list-none flex items-center gap-1">
                         <ChevronDown size={14} className="transition-transform group-open:rotate-180" /> ดูรายการ
                       </summary>
-                      <div className="divide-y pl-5">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
+                      <div className="divide-y pl-5">
+                        {h.items.map((i) => (
+                          <div key={keyOf(i)} className="flex items-center gap-1">
+                            <div className="flex-1 min-w-0">
+                              <ItemRow item={i} />
+                            </div>
+                            <button
+                              type="button"
+                              aria-label="แก้ยอดรายการ"
+                              title="แก้ยอดเงินสดของรายการนี้"
+                              disabled={busy}
+                              onClick={() => {
+                                setItemEdit({ h, item: i });
+                                setItemEditValue(String(i.amount));
+                              }}
+                              className="shrink-0 p-1.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="เอาออกจากใบ"
+                              title="เอาออกจากใบ (กลับไปค้างส่ง)"
+                              disabled={busy}
+                              onClick={() =>
+                                setConfirmAct({
+                                  title: "เอารายการออกจากใบ",
+                                  desc: `${i.description} (${baht(i.amount)}) จะกลับไปเป็นค้างส่ง`,
+                                  label: "เอาออก",
+                                  run: () => act(`${h.id}/remove-item/`, itemRef(i), "เอารายการออกแล้ว"),
+                                })
+                              }
+                              className="shrink-0 p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </details>
                   </div>
                 ))}
@@ -403,28 +510,83 @@ export default function CashHandoverPanel() {
                       <span className="text-xs text-gray-400">{g.count} รายการ</span>
                       <span className="ml-auto font-semibold tabular-nums text-amber-700">{baht(g.total)}</span>
                     </summary>
-                    <div className="divide-y pb-3 pl-7">
-                      {g.items.map((i) => (
-                        <div key={keyOf(i)} className="flex items-center gap-1">
-                          <div className="flex-1 min-w-0">
-                            <ItemRow item={i} />
+                    <div className="pb-3 pl-7">
+                      <label className="flex items-center gap-2 py-2 text-xs text-gray-500 cursor-pointer border-b">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-orange-600"
+                          checked={g.items.length > 0 && g.items.every((i) => admSel.has(selKey(g, i)))}
+                          onChange={() => toggleGroupAll(g)}
+                        />
+                        เลือกทั้งหมด
+                      </label>
+                      <div className="divide-y">
+                        {g.items.map((i) => (
+                          <div key={keyOf(i)} className="flex items-center gap-1">
+                            <label className="flex flex-1 min-w-0 items-center gap-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="h-4 w-4 accent-orange-600 shrink-0"
+                                checked={admSel.has(selKey(g, i))}
+                                onChange={() => toggleAdm(selKey(g, i))}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <ItemRow item={i} />
+                              </div>
+                            </label>
+                            {i.source !== "npg_fee" && (
+                              <button
+                                type="button"
+                                aria-label="แก้ยอดเงินสด"
+                                title="แก้ยอดเงินสด (ลูกค้าแบ่งจ่ายเงินสด + โอน)"
+                                onClick={() => {
+                                  setCashEditFor(i);
+                                  setCashEditValue(String(i.amount));
+                                }}
+                                className="shrink-0 p-1.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
                           </div>
-                          {i.source !== "npg_fee" && (
-                            <button
-                              type="button"
-                              aria-label="แก้ยอดเงินสด"
-                              title="แก้ยอดเงินสด (ลูกค้าแบ่งจ่ายเงินสด + โอน)"
+                        ))}
+                      </div>
+                      {(() => {
+                        const sel = groupSelected(g);
+                        const total = sel.reduce((sum, i) => sum + i.amount, 0);
+                        return (
+                          <div className="flex flex-wrap items-center gap-2 pt-3 border-t">
+                            <span className="text-sm text-gray-600 mr-auto">
+                              เลือก {sel.length} รายการ ·{" "}
+                              <span className="font-semibold text-gray-900 tabular-nums">{baht(total)}</span>
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busy || sel.length === 0}
+                              className="gap-1"
                               onClick={() => {
-                                setCashEditFor(i);
-                                setCashEditValue(String(i.amount));
+                                setExcludeFor({ group: g, items: sel });
+                                setExcludeNote("");
                               }}
-                              className="shrink-0 p-1.5 rounded text-gray-400 hover:text-orange-600 hover:bg-orange-50"
                             >
-                              <Pencil size={14} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                              <Ban size={14} /> ตัดออก ไม่ต้องส่ง
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={busy || sel.length === 0}
+                              className="gap-1 bg-green-600 hover:bg-green-700"
+                              onClick={() => {
+                                setDirectFor({ group: g, items: sel });
+                                setDirectAmount(String(total));
+                                setDirectNote("");
+                              }}
+                            >
+                              <CheckCircle2 size={15} /> รับเงินแทน
+                            </Button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </details>
                 ))}
@@ -437,22 +599,93 @@ export default function CashHandoverPanel() {
               <p className="px-4 py-3 border-b text-sm font-medium">รับแล้วล่าสุด</p>
               <div className="divide-y">
                 {done.slice(0, 10).map((h) => (
-                  <div key={h.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
-                    <span className="font-medium">{h.created_by_name}</span>
-                    <span className="text-xs text-gray-400">
-                      {h.number} · รับ {when(h.received_at)}
-                    </span>
-                    <StatusChip h={h} />
-                    <span className="ml-auto tabular-nums">
-                      {h.status === "mismatch" ? (
-                        <>
-                          <span className="line-through text-gray-400 mr-2">{baht(h.total)}</span>
-                          <span className="font-semibold text-red-600">{baht(h.received_amount ?? 0)}</span>
-                        </>
-                      ) : (
-                        <span className="font-semibold">{baht(h.total)}</span>
-                      )}
-                    </span>
+                  <details key={h.id} className="group px-4">
+                    <summary className="flex flex-wrap items-center gap-3 py-2.5 text-sm cursor-pointer list-none">
+                      <ChevronDown size={14} className="text-gray-400 transition-transform group-open:rotate-180" />
+                      <span className="font-medium">{h.created_by_name}</span>
+                      <span className="text-xs text-gray-400">
+                        {h.number} · รับ {when(h.received_at)}
+                      </span>
+                      <StatusChip h={h} />
+                      <span className="ml-auto tabular-nums">
+                        {h.status === "mismatch" ? (
+                          <>
+                            <span className="line-through text-gray-400 mr-2">{baht(h.total)}</span>
+                            <span className="font-semibold text-red-600">{baht(h.received_amount ?? 0)}</span>
+                          </>
+                        ) : (
+                          <span className="font-semibold">{baht(h.total)}</span>
+                        )}
+                      </span>
+                    </summary>
+                    <div className="pb-3 pl-6">
+                      <div className="divide-y">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        {h.received_by} รับ {baht(h.received_amount ?? 0)}
+                        {h.note && ` · ${h.note}`}
+                        {h.received_note && ` · ${h.received_note}`}
+                      </p>
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          className="gap-1"
+                          onClick={() => {
+                            setRecvEdit(h);
+                            setRecvEditAmount(String(h.received_amount ?? h.total));
+                            setRecvEditNote(h.received_note || "");
+                          }}
+                        >
+                          <Pencil size={14} /> แก้ยอดที่รับ
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() =>
+                            setConfirmAct({
+                              title: `ยกเลิกการรับ ${h.number}`,
+                              desc: `ใบนี้จะกลับไปรอรับเงิน และลบรายรับ ${baht(h.received_amount ?? 0)} ในหน้ารายรับ-รายจ่ายออก`,
+                              label: "ยกเลิกการรับ",
+                              run: () => act(`${h.id}/unreceive/`, {}, `ยกเลิกการรับ ${h.number} แล้ว`),
+                            })
+                          }
+                        >
+                          <Undo2 size={14} /> ยกเลิกการรับ
+                        </Button>
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {excluded.length > 0 && (
+            <div className="bg-white rounded-xl border">
+              <p className="px-4 py-3 border-b text-sm font-medium">ตัดออกแล้ว (ไม่ต้องส่ง)</p>
+              <div className="divide-y">
+                {excluded.map((h) => (
+                  <div key={h.id} className="px-4 py-2">
+                    <div className="flex flex-wrap items-center gap-x-3 text-sm">
+                      <span className="font-medium">{h.created_by_name}</span>
+                      <span className="text-xs text-gray-400">
+                        ตัดโดย {h.received_by} · {when(h.received_at)}
+                        {h.received_note && ` · ${h.received_note}`}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busy}
+                        className="ml-auto gap-1 text-gray-600"
+                        onClick={() => act(`${h.id}/restore/`, {}, "คืนรายการแล้ว กลับไปค้างส่ง")}
+                      >
+                        <RotateCcw size={14} /> คืนรายการ
+                      </Button>
+                    </div>
+                    <div className="divide-y pl-2">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
                   </div>
                 ))}
               </div>
@@ -561,6 +794,194 @@ export default function CashHandoverPanel() {
               onClick={() => mismatchFor && receive(mismatchFor, Number(mismatchAmount), mismatchNote)}
             >
               บันทึกการรับเงิน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* adm: รับเงินแทน (พนักงานยังไม่ได้กดส่ง) */}
+      <Dialog open={!!directFor} onOpenChange={(o) => !o && !busy && setDirectFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>รับเงินแทน {directFor?.group.name}</DialogTitle>
+            <DialogDescription>
+              {directFor?.items.length} รายการ · ยอดตามรายการ {baht(directFor?.items.reduce((sum, i) => sum + i.amount, 0) ?? 0)} ·
+              ลงรายรับเงินสดให้อัตโนมัติ
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-48 overflow-y-auto divide-y border rounded-lg px-3">
+            {directFor?.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="direct-amount" className="text-sm font-medium">ยอดที่รับจริง (฿)</label>
+              <Input id="direct-amount" type="number" value={directAmount} onChange={(e) => setDirectAmount(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="direct-note" className="text-sm font-medium">หมายเหตุ (ถ้ามี)</label>
+              <Textarea id="direct-note" value={directNote} onChange={(e) => setDirectNote(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDirectFor(null)} disabled={busy}>ยกเลิก</Button>
+            <Button
+              disabled={busy || directAmount === "" || Number(directAmount) < 0}
+              className="gap-1 bg-green-600 hover:bg-green-700"
+              onClick={() =>
+                directFor &&
+                act(
+                  "receive-direct/",
+                  {
+                    username: directFor.group.username,
+                    items: directFor.items.map(itemRef),
+                    received_amount: Number(directAmount),
+                    note: directNote,
+                  },
+                  "รับเงินแล้ว ลงรายรับให้เรียบร้อย",
+                  () => setDirectFor(null)
+                )
+              }
+            >
+              <CheckCircle2 size={15} /> ยืนยันรับเงิน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* adm: ตัดออก ไม่ต้องส่ง */}
+      <Dialog open={!!excludeFor} onOpenChange={(o) => !o && !busy && setExcludeFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ตัดออก ไม่ต้องส่ง</DialogTitle>
+            <DialogDescription>
+              {excludeFor?.items.length} รายการของ {excludeFor?.group.name} จะไม่ขึ้นค้างส่งและไม่ลงรายรับ · คืนรายการได้ภายหลัง
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-48 overflow-y-auto divide-y border rounded-lg px-3">
+            {excludeFor?.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}
+          </div>
+          <div>
+            <label htmlFor="exclude-note" className="text-sm font-medium">เหตุผล</label>
+            <Textarea
+              id="exclude-note"
+              value={excludeNote}
+              onChange={(e) => setExcludeNote(e.target.value)}
+              placeholder="เช่น ลูกค้าโอนจริง เลือกประเภทผิด"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExcludeFor(null)} disabled={busy}>ยกเลิก</Button>
+            <Button
+              disabled={busy}
+              className="gap-1"
+              onClick={() =>
+                excludeFor &&
+                act(
+                  "exclude/",
+                  { username: excludeFor.group.username, items: excludeFor.items.map(itemRef), note: excludeNote },
+                  "ตัดรายการออกแล้ว",
+                  () => setExcludeFor(null)
+                )
+              }
+            >
+              <Ban size={14} /> ยืนยันตัดออก
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* adm: แก้ยอดรายการในใบที่รอรับ */}
+      <Dialog open={!!itemEdit} onOpenChange={(o) => !o && !busy && setItemEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>แก้ยอดรายการใน {itemEdit?.h.number}</DialogTitle>
+            <DialogDescription>{itemEdit?.item.description}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="item-edit" className="text-sm font-medium">ยอดเงินสด (฿)</label>
+            <Input id="item-edit" type="number" value={itemEditValue} onChange={(e) => setItemEditValue(e.target.value)} />
+            <p className="text-xs text-gray-500">ยอดรวมของใบจะคำนวณใหม่ให้</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setItemEdit(null)} disabled={busy}>ยกเลิก</Button>
+            <Button
+              disabled={busy || itemEditValue === "" || Number(itemEditValue) < 0}
+              onClick={() =>
+                itemEdit &&
+                act(
+                  `${itemEdit.h.id}/edit-item/`,
+                  { ...itemRef(itemEdit.item), amount: Number(itemEditValue) },
+                  "แก้ยอดรายการแล้ว",
+                  () => setItemEdit(null)
+                )
+              }
+            >
+              บันทึก
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* adm: แก้ยอดที่รับแล้ว */}
+      <Dialog open={!!recvEdit} onOpenChange={(o) => !o && !busy && setRecvEdit(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>แก้ยอดที่รับ {recvEdit?.number}</DialogTitle>
+            <DialogDescription>
+              ยอดตามใบ {baht(recvEdit?.total ?? 0)} · รายรับในหน้ารายรับ-รายจ่ายจะแก้ตามให้
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="recv-edit-amount" className="text-sm font-medium">ยอดที่รับจริง (฿)</label>
+              <Input id="recv-edit-amount" type="number" value={recvEditAmount} onChange={(e) => setRecvEditAmount(e.target.value)} />
+              {recvEdit && recvEditAmount !== "" && Number(recvEditAmount) !== recvEdit.total && (
+                <p className="text-xs mt-1 text-red-600">ส่วนต่าง {baht(Number(recvEditAmount) - recvEdit.total)}</p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="recv-edit-note" className="text-sm font-medium">หมายเหตุ</label>
+              <Textarea id="recv-edit-note" value={recvEditNote} onChange={(e) => setRecvEditNote(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecvEdit(null)} disabled={busy}>ยกเลิก</Button>
+            <Button
+              disabled={busy || recvEditAmount === "" || Number(recvEditAmount) < 0}
+              onClick={() =>
+                recvEdit &&
+                act(
+                  `${recvEdit.id}/edit-received/`,
+                  { received_amount: Number(recvEditAmount), note: recvEditNote },
+                  `แก้ยอด ${recvEdit.number} แล้ว`,
+                  () => setRecvEdit(null)
+                )
+              }
+            >
+              บันทึก
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* adm: ยืนยันก่อนทำรายการที่ย้อนกลับ */}
+      <Dialog open={!!confirmAct} onOpenChange={(o) => !o && !busy && setConfirmAct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{confirmAct?.title}</DialogTitle>
+            <DialogDescription>{confirmAct?.desc}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmAct(null)} disabled={busy}>ไม่ใช่</Button>
+            <Button
+              disabled={busy}
+              className="bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                if (!confirmAct) return;
+                await confirmAct.run();
+                setConfirmAct(null);
+              }}
+            >
+              {confirmAct?.label}
             </Button>
           </DialogFooter>
         </DialogContent>

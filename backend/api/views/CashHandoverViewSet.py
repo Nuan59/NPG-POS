@@ -11,8 +11,17 @@
   GET    /cash-handover/                   ใบส่งเงิน (พนักงานเห็นของตัวเอง, adm เห็นทั้งหมด) ?status=pending
   POST   /cash-handover/submit/            { items: [{source, source_id}], note }
   POST   /cash-handover/<id>/receive/      (adm) { received_amount?, note? }
-  POST   /cash-handover/<id>/cancel/       (เจ้าของใบ ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
+  POST   /cash-handover/<id>/cancel/       (เจ้าของใบ / adm ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
   GET    /cash-handover/summary/           ตัวเลขสำหรับ badge
+
+  ✅ adm แก้ได้ทุกอย่าง
+  POST   /cash-handover/receive-direct/       { username, items, received_amount?, note? }  รับเงินแทน (พนักงานยังไม่ได้กดส่ง)
+  POST   /cash-handover/exclude/              { username, items, note }  ตัดรายการออก ไม่ต้องส่ง (status=excluded)
+  POST   /cash-handover/<id>/restore/         คืนรายการที่ตัดออก → กลับไปค้างส่ง
+  POST   /cash-handover/<id>/remove-item/     { source, source_id }      เอารายการออกจากใบที่รอรับ → กลับไปค้างส่ง
+  POST   /cash-handover/<id>/edit-item/       { source, source_id, amount }  แก้ยอดรายการในใบที่รอรับ
+  POST   /cash-handover/<id>/edit-received/   { received_amount, note? }  แก้ยอดที่รับแล้ว → แก้รายรับให้ตาม
+  POST   /cash-handover/<id>/unreceive/       ยกเลิกการรับ → ใบกลับไปรอรับ + ลบรายรับที่ลงไว้
 """
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
@@ -223,6 +232,70 @@ def _handover_json(h):
     }
 
 
+def _forbidden():
+    return Response({'error': 'เฉพาะ adm เท่านั้น'}, status=status.HTTP_403_FORBIDDEN)
+
+
+def _parse_amount(raw, label='ยอดเงิน'):
+    """คืน (Decimal, None) หรือ (None, Response error)"""
+    try:
+        value = Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return None, Response({'error': f'{label}ไม่ใช่ตัวเลข'}, status=status.HTTP_400_BAD_REQUEST)
+    if value < 0:
+        return None, Response({'error': f'{label}ต้องไม่ติดลบ'}, status=status.HTTP_400_BAD_REQUEST)
+    return value, None
+
+
+def _parse_keys(items):
+    keys = []
+    for it in items or []:
+        try:
+            k = (str(it.get('source')), int(it.get('source_id')))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if k not in keys:
+            keys.append(k)
+    return keys
+
+
+def _today_bkk():
+    return timezone.localtime(timezone.now(), ZoneInfo('Asia/Bangkok')).date()
+
+
+def _sync_cashflow(h, amount, receiver):
+    """
+    ทำให้รายรับในหน้า รายรับ-รายจ่าย (ส่วนเงินสด) ตรงกับยอดที่รับของใบนี้
+    - amount > 0: มีรายการเดิม → แก้ยอด (คงวันที่เดิม) / ไม่มี (หรือถูกลบไปแล้ว) → สร้างใหม่วันนี้
+    - amount = 0 / None: ลบรายการเดิม
+    """
+    entry = CashflowEntry.objects.filter(pk=h.cashflow_entry_id).first() if h.cashflow_entry_id else None
+    if not amount or amount <= 0:
+        if entry:
+            entry.delete()
+        h.cashflow_entry_id = None
+        return
+    desc = f"รับเงินส่ง HO-{h.id:06d} จาก {h.created_by_name or h.created_by_username}"[:255]
+    if entry:
+        entry.income = amount
+        entry.description = desc
+        entry.save(update_fields=['income', 'description'])
+        return
+    today = _today_bkk()
+    next_seq = (CashflowEntry.objects.filter(date=today, section='cash').aggregate(m=Max('seq'))['m'] or -1) + 1
+    entry = CashflowEntry.objects.create(
+        date=today, section='cash', seq=next_seq, description=desc, income=amount, created_by=receiver,
+    )
+    h.cashflow_entry_id = entry.id
+
+
+def _recalc_total(h):
+    h.total = sum((i.amount for i in h.items.all()), Decimal('0'))
+
+
+SOURCE_MODEL = {'sale': Order, 'service': ServiceRecord, 'npg_payment': NPGPayment}
+
+
 # ---------------------------------------------------------------- viewset
 
 class CashHandoverViewSet(viewsets.ViewSet):
@@ -247,6 +320,8 @@ class CashHandoverViewSet(viewsets.ViewSet):
         st = request.query_params.get('status')
         if st:
             qs = qs.filter(status=st)
+        else:
+            qs = qs.exclude(status='excluded')  # รายการที่ adm ตัดออก ไม่ใช่ใบส่งเงินจริง
         limit = int(request.query_params.get('limit', 50))
         return Response([_handover_json(h) for h in qs[:limit]])
 
@@ -386,29 +461,210 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 if received < 0:
                     return Response({'error': 'ยอดที่รับต้องไม่ติดลบ'}, status=status.HTTP_400_BAD_REQUEST)
 
-            receiver = _display_name(request.user)
-            now = timezone.now()
-            today = timezone.localtime(now, ZoneInfo('Asia/Bangkok')).date()
+            self._mark_received(h, received, request)
 
-            # ✅ ลงรายรับในหน้า รายรับ-รายจ่าย (ส่วนเงินสด) ตามยอดที่รับจริง
-            entry_id = None
-            if received > 0:
-                next_seq = (CashflowEntry.objects.filter(date=today, section='cash').aggregate(m=Max('seq'))['m'] or -1) + 1
-                desc = f"รับเงินส่ง HO-{h.id:06d} จาก {h.created_by_name or h.created_by_username}"
-                entry = CashflowEntry.objects.create(
-                    date=today, section='cash', seq=next_seq,
-                    description=desc[:255], income=received, created_by=receiver,
-                )
-                entry_id = entry.id
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h))
 
+    def _mark_received(self, h, received, request):
+        """ตั้งใบเป็นรับแล้ว + ลงรายรับเงินสดตามยอดที่รับจริง (เรียกภายใน transaction)"""
+        receiver = _display_name(request.user)
+        h.cashflow_entry_id = None
+        _sync_cashflow(h, received, receiver)
+        h.received_amount = received
+        h.received_by = receiver
+        h.received_at = timezone.now()
+        h.received_note = (request.data.get('note') or '').strip()
+        h.status = 'received' if received == h.total else 'mismatch'
+        h.save()
+
+    # ------------------------------------------------ adm: รายการที่ยังไม่ได้ส่ง
+
+    def _pick_unsent(self, request):
+        """รายการค้างส่งของพนักงาน username ที่เลือกมา → (username, rows, None) หรือ (.., .., Response error)"""
+        username = (request.data.get('username') or '').strip()
+        keys = _parse_keys(request.data.get('items'))
+        if not keys:
+            return username, [], Response({'error': 'กรุณาเลือกรายการอย่างน้อย 1 รายการ'}, status=status.HTTP_400_BAD_REQUEST)
+        pool = {(r['source'], r['source_id']): r for r in _collect_unsent(username or None)}
+        rows = [pool[k] for k in keys if k in pool]
+        if len(rows) != len(keys):
+            return username, [], Response(
+                {'error': 'บางรายการถูกส่ง/รับไปแล้ว กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT,
+            )
+        return username, rows, None
+
+    def _create_handover(self, username, rows, note, status_value='pending'):
+        name = User.objects.filter(username=username).values_list('name', flat=True).first() if username else ''
+        h = CashHandover.objects.create(
+            created_by_username=username,
+            created_by_name=name or username,
+            total=sum((r['amount'] for r in rows), Decimal('0')),
+            note=note,
+            status=status_value,
+        )
+        CashHandoverItem.objects.bulk_create([
+            CashHandoverItem(
+                handover=h, source=r['source'], source_id=r['source_id'],
+                amount=r['amount'], description=r['description'][:500], record_date=r['record_date'],
+            )
+            for r in rows
+        ])
+        return h
+
+    @action(detail=False, methods=['post'], url_path='receive-direct')
+    def receive_direct(self, request):
+        """(adm) รับเงินแทน - พนักงานยังไม่ได้กดส่ง ให้ adm รับเลย (สร้างใบให้ + รับ + ลงรายรับ)"""
+        if not _is_admin(request):
+            return _forbidden()
+        username, rows, err = self._pick_unsent(request)
+        if err:
+            return err
+        raw = request.data.get('received_amount')
+        received = None
+        if raw not in (None, ''):
+            received, err = _parse_amount(raw, 'ยอดที่รับ')
+            if err:
+                return err
+        try:
+            with transaction.atomic():
+                h = self._create_handover(username, rows, 'adm รับเงินแทน')
+                h = CashHandover.objects.select_for_update().get(pk=h.pk)
+                self._mark_received(h, h.total if received is None else received, request)
+        except IntegrityError:
+            return Response({'error': 'มีรายการถูกส่งซ้ำ กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT)
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h), status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
+    def exclude(self, request):
+        """(adm) ตัดรายการออก - ไม่ใช่เงินสดจริง / ไม่ต้องส่ง (ไม่ลงรายรับ) คืนได้ภายหลังด้วย restore"""
+        if not _is_admin(request):
+            return _forbidden()
+        username, rows, err = self._pick_unsent(request)
+        if err:
+            return err
+        try:
+            with transaction.atomic():
+                h = self._create_handover(username, rows, '', status_value='excluded')
+                h.received_by = _display_name(request.user)
+                h.received_at = timezone.now()
+                h.received_note = (request.data.get('note') or '').strip()
+                h.save()
+        except IntegrityError:
+            return Response({'error': 'มีรายการถูกส่งไปแล้ว กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT)
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h), status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def restore(self, request, pk=None):
+        """(adm) คืนรายการที่ตัดออก → กลับไปค้างส่ง"""
+        if not _is_admin(request):
+            return _forbidden()
+        h = CashHandover.objects.filter(pk=pk, status='excluded').first()
+        if not h:
+            return Response({'error': 'ไม่พบรายการที่ตัดออก'}, status=status.HTTP_404_NOT_FOUND)
+        h.delete()
+        return Response({'message': 'คืนรายการแล้ว กลับไปค้างส่ง'})
+
+    # ------------------------------------------------ adm: ใบที่รอรับ
+
+    def _pending_item(self, request, pk):
+        """(h, item, None) ของใบที่รอรับ หรือ (None, None, Response error) - ต้องเรียกใน transaction"""
+        h = CashHandover.objects.select_for_update().filter(pk=pk).first()
+        if not h:
+            return None, None, Response({'error': 'ไม่พบใบส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
+        if h.status != 'pending':
+            return None, None, Response({'error': 'ใบนี้รับไปแล้ว กด "ยกเลิกการรับ" ก่อนถึงจะแก้รายการได้'}, status=status.HTTP_400_BAD_REQUEST)
+        keys = _parse_keys([request.data])
+        item = h.items.filter(source=keys[0][0], source_id=keys[0][1]).first() if keys else None
+        if not item:
+            return None, None, Response({'error': 'ไม่พบรายการในใบนี้'}, status=status.HTTP_404_NOT_FOUND)
+        return h, item, None
+
+    @action(detail=True, methods=['post'], url_path='remove-item')
+    def remove_item(self, request, pk=None):
+        """(adm) เอารายการออกจากใบที่รอรับ → รายการกลับไปค้างส่ง (ถ้าใบไม่เหลือรายการ ลบใบทิ้ง)"""
+        if not _is_admin(request):
+            return _forbidden()
+        with transaction.atomic():
+            h, item, err = self._pending_item(request, pk)
+            if err:
+                return err
+            item.delete()
+            if not h.items.exists():
+                h.delete()
+                return Response({'message': 'ใบไม่เหลือรายการ ยกเลิกใบให้แล้ว', 'deleted': True})
+            _recalc_total(h)
+            h.save(update_fields=['total'])
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h))
+
+    @action(detail=True, methods=['post'], url_path='edit-item')
+    def edit_item(self, request, pk=None):
+        """(adm) แก้ยอดเงินสดของรายการในใบที่รอรับ (บันทึกยอดเงินสดที่รายการต้นทางด้วย ถ้ารองรับ)"""
+        if not _is_admin(request):
+            return _forbidden()
+        amount, err = _parse_amount(request.data.get('amount'), 'ยอดเงินสด')
+        if err:
+            return err
+        with transaction.atomic():
+            h, item, err = self._pending_item(request, pk)
+            if err:
+                return err
+            item.amount = amount
+            item.save(update_fields=['amount'])
+            model = SOURCE_MODEL.get(item.source)
+            if model is not None:
+                model.objects.filter(pk=item.source_id).update(cash_amount=amount)
+            _recalc_total(h)
+            h.save(update_fields=['total'])
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h))
+
+    # ------------------------------------------------ adm: ใบที่รับแล้ว
+
+    @action(detail=True, methods=['post'], url_path='edit-received')
+    def edit_received(self, request, pk=None):
+        """(adm) แก้ยอดที่รับแล้ว → รายรับในหน้า รายรับ-รายจ่าย แก้ตาม"""
+        if not _is_admin(request):
+            return _forbidden()
+        received, err = _parse_amount(request.data.get('received_amount'), 'ยอดที่รับ')
+        if err:
+            return err
+        with transaction.atomic():
+            h = CashHandover.objects.select_for_update().filter(pk=pk).first()
+            if not h:
+                return Response({'error': 'ไม่พบใบส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
+            if h.status not in ('received', 'mismatch'):
+                return Response({'error': 'ใบนี้ยังไม่ได้รับเงิน'}, status=status.HTTP_400_BAD_REQUEST)
+            _sync_cashflow(h, received, _display_name(request.user))
             h.received_amount = received
-            h.received_by = receiver
-            h.received_at = now
-            h.received_note = (request.data.get('note') or '').strip()
+            if 'note' in request.data:
+                h.received_note = (request.data.get('note') or '').strip()
             h.status = 'received' if received == h.total else 'mismatch'
-            h.cashflow_entry_id = entry_id
             h.save()
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h))
 
+    @action(detail=True, methods=['post'])
+    def unreceive(self, request, pk=None):
+        """(adm) ยกเลิกการรับ → ใบกลับไปรอรับ + ลบรายรับที่ลงไว้"""
+        if not _is_admin(request):
+            return _forbidden()
+        with transaction.atomic():
+            h = CashHandover.objects.select_for_update().filter(pk=pk).first()
+            if not h:
+                return Response({'error': 'ไม่พบใบส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
+            if h.status not in ('received', 'mismatch'):
+                return Response({'error': 'ใบนี้ยังไม่ได้รับเงิน'}, status=status.HTTP_400_BAD_REQUEST)
+            _sync_cashflow(h, None, '')
+            h.received_amount = None
+            h.received_by = ''
+            h.received_at = None
+            h.received_note = ''
+            h.status = 'pending'
+            h.save()
         h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
         return Response(_handover_json(h))
 
