@@ -21,6 +21,7 @@ from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.ServiceViewSet import ServiceViewSet
 from api.views.CashflowView import CashflowViewSet
 from api.views.CashHandoverViewSet import CashHandoverViewSet
+from api.views.ExpenseRequestViewSet import ExpenseRequestViewSet
 from api.views.TaskViewSet import TaskPostViewSet
 from api.views.AnnouncementViewSet import AnnouncementViewSet
 from api.views.AnnouncementSettingsView import AnnouncementSettingsView
@@ -636,6 +637,34 @@ def add_cash_amount_columns(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: สร้างตารางรายการขอจ่ายเงิน (พนักงานขอ → adm อนุมัติ → ลงรายจ่ายเงินสด) เรียกซ้ำได้
+def create_expense_request_table(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS expense_request (
+                    id BIGSERIAL PRIMARY KEY,
+                    created_by_username VARCHAR(255) NOT NULL,
+                    created_by_name VARCHAR(255) NOT NULL DEFAULT '',
+                    category VARCHAR(50) NOT NULL DEFAULT '',
+                    description VARCHAR(255) NOT NULL,
+                    amount NUMERIC(12, 2) NOT NULL,
+                    receipt_image TEXT NULL,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                    decided_by VARCHAR(255) NOT NULL DEFAULT '',
+                    decided_at TIMESTAMPTZ NULL,
+                    reject_reason TEXT NOT NULL DEFAULT '',
+                    cashflow_entry_id BIGINT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS expense_request_status_idx ON expense_request (status);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS expense_request_user_idx ON expense_request (created_by_username);")
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตารางรายการจ่ายเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -649,6 +678,7 @@ router.register(r'issues', IssueViewSet, basename='issue')
 router.register(r'issue-updates', IssueUpdateViewSet, basename='issue-update')
 router.register(r'cashflow', CashflowViewSet, basename='cashflow')
 router.register(r'cash-handover', CashHandoverViewSet, basename='cash-handover')
+router.register(r'expense-requests', ExpenseRequestViewSet, basename='expense-requests')
 router.register(r'tasks/posts', TaskPostViewSet, basename='task-posts')
 router.register(r'announcements', AnnouncementViewSet, basename='announcements')
 
@@ -684,6 +714,7 @@ urlpatterns = [
     path('dev/migrate-service-orders/', migrate_service_orders),
     path('dev/create-cash-handover-tables/', create_cash_handover_tables),
     path('dev/add-cash-amount-columns/', add_cash_amount_columns),
+    path('dev/create-expense-request-table/', create_expense_request_table),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

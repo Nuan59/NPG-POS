@@ -12,7 +12,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 /**
  * ไอคอนถาวรใน Navbar สำหรับเช็คงานที่ถูกมอบหมาย - กดแล้วพาไปหน้า /tasks
  * แสดงตัวเลขจำนวนงานค้าง (ยังไม่ทำ) ของตัวเอง ถ้าไม่มีงานค้างจะไม่โชว์ badge
- * ✅ นับรวมเรื่องเงินสดด้วย: พนักงาน = เงินสดค้างส่ง (นับเป็น 1 ถ้ามี), adm = ใบส่งเงินที่รอรับ
+ * ✅ นับรวมเรื่องเงินสดด้วย: พนักงาน = เงินสดค้างส่ง (นับเป็น 1 ถ้ามี), adm = ใบส่งเงินที่รอรับ + คำขอจ่ายที่รออนุมัติ
  */
 const TaskNotificationIcon = () => {
   const { data: session, status } = useSession();
@@ -41,13 +41,24 @@ const TaskNotificationIcon = () => {
 
     const fetchCashCount = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/cash-handover/summary/`, {
-          headers: { Authorization: `Bearer ${userInfo?.accessToken}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        // adm: จำนวนใบที่รอรับ / พนักงาน: มีเงินสดค้างส่ง = 1 งาน
-        setCashCount((data.pending_to_receive || 0) + (data.unsent_count > 0 ? 1 : 0));
+        const headers = { Authorization: `Bearer ${userInfo?.accessToken}` };
+        const isAdmin = String(userInfo?.role ?? "").toLowerCase() === "adm";
+        const [res, exRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/cash-handover/summary/`, { headers }),
+          // ✅ adm: คำขอจ่ายที่รออนุมัติ (ถ้ายังไม่ได้สร้างตาราง จะได้ error → ไม่นับ)
+          isAdmin ? fetch(`${API_BASE_URL}/expense-requests/summary/`, { headers }).catch(() => null) : Promise.resolve(null),
+        ]);
+        let count = 0;
+        if (res.ok) {
+          const data = await res.json();
+          // adm: จำนวนใบที่รอรับ / พนักงาน: มีเงินสดค้างส่ง = 1 งาน
+          count += (data.pending_to_receive || 0) + (data.unsent_count > 0 ? 1 : 0);
+        }
+        if (exRes && exRes.ok) {
+          const ex = await exRes.json();
+          count += ex.pending || 0;
+        }
+        setCashCount(count);
       } catch (error) {
         console.error("❌ ดึงจำนวนเงินค้างส่งไม่สำเร็จ:", error);
       }
@@ -62,15 +73,12 @@ const TaskNotificationIcon = () => {
   return (
     <Link
       href="/tasks"
-      className="relative w-full h-full flex items-center justify-center rounded-full"
+      className="relative p-2 rounded-xl hover:bg-orange-500 hover:shadow-lg hover:scale-110 transition-all duration-300"
       title={cashCount > 0 ? "งานที่มอบหมาย / ส่งเงิน" : "งานที่มอบหมาย"}
     >
-      <ClipboardList size={18} strokeWidth={1.8} className="text-[#E4E8EE]" />
+      <ClipboardList size={20} strokeWidth={2.5} className="text-white" />
       {totalCount > 0 && (
-        <span
-          className="absolute -top-1.5 -right-1.5 text-white text-[10px] font-medium rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow-[0_0_0_2px_#2B3341]"
-          style={{ background: "linear-gradient(180deg, #FF6B6B, #E53935)" }}
-        >
+        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
           {totalCount}
         </span>
       )}
