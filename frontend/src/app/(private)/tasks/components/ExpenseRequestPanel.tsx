@@ -435,15 +435,7 @@ export default function ExpenseRequestPanel() {
               {form?.kind === "edit" && `แก้ไข ${form.e.number}`}
               {form?.kind === "approve" && `อนุมัติ ${form.e.number}`}
             </DialogTitle>
-            <DialogDescription>
-              {form?.kind === "create" && "ส่งให้ adm อนุมัติ · อนุมัติแล้วจะลงรายจ่ายเงินสดให้อัตโนมัติ"}
-              {form?.kind === "edit" &&
-                (form.e.status === "approved"
-                  ? "รายการนี้อนุมัติแล้ว · รายจ่ายในหน้ารายรับ-รายจ่ายจะแก้ตามให้"
-                  : `ของ ${form.e.created_by_name}`)}
-              {form?.kind === "approve" &&
-                `ของ ${form.e.created_by_name} · ตรวจ/แก้ยอดได้ก่อนอนุมัติ → ลงรายจ่ายเงินสดวันนี้`}
-            </DialogDescription>
+            {form && form.kind !== "create" && <DialogDescription>ของ {form.e.created_by_name}</DialogDescription>}
           </DialogHeader>
 
           <div className="space-y-4">
@@ -528,7 +520,7 @@ export default function ExpenseRequestPanel() {
                   </Button>
                 )}
                 {form?.kind === "edit" && form.e.has_receipt && !fImageTouched && (
-                  <p className="text-xs text-gray-500 mt-1">มีใบเสร็จเดิมอยู่แล้ว · เลือกรูปใหม่ถ้าต้องการเปลี่ยน</p>
+                  <p className="text-xs text-gray-500 mt-1">มีใบเสร็จเดิม</p>
                 )}
               </div>
             )}
