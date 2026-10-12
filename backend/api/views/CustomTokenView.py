@@ -15,7 +15,8 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         except User.DoesNotExist:
             return super().post(request, *args, **kwargs)
 
-        if user.role == "adm":
+        # ✅ adm และผู้ตรวจสอบ (mon) เข้าระบบได้ตลอด ไม่ติดเวลาทำงาน
+        if user.role in ("adm", "mon"):
             return super().post(request, *args, **kwargs)
 
         work = WorkHours.get_settings()

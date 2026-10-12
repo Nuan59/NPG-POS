@@ -40,6 +40,8 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
         <div className="flex items-center gap-2">
           {row.original.role === "adm" ? (
             <Badge>ผู้จัดการ</Badge>
+          ) : (row.original.role as string) === "mon" ? (
+            <Badge variant="outline" className="border-orange-400 text-orange-600">ผู้ตรวจสอบ</Badge>
           ) : (
             <Badge variant={"secondary"}>พนักงาน</Badge>
           )}
@@ -169,7 +171,7 @@ export const EmployeeColumns: ColumnDef<IEmployee>[] = [
               </Link>
 
               {/* ✅ กำหนดสิทธิ์แบบด่วน - เฉพาะพนักงาน (ผู้จัดการเข้าได้ทุกหน้าอยู่แล้ว) */}
-              {employee.role !== "adm" && (
+              {employee.role === "emp" && (
                 <DropdownMenuItem
                   onClick={() => {
                     setDropdownOpen(false);

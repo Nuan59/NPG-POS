@@ -8,7 +8,8 @@ class User(AbstractUser):
 
     ROLE_CHOICES = [
         ('adm', 'Admin'),
-        ('emp', 'Employee')
+        ('emp', 'Employee'),
+        ('mon', 'Monitor'),  # ✅ ผู้ตรวจสอบ: ดูได้ทุกหน้า กดได้แค่ รับเงิน / อนุมัติจ่าย (กันที่ ReadOnlyRoleMiddleware)
     ]
 
     role = models.CharField(max_length=3, choices=ROLE_CHOICES)

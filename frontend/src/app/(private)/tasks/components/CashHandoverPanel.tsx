@@ -109,7 +109,10 @@ const ItemRow = ({ item }: { item: CashItem }) => {
 export default function CashHandoverPanel() {
   const { data: session, status } = useSession();
   const token = (session as any)?.user?.accessToken;
-  const isAdmin = String((session as any)?.user?.role ?? "").toLowerCase() === "adm";
+  const role = String((session as any)?.user?.role ?? "").toLowerCase();
+  const isAdmin = role === "adm";
+  // ✅ ผู้ตรวจสอบ (mon) เห็นแบบเดียวกับ adm แต่กดได้แค่ รับเงิน / ยอดไม่ตรง
+  const isReviewer = isAdmin || role === "mon";
 
   const [unsent, setUnsent] = useState<CashItem[]>([]);
   const [groups, setGroups] = useState<UnsentGroup[]>([]);
@@ -161,7 +164,7 @@ export default function CashHandoverPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      if (isAdmin) {
+      if (isReviewer) {
         const [g, h, x] = await Promise.all([api("unsent/?all=1"), api("?limit=30"), api("?status=excluded&limit=30")]);
         setGroups(Array.isArray(g) ? g : []);
         setHandovers(Array.isArray(h) ? h : []);
@@ -178,7 +181,7 @@ export default function CashHandoverPanel() {
     } finally {
       setLoading(false);
     }
-  }, [api, token, isAdmin]);
+  }, [api, token, isReviewer]);
 
   useEffect(() => {
     if (status === "authenticated") load();
@@ -286,7 +289,7 @@ export default function CashHandoverPanel() {
   const done = handovers.filter((h) => h.status !== "pending");
 
   // ✅ ไม่มีอะไรให้ทำ/ให้ดู → ไม่ต้องแสดงส่วนส่งเงินเลย
-  const hasAnything = isAdmin
+  const hasAnything = isReviewer
     ? pending.length > 0 || groups.length > 0 || done.length > 0 || excluded.length > 0
     : unsent.length > 0 || handovers.length > 0;
   if (loading || !hasAnything) return null;
@@ -299,7 +302,7 @@ export default function CashHandoverPanel() {
       </h3>
 
       {/* ---------------- พนักงาน ---------------- */}
-      {!isAdmin && (
+      {!isReviewer && (
         <>
           {unsent.length > 0 && (
           <div className="bg-white rounded-xl border">
@@ -389,8 +392,8 @@ export default function CashHandoverPanel() {
         </>
       )}
 
-      {/* ---------------- adm ---------------- */}
-      {isAdmin && (
+      {/* ---------------- adm / ผู้ตรวจสอบ ---------------- */}
+      {isReviewer && (
         <>
           {pending.length > 0 && (
           <div className="bg-white rounded-xl border">
@@ -415,6 +418,7 @@ export default function CashHandoverPanel() {
                       </div>
                       <span className="ml-auto text-lg font-bold tabular-nums">{baht(h.total)}</span>
                       <div className="flex gap-2 w-full sm:w-auto">
+                        {isAdmin && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -431,6 +435,7 @@ export default function CashHandoverPanel() {
                         >
                           ยกเลิกใบ
                         </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -458,6 +463,7 @@ export default function CashHandoverPanel() {
                             <div className="flex-1 min-w-0">
                               <ItemRow item={i} />
                             </div>
+                            {isAdmin && (<>
                             <button
                               type="button"
                               aria-label="แก้ยอดรายการ"
@@ -488,6 +494,7 @@ export default function CashHandoverPanel() {
                             >
                               <X size={14} />
                             </button>
+                            </>)}
                           </div>
                         ))}
                       </div>
@@ -511,6 +518,7 @@ export default function CashHandoverPanel() {
                       <span className="ml-auto font-semibold tabular-nums text-amber-700">{baht(g.total)}</span>
                     </summary>
                     <div className="pb-3 pl-7">
+                      {isAdmin && (
                       <label className="flex items-center gap-2 py-2 text-xs text-gray-500 cursor-pointer border-b">
                         <input
                           type="checkbox"
@@ -520,21 +528,24 @@ export default function CashHandoverPanel() {
                         />
                         เลือกทั้งหมด
                       </label>
+                      )}
                       <div className="divide-y">
                         {g.items.map((i) => (
                           <div key={keyOf(i)} className="flex items-center gap-1">
                             <label className="flex flex-1 min-w-0 items-center gap-3 cursor-pointer">
+                              {isAdmin && (
                               <input
                                 type="checkbox"
                                 className="h-4 w-4 accent-orange-600 shrink-0"
                                 checked={admSel.has(selKey(g, i))}
                                 onChange={() => toggleAdm(selKey(g, i))}
                               />
+                              )}
                               <div className="flex-1 min-w-0">
                                 <ItemRow item={i} />
                               </div>
                             </label>
-                            {i.source !== "npg_fee" && (
+                            {isAdmin && i.source !== "npg_fee" && (
                               <button
                                 type="button"
                                 aria-label="แก้ยอดเงินสด"
@@ -551,7 +562,7 @@ export default function CashHandoverPanel() {
                           </div>
                         ))}
                       </div>
-                      {(() => {
+                      {isAdmin && (() => {
                         const sel = groupSelected(g);
                         const total = sel.reduce((sum, i) => sum + i.amount, 0);
                         return (
@@ -625,6 +636,7 @@ export default function CashHandoverPanel() {
                         {h.note && ` · ${h.note}`}
                         {h.received_note && ` · ${h.received_note}`}
                       </p>
+                      {isAdmin && (
                       <div className="flex gap-2 mt-2">
                         <Button
                           variant="outline"
@@ -656,6 +668,7 @@ export default function CashHandoverPanel() {
                           <Undo2 size={14} /> ยกเลิกการรับ
                         </Button>
                       </div>
+                      )}
                     </div>
                   </details>
                 ))}
@@ -675,6 +688,7 @@ export default function CashHandoverPanel() {
                         ตัดโดย {h.received_by} · {when(h.received_at)}
                         {h.received_note && ` · ${h.received_note}`}
                       </span>
+                      {isAdmin && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -684,6 +698,7 @@ export default function CashHandoverPanel() {
                       >
                         <RotateCcw size={14} /> คืนรายการ
                       </Button>
+                      )}
                     </div>
                     <div className="divide-y pl-2">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
                   </div>

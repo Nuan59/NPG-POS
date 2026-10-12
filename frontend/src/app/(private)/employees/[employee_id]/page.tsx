@@ -55,6 +55,13 @@ const ViewEmployee = async ({ params }: ViewEmployeeProps) => {
 						<Badge className="place-self-start text-xs font-bold">
 							ผู้จัดการ
 						</Badge>
+					) : (employee.role as string) === "mon" ? (
+						<Badge
+							variant="outline"
+							className="place-self-start text-xs font-bold border-orange-400 text-orange-600"
+						>
+							ผู้ตรวจสอบ
+						</Badge>
 					) : (
 						<Badge
 							variant={"secondary"}

@@ -115,7 +115,11 @@ const CategoryChip = ({ c }: { c: string }) =>
 export default function ExpenseRequestPanel() {
   const { data: session, status } = useSession();
   const token = (session as any)?.user?.accessToken;
-  const isAdmin = String((session as any)?.user?.role ?? "").toLowerCase() === "adm";
+  const role = String((session as any)?.user?.role ?? "").toLowerCase();
+  const isAdmin = role === "adm";
+  // ✅ ผู้ตรวจสอบ (mon) เห็นแบบ adm แต่กดได้แค่ อนุมัติ / ไม่อนุมัติ (ขอจ่าย/แก้ไข/ลบ/ย้อนกลับ ไม่ได้)
+  const isMonitor = role === "mon";
+  const isReviewer = isAdmin || isMonitor;
 
   const [items, setItems] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,14 +157,14 @@ export default function ExpenseRequestPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      const data = await api(`?limit=${isAdmin ? 50 : 20}`);
+      const data = await api(`?limit=${isReviewer ? 50 : 20}`);
       setItems(Array.isArray(data) ? data : []);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "โหลดรายการจ่ายไม่สำเร็จ");
     } finally {
       setLoading(false);
     }
-  }, [api, token, isAdmin]);
+  }, [api, token, isReviewer]);
 
   useEffect(() => {
     if (status === "authenticated") load();
@@ -267,13 +271,15 @@ export default function ExpenseRequestPanel() {
           <Receipt className="h-5 w-5 text-orange-600" />
           รายการจ่าย
         </h3>
-        <Button size="sm" className="gap-1 bg-orange-600 hover:bg-orange-700" onClick={() => openForm({ kind: "create" })}>
-          <Plus size={15} /> ขอจ่ายเงิน
-        </Button>
+        {!isMonitor && (
+          <Button size="sm" className="gap-1 bg-orange-600 hover:bg-orange-700" onClick={() => openForm({ kind: "create" })}>
+            <Plus size={15} /> ขอจ่ายเงิน
+          </Button>
+        )}
       </div>
 
       {/* ---------------- adm: รออนุมัติ ---------------- */}
-      {isAdmin && pending.length > 0 && (
+      {isReviewer && pending.length > 0 && (
         <div className="bg-white rounded-xl border">
           <p className="px-4 py-3 border-b text-sm font-medium flex items-center gap-2">
             รออนุมัติ
@@ -298,6 +304,7 @@ export default function ExpenseRequestPanel() {
                   </div>
                   <span className="text-lg font-bold tabular-nums">{baht(e.amount)}</span>
                   <div className="flex gap-2 w-full sm:w-auto">
+                    {isAdmin && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -315,6 +322,7 @@ export default function ExpenseRequestPanel() {
                     >
                       <Trash2 size={15} />
                     </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -343,14 +351,14 @@ export default function ExpenseRequestPanel() {
       )}
 
       {/* ---------------- adm: ตัดสินแล้ว / พนักงาน: คำขอของฉัน ---------------- */}
-      {(isAdmin ? decided : items).length > 0 && (
+      {(isReviewer ? decided : items).length > 0 && (
         <div className="bg-white rounded-xl border">
-          <p className="px-4 py-3 border-b text-sm font-medium">{isAdmin ? "อนุมัติ / ไม่อนุมัติล่าสุด" : "คำขอจ่ายของฉัน"}</p>
+          <p className="px-4 py-3 border-b text-sm font-medium">{isReviewer ? "อนุมัติ / ไม่อนุมัติล่าสุด" : "คำขอจ่ายของฉัน"}</p>
           <div className="divide-y">
-            {(isAdmin ? decided.slice(0, 15) : items).map((e) => (
+            {(isReviewer ? decided.slice(0, 15) : items).map((e) => (
               <div key={e.id} className="px-4 py-2.5">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  {isAdmin && <span className="font-medium">{e.created_by_name}</span>}
+                  {isReviewer && <span className="font-medium">{e.created_by_name}</span>}
                   <span className="text-xs text-gray-400">{e.number}</span>
                   <StatusChip e={e} />
                   <span className="ml-auto font-semibold tabular-nums">{baht(e.amount)}</span>
@@ -368,7 +376,7 @@ export default function ExpenseRequestPanel() {
                     <span className="text-xs text-red-600">เหตุผล: {e.reject_reason}</span>
                   )}
                   <div className="ml-auto flex gap-1">
-                    {(isAdmin || e.status === "pending") && (
+                    {!isMonitor && (isAdmin || e.status === "pending") && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -379,7 +387,7 @@ export default function ExpenseRequestPanel() {
                         <Pencil size={13} /> แก้ไข
                       </Button>
                     )}
-                    {!isAdmin && e.status === "pending" && (
+                    {!isReviewer && e.status === "pending" && (
                       <Button
                         variant="ghost"
                         size="sm"

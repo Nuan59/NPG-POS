@@ -91,6 +91,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # ✅ บัญชีผู้ตรวจสอบ (role=mon) ดูได้อย่างเดียว - กดได้แค่ รับเงิน / อนุมัติจ่าย
+    "api.middleware.ReadOnlyRoleMiddleware.ReadOnlyRoleMiddleware",
 ]
 
 ROOT_URLCONF = "core.urls"

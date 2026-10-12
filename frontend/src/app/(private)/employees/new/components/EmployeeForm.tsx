@@ -66,7 +66,7 @@ type FormDataType = {
 	username: string;
 	password?: string;
 	repeat_password?: string;
-	role: "adm" | "emp";
+	role: "adm" | "emp" | "mon";
 	permissions?: Record<string, boolean>;
 };
 
@@ -90,12 +90,13 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 
 	const onSubmit = async (values: FormDataType) => {
 		const payload = { ...values };
-		if (payload.role === "adm") {
+		// ✅ กำหนดสิทธิ์รายหน้าเฉพาะพนักงาน (adm / ผู้ตรวจสอบ เห็นได้ทุกหน้าอยู่แล้ว)
+		if (payload.role !== "emp") {
 			delete payload.permissions;
 		}
 
 		if (!employee) {
-			const req = await createEmployee(payload);
+			const req = await createEmployee(payload as any);
 			if (req.status === "success") {
 				toast.success("เพิ่มพนักงานเรียบร้อยแล้ว", {
 					description: getDate(new Date()),
@@ -105,7 +106,7 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 			}
 			toast.error(req.data?.message || "เกิดข้อผิดพลาด");
 		} else {
-			const req = await editEmployee(employee.id!, payload);
+			const req = await editEmployee(employee.id!, payload as any);
 			if (req.status === "success") {
 				toast.success("แก้ไขข้อมูลพนักงานเรียบร้อยแล้ว", {
 					description: getDate(new Date()),
@@ -128,6 +129,7 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 			options: [
 				{ value: "emp", label: "พนักงาน" },
 				{ value: "adm", label: "ผู้ดูแลระบบ" },
+				{ value: "mon", label: "ผู้ตรวจสอบ (ดูอย่างเดียว · รับเงิน / อนุมัติจ่าย)" },
 			],
 		},
 	];

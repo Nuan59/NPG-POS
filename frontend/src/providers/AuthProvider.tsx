@@ -18,6 +18,16 @@ const SessionGuard = () => {
 		signOut({ callbackUrl: `/login?expired=1&callbackUrl=${encodeURIComponent(back)}` });
 	}, [session?.error]);
 
+	// ✅ บัญชีผู้ตรวจสอบ (role = mon) → ป้ายเล็กมุมล่างซ้ายทุกหน้า ให้รู้ว่าดูได้อย่างเดียว
+	if ((session?.user as any)?.role === "mon") {
+		return (
+			<div className="pointer-events-none fixed bottom-3 left-3 z-[60] rounded-full bg-[#1e2432]/90 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+				<span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[#F26B1D] align-middle" />
+				บัญชีดูอย่างเดียว · กดได้แค่รับเงิน / อนุมัติจ่าย
+			</div>
+		);
+	}
+
 	return null;
 };
 

@@ -38,6 +38,11 @@ def _is_admin(request):
     return str(getattr(request.user, 'role', '') or '').lower() == 'adm'
 
 
+def _is_reviewer(request):
+    """adm หรือ ผู้ตรวจสอบ (mon) - เห็นคำขอทั้งหมด + อนุมัติ / ไม่อนุมัติ ได้"""
+    return str(getattr(request.user, 'role', '') or '').lower() in ('adm', 'mon')
+
+
 def _display_name(user):
     return (getattr(user, 'name', None) or getattr(user, 'username', '') or '').strip()
 
@@ -142,7 +147,7 @@ class ExpenseRequestViewSet(viewsets.ViewSet):
         e = qs.filter(pk=pk).first()
         if not e:
             return None, _err('ไม่พบรายการ', status.HTTP_404_NOT_FOUND)
-        if not _is_admin(request) and e.created_by_username != request.user.username:
+        if not _is_reviewer(request) and e.created_by_username != request.user.username:
             return None, _err('ไม่ใช่รายการของคุณ', status.HTTP_403_FORBIDDEN)
         return e, None
 
@@ -150,7 +155,7 @@ class ExpenseRequestViewSet(viewsets.ViewSet):
 
     def list(self, request):
         qs = ExpenseRequest.objects.defer('receipt_image').all()
-        if not _is_admin(request):
+        if not _is_reviewer(request):
             qs = qs.filter(created_by_username=request.user.username)
         st = request.query_params.get('status')
         if st:
@@ -220,7 +225,7 @@ class ExpenseRequestViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         pending = ExpenseRequest.objects.filter(status='pending')
-        if not _is_admin(request):
+        if not _is_reviewer(request):
             pending = pending.filter(created_by_username=request.user.username)
         return Response({'pending': pending.count(), 'categories': CATEGORIES})
 
@@ -228,8 +233,8 @@ class ExpenseRequestViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        if not _is_admin(request):
-            return _err('เฉพาะ adm เท่านั้นที่อนุมัติได้', status.HTTP_403_FORBIDDEN)
+        if not _is_reviewer(request):
+            return _err('เฉพาะ adm / ผู้ตรวจสอบ เท่านั้นที่อนุมัติได้', status.HTTP_403_FORBIDDEN)
         with transaction.atomic():
             e, err = self._get(request, pk, lock=True)
             if err:
@@ -253,7 +258,7 @@ class ExpenseRequestViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        if not _is_admin(request):
+        if not _is_reviewer(request):
             return _err('เฉพาะ adm เท่านั้น', status.HTTP_403_FORBIDDEN)
         reason = (request.data.get('reason') or '').strip()
         if not reason:

@@ -12,14 +12,16 @@ const fmt = (n: number | undefined | null) =>
 const CashflowTodayCard = () => {
   const { data: session } = useSession();
   const userInfo = session?.user;
+  // ✅ adm และผู้ตรวจสอบ (mon) เห็นการ์ดนี้
+  const canSee = userInfo?.role === "adm" || userInfo?.role === "mon";
   const [data, setData] = useState<{ cashClosing: number; transferClosing: number } | null>(null);
 
   useEffect(() => {
-    if (userInfo?.role !== "adm") return;
+    if (!canSee) return;
     getCashflowTodaySummary().then((res) => res && setData(res));
-  }, [userInfo?.role]);
+  }, [canSee]);
 
-  if (userInfo?.role !== "adm" || !data) return null;
+  if (!canSee || !data) return null;
 
   return (
     <Link href="/cashflow" className="block">

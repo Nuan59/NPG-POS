@@ -42,7 +42,8 @@ const TaskNotificationIcon = () => {
     const fetchCashCount = async () => {
       try {
         const headers = { Authorization: `Bearer ${userInfo?.accessToken}` };
-        const isAdmin = String(userInfo?.role ?? "").toLowerCase() === "adm";
+        // ✅ adm และผู้ตรวจสอบ (mon) นับคำขอจ่ายที่รออนุมัติด้วย
+        const isAdmin = ["adm", "mon"].includes(String(userInfo?.role ?? "").toLowerCase());
         const [res, exRes] = await Promise.all([
           fetch(`${API_BASE_URL}/cash-handover/summary/`, { headers }),
           // ✅ adm: คำขอจ่ายที่รออนุมัติ (ถ้ายังไม่ได้สร้างตาราง จะได้ error → ไม่นับ)

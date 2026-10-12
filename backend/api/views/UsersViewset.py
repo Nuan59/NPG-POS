@@ -17,6 +17,8 @@ class UsersViewset(viewsets.ModelViewSet):
         username = request.data['username']
         password = request.data['password']
         role = request.data['role']
+        if role not in ('adm', 'emp', 'mon'):
+            return Response({'success': False, 'message': 'ตำแหน่งไม่ถูกต้อง'}, status=400)
         # ✅ บันทึก permissions เฉพาะ role="emp" (adm เข้าได้ทุกหน้าอยู่แล้วไม่ต้องเก็บ)
         permissions = request.data.get('permissions') if role == 'emp' else None
 
@@ -41,6 +43,8 @@ class UsersViewset(viewsets.ModelViewSet):
         username = request.data['username']
         password = request.data['password']
         role = request.data['role']
+        if role not in ('adm', 'emp', 'mon'):
+            return Response({'success': False, 'message': 'ตำแหน่งไม่ถูกต้อง'}, status=400)
 
         userToEdit = User.objects.get(pk=kwargs['pk'])
         

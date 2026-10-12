@@ -17,7 +17,8 @@ export default withAuth(
 			return NextResponse.redirect(url);
 		}
 
-		if (ADMIN_ROUTES.some((route) => pathname.startsWith(route)) && token?.role !== "adm") {
+		// ✅ ผู้ตรวจสอบ (mon) เข้าดูได้ทุกหน้าเหมือน adm (การกันแก้ไขอยู่ที่ backend)
+		if (ADMIN_ROUTES.some((route) => pathname.startsWith(route)) && token?.role !== "adm" && token?.role !== "mon") {
 			return NextResponse.redirect(new URL("/dashboard?unauthorized", req.url));
 		}
 

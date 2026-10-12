@@ -62,6 +62,11 @@ def _is_admin(request):
     return str(getattr(request.user, 'role', '') or '').lower() == 'adm'
 
 
+def _is_reviewer(request):
+    """adm หรือ ผู้ตรวจสอบ (mon) - เห็นภาพรวมทั้งหมด + กดรับเงิน / ยอดไม่ตรง ได้"""
+    return str(getattr(request.user, 'role', '') or '').lower() in ('adm', 'mon')
+
+
 def _display_name(user):
     return (getattr(user, 'name', None) or getattr(user, 'username', '') or '').strip()
 
@@ -315,7 +320,7 @@ class CashHandoverViewSet(viewsets.ViewSet):
 
     def list(self, request):
         qs = CashHandover.objects.prefetch_related('items').all()
-        if not _is_admin(request):
+        if not _is_reviewer(request):
             qs = qs.filter(created_by_username=request.user.username)
         st = request.query_params.get('status')
         if st:
@@ -327,7 +332,7 @@ class CashHandoverViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def unsent(self, request):
-        if _is_admin(request) and request.query_params.get('all'):
+        if _is_reviewer(request) and request.query_params.get('all'):
             rows = _collect_unsent(None)
             names = dict(User.objects.values_list('username', 'name')) if rows else {}
             groups = {}
@@ -388,7 +393,7 @@ class CashHandoverViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         data = {'unsent_count': 0, 'unsent_total': 0.0, 'pending_to_receive': 0}
-        if _is_admin(request):
+        if _is_reviewer(request):
             data['pending_to_receive'] = CashHandover.objects.filter(status='pending').count()
         else:
             rows = _collect_unsent(request.user.username)
@@ -440,8 +445,8 @@ class CashHandoverViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def receive(self, request, pk=None):
-        if not _is_admin(request):
-            return Response({'error': 'เฉพาะ adm เท่านั้นที่กดรับเงินได้'}, status=status.HTTP_403_FORBIDDEN)
+        if not _is_reviewer(request):
+            return Response({'error': 'เฉพาะ adm / ผู้ตรวจสอบ เท่านั้นที่กดรับเงินได้'}, status=status.HTTP_403_FORBIDDEN)
 
         with transaction.atomic():
             h = CashHandover.objects.select_for_update().filter(pk=pk).first()
