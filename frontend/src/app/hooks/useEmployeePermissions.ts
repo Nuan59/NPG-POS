@@ -10,12 +10,15 @@ const API_URL =
 /**
  * ดึงสิทธิ์การเข้าถึงหน้าต่างๆ ของ user ที่ login อยู่จริง
  * - role "adm" ผ่านทุกหน้าเสมอ ไม่ต้องยิง API
+ * - role "mon" (ผู้ตรวจสอบ) เห็นได้ทุกหน้าเหมือน adm (การกันแก้ไขอยู่ที่ backend)
  * - role "emp" ดึง permissions จาก /employees/{id}/ (ข้อมูลเดียวกับที่หน้าแก้ไขพนักงานใช้)
  */
 export const useEmployeePermissions = () => {
   const { data: session, status } = useSession();
   const userInfo = session?.user as any;
   const isAdmin = userInfo?.role === "adm";
+  const isMonitor = userInfo?.role === "mon";
+  const seesAll = isAdmin || isMonitor;
 
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState(false);
@@ -24,7 +27,7 @@ export const useEmployeePermissions = () => {
     if (status !== "authenticated") return;
 
     // ✅ ผู้ดูแลระบบเข้าได้ทุกหน้าอยู่แล้ว ไม่ต้องเช็ค permissions
-    if (isAdmin) {
+    if (seesAll) {
       setLoaded(true);
       return;
     }
@@ -45,7 +48,7 @@ export const useEmployeePermissions = () => {
         setPermissions({});
       })
       .finally(() => setLoaded(true));
-  }, [status, isAdmin, userInfo?.id, userInfo?.accessToken]);
+  }, [status, seesAll, userInfo?.id, userInfo?.accessToken]);
 
   /**
    * เช็คว่าเข้าหน้าที่ต้องการ permission นี้ได้ไหม
@@ -53,9 +56,9 @@ export const useEmployeePermissions = () => {
    */
   const canAccess = (key: string | null) => {
     if (!key) return true;
-    if (isAdmin) return true;
+    if (seesAll) return true;
     return !!permissions[key];
   };
 
-  return { isAdmin, permissions, loaded, canAccess };
+  return { isAdmin, isMonitor, permissions, loaded, canAccess };
 };

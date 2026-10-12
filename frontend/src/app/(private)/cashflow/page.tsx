@@ -29,6 +29,9 @@ export default function CashflowPage() {
   const userInfo = session?.user as { name?: string; username?: string; role?: string } | undefined;
   const currentUserName = userInfo?.name ?? userInfo?.username ?? "";
   const isAdmin = userInfo?.role === "adm";
+  // ✅ ผู้ตรวจสอบ (mon): เห็นทุกอย่างเหมือน adm (สรุปเดือน / Export / ผลนับเงิน) แต่เพิ่ม/แก้/ลบรายการไม่ได้
+  const isMonitor = userInfo?.role === "mon";
+  const isReviewer = isAdmin || isMonitor;
 
   const [date, setDate] = useState(todayStr());
   const [loading, setLoading] = useState(false);
@@ -262,7 +265,7 @@ export default function CashflowPage() {
             <button onClick={() => setDate(shiftDate(date, -1))} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg"><ChevronLeft size={18} /></button>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-white/90 text-gray-800 rounded-lg px-3 py-2 text-sm font-medium" />
             <button onClick={() => setDate(shiftDate(date, 1))} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg"><ChevronRight size={18} /></button>
-            {isAdmin && (
+            {isReviewer && (
               <button onClick={openMonth} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg flex items-center gap-1 text-sm px-3">
                 <CalendarRange size={16} /> สรุปเดือน
               </button>
@@ -271,7 +274,7 @@ export default function CashflowPage() {
         </div>
 
         {/* ✅ Export ช่วงวันที่ - เลือกจาก-ถึง รวมหลายวันในรายงานเดียว (เฉพาะ admin) */}
-        {isAdmin && (
+        {isReviewer && (
         <div className="bg-white rounded-xl shadow-md p-4 flex flex-wrap items-end gap-3">
           <div className="text-sm font-semibold text-gray-700 w-full sm:w-auto">
             📅 Export รายงานช่วงวันที่
@@ -320,10 +323,10 @@ export default function CashflowPage() {
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={updateCashRows}
-                opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin}
+                opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin} readOnly={isMonitor}
                 onRowDeleted={(row) => deleteRowNow(row, "cash")} />
               <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={updateTransferRows}
-                opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin}
+                opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} readOnly={isMonitor}
                 onRowDeleted={(row) => deleteRowNow(row, "transfer")} />
             </div>
 
@@ -339,10 +342,11 @@ export default function CashflowPage() {
               cashClosing={cashClosing}
               cashCount={cashCount}
               onRecorded={() => loadDay(date)}
-              isAdmin={isAdmin}
+              isAdmin={isReviewer}
+              readOnly={isMonitor}
             />
 
-            {isAdmin && (
+            {isReviewer && (
             <div className="flex items-center justify-end gap-2">
               <button
                 onClick={() =>

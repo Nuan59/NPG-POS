@@ -19,10 +19,12 @@ interface CashflowSectionProps {
   currentUserName: string;
   isAdmin: boolean;
   onRowDeleted?: (row: UIRow) => void;
+  /** ✅ ผู้ตรวจสอบ: ดูได้อย่างเดียว ไม่มีปุ่มเพิ่ม/แก้/ลบ */
+  readOnly?: boolean;
 }
 
 const CashflowSection = ({
-  title, accent, rows, setRows, opening, currentUserName, isAdmin, onRowDeleted,
+  title, accent, rows, setRows, opening, currentUserName, isAdmin, onRowDeleted, readOnly = false,
 }: CashflowSectionProps) => {
   const style = ACCENT[accent];
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -50,7 +52,7 @@ const CashflowSection = ({
   // - พนักงานทั่วไป: แก้ไข/ลบได้เฉพาะแถวที่ "ยังไม่บันทึก" (ไม่มี id) เท่านั้น
   //   พอ auto-save ไปแล้ว (ได้ id จาก server) จะแก้ไข/ลบไม่ได้อีกต่อไป
   const getPermission = (row: UIRow) => {
-    const editable = isAdmin || !row.id;
+    const editable = !readOnly && (isAdmin || !row.id);
     return { canEdit: editable, canDelete: editable };
   };
 
@@ -61,7 +63,7 @@ const CashflowSection = ({
       <div className="space-y-2">
         {computed.length === 0 && (
           <div className="text-center text-sm text-gray-400 py-6 border border-dashed rounded-lg">
-            ยังไม่มีรายการ กด &quot;เพิ่มรายการ&quot; ด้านล่างเพื่อเริ่มบันทึก
+            {readOnly ? "ยังไม่มีรายการ" : <>ยังไม่มีรายการ กด &quot;เพิ่มรายการ&quot; ด้านล่างเพื่อเริ่มบันทึก</>}
           </div>
         )}
         {computed.map((row, idx) => {
@@ -129,12 +131,14 @@ const CashflowSection = ({
 
       {/* ✅ กดเพิ่มรายการแล้วขึ้น dialog ให้กรอกครบในทีเดียว: ชื่อรายการ / ประเภท / จำนวนเงิน
           ทุกคนเพิ่มได้ (แค่แก้ไข/ลบแถวที่บันทึกแล้วไม่ได้ ถ้าไม่ใช่ admin) */}
+      {!readOnly && (
       <button
         onClick={() => setAddDialogOpen(true)}
         className={`mt-3 w-full border border-dashed rounded-lg py-2 text-sm flex items-center justify-center gap-1 ${style.addBtn}`}
       >
         <Plus size={14} /> เพิ่มรายการ
       </button>
+      )}
 
       {addDialogOpen && (
         <AddCashflowRowDialog

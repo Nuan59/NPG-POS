@@ -15,6 +15,8 @@ interface CashReconciliationProps {
   cashCount: CashflowCountInfo | null | undefined;
   onRecorded: () => void;
   isAdmin: boolean;
+  /** ✅ ผู้ตรวจสอบ: ดูผลการนับได้ แต่บันทึกการนับเองไม่ได้ */
+  readOnly?: boolean;
 }
 
 // ✅ ตรวจนับเงินสดปลายวัน
@@ -22,7 +24,7 @@ interface CashReconciliationProps {
 //   และจะไม่เห็นตัวเลข/ผลต่างที่บันทึกไปแล้วเลย (เห็นได้เฉพาะ admin เท่านั้น) กันดูผลแล้วปรับยอดครั้งต่อไป
 // - admin: บันทึกซ้ำได้ตลอด เห็นตัวเลข/ประวัติเต็มรูปแบบ
 const CashReconciliation = ({
-  date, countedCash, setCountedCash, cashClosing, cashCount, onRecorded, isAdmin,
+  date, countedCash, setCountedCash, cashClosing, cashCount, onRecorded, isAdmin, readOnly = false,
 }: CashReconciliationProps) => {
   const [recording, setRecording] = useState(false);
 
@@ -53,7 +55,9 @@ const CashReconciliation = ({
     <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
       <h3 className="text-base font-bold mb-3 text-gray-800">🧮 ตรวจนับเงินสดปลายวัน</h3>
 
-      {alreadyRecordedByNonAdmin ? (
+      {readOnly ? (
+        cashCount?.countedAmount == null && <p className="text-sm text-gray-400">ยังไม่มีการนับเงินของวันนี้</p>
+      ) : alreadyRecordedByNonAdmin ? (
         <p className="text-sm text-emerald-600 font-medium">✓ บันทึกรายการนับเงินของวันนี้แล้ว</p>
       ) : (
         <>
