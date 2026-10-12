@@ -5,7 +5,7 @@
 - เงินสดทุกรายการ (ขาย / งานบริการ / ค่างวด NPG / ค่าธรรมเนียม NPG) ที่บันทึกหลังวันเริ่มใช้ระบบ
   จะขึ้นเป็น "ค้างส่ง" ของพนักงานที่บันทึกอัตโนมัติ (ดึงสดจากตารางต้นทาง ไม่แตะตารางเดิม)
 - พนักงานเลือกรายการแล้วกดส่ง = ใบส่งเงิน 1 ใบ (สถานะ pending)
-- adm กดรับเงิน → received / mismatch + ลงรายรับในหน้า รายรับ-รายจ่าย (ส่วนเงินสด) ให้อัตโนมัติ
+- adm กดรับเงิน → received / mismatch + ลง "ส่งเงิน" (หักออกจากเงินในลิ้นชัก) ในหน้า รายรับ-รายจ่าย ให้อัตโนมัติ
 
   GET    /cash-handover/unsent/            เงินสดค้างส่งของฉัน  (adm: ?all=1 = ของพนักงานทุกคน)
   GET    /cash-handover/                   ใบส่งเงิน (พนักงานเห็นของตัวเอง, adm เห็นทั้งหมด) ?status=pending
@@ -270,7 +270,8 @@ def _today_bkk():
 
 def _sync_cashflow(h, amount, receiver):
     """
-    ทำให้รายรับในหน้า รายรับ-รายจ่าย (ส่วนเงินสด) ตรงกับยอดที่รับของใบนี้
+    ✅ หน้า รายรับ-รายจ่าย (ส่วนเงินสด) = เงินในลิ้นชัก
+    พนักงานส่งเงินให้ adm = เงินออกจากลิ้นชัก → ลงเป็น "ส่งเงิน" (หักออกจากยอดคงเหลือ) ตามยอดที่รับจริง
     - amount > 0: มีรายการเดิม → แก้ยอด (คงวันที่เดิม) / ไม่มี (หรือถูกลบไปแล้ว) → สร้างใหม่วันนี้
     - amount = 0 / None: ลบรายการเดิม
     """
@@ -280,16 +281,18 @@ def _sync_cashflow(h, amount, receiver):
             entry.delete()
         h.cashflow_entry_id = None
         return
-    desc = f"รับเงินส่ง HO-{h.id:06d} จาก {h.created_by_name or h.created_by_username}"[:255]
+    sender = h.created_by_name or h.created_by_username
+    desc = f"ส่งเงิน HO-{h.id:06d} ({sender} → {receiver or h.received_by})"[:255]
     if entry:
-        entry.income = amount
+        entry.income = 0
+        entry.sent = amount
         entry.description = desc
-        entry.save(update_fields=['income', 'description'])
+        entry.save(update_fields=['income', 'sent', 'description'])
         return
     today = _today_bkk()
     next_seq = (CashflowEntry.objects.filter(date=today, section='cash').aggregate(m=Max('seq'))['m'] or -1) + 1
     entry = CashflowEntry.objects.create(
-        date=today, section='cash', seq=next_seq, description=desc, income=amount, created_by=receiver,
+        date=today, section='cash', seq=next_seq, description=desc, sent=amount, created_by=receiver,
     )
     h.cashflow_entry_id = entry.id
 

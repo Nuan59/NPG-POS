@@ -665,6 +665,31 @@ def create_expense_request_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: แปลงรายการ "รับเงินส่ง" เก่าในหน้า รายรับ-รายจ่าย (ที่เคยลงเป็นรายรับ) ให้เป็น "ส่งเงิน" (หักออกจากลิ้นชัก)
+# เรียกซ้ำได้ - แถวที่แปลงแล้ว (income = 0) จะไม่ถูกแตะอีก
+def convert_handover_to_sent(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                UPDATE cashflow_entry e
+                SET sent = e.income,
+                    income = 0,
+                    description = LEFT('ส่งเงิน HO-' || LPAD(h.id::text, 6, '0') || ' ('
+                        || COALESCE(NULLIF(h.created_by_name, ''), h.created_by_username) || ' → ' || h.received_by || ')', 255)
+                FROM cash_handover h
+                WHERE h.cashflow_entry_id = e.id AND e.income > 0
+                RETURNING e.id, e.date, e.sent;
+            """)
+            rows = cursor.fetchall()
+        return JsonResponse({
+            'status': 'ok',
+            'converted_count': len(rows),
+            'converted': [{'entry_id': r[0], 'date': str(r[1]), 'amount': float(r[2])} for r in rows],
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -715,6 +740,7 @@ urlpatterns = [
     path('dev/create-cash-handover-tables/', create_cash_handover_tables),
     path('dev/add-cash-amount-columns/', add_cash_amount_columns),
     path('dev/create-expense-request-table/', create_expense_request_table),
+    path('dev/convert-handover-to-sent/', convert_handover_to_sent),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
