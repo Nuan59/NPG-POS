@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Wallet,
   ChevronRight,
+  ClipboardList,
 } from "lucide-react";
 import React from "react";
 import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
@@ -31,14 +32,17 @@ const menuPages = [
   { href: "/issues", icon: MessageSquare, label: "กระทู้", description: "แจ้งปัญหา/สอบถาม" },
   { href: "/employees", icon: Contact, label: "พนักงาน", description: "จัดการพนักงาน" },
   { href: "/reports", icon: LineChart, label: "รายงาน", description: "รายงานและสถิติ" },
+  // ✅ เฉพาะผู้ตรวจสอบ: หน้างาน (รับเงิน / อนุมัติจ่าย / งานของพนักงานแต่ละคน)
+  { href: "/tasks", icon: ClipboardList, label: "งาน", description: "รับเงิน · อนุมัติจ่าย · งานแต่ละคน", monitorOnly: true },
 ];
 
 const MenuItems = () => {
-  const { loaded, canAccess } = useEmployeePermissions();
+  const { loaded, canAccess, isMonitor } = useEmployeePermissions();
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
       {menuPages.map((item) => {
+        if ((item as any).monitorOnly && !isMonitor) return null;
         // ซ่อนการ์ดตามสิทธิ์จริง
         const requiredPermission = getRequiredPermission(item.href);
         if (requiredPermission) {

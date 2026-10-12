@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
+// ✅ หน้าที่ผู้ตรวจสอบเข้าได้ (ต้องตรงกับ MONITOR_PATHS ใน middleware.ts)
+export const MONITOR_PAGES = ["employees", "cashflow", "reports"];
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://backend-service-production-1fc3.up.railway.app";
@@ -10,7 +13,7 @@ const API_URL =
 /**
  * ดึงสิทธิ์การเข้าถึงหน้าต่างๆ ของ user ที่ login อยู่จริง
  * - role "adm" ผ่านทุกหน้าเสมอ ไม่ต้องยิง API
- * - role "mon" (ผู้ตรวจสอบ) เห็นได้ทุกหน้าเหมือน adm (การกันแก้ไขอยู่ที่ backend)
+ * - role "mon" (ผู้ตรวจสอบ) ดูภาพรวมเท่านั้น: พนักงาน / รายรับ-รายจ่าย / รายงาน (+ หน้างาน /tasks ที่ทุกคนเข้าได้)
  * - role "emp" ดึง permissions จาก /employees/{id}/ (ข้อมูลเดียวกับที่หน้าแก้ไขพนักงานใช้)
  */
 export const useEmployeePermissions = () => {
@@ -18,6 +21,7 @@ export const useEmployeePermissions = () => {
   const userInfo = session?.user as any;
   const isAdmin = userInfo?.role === "adm";
   const isMonitor = userInfo?.role === "mon";
+  // adm / ผู้ตรวจสอบ ไม่ต้องยิง API ดึงสิทธิ์
   const seesAll = isAdmin || isMonitor;
 
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
@@ -56,7 +60,10 @@ export const useEmployeePermissions = () => {
    */
   const canAccess = (key: string | null) => {
     if (!key) return true;
-    if (seesAll) return true;
+    if (isAdmin) return true;
+    if (isMonitor) return MONITOR_PAGES.includes(key);
+    // ประวัติรถ: พนักงานใช้สิทธิ์ "รายงาน" เหมือนเดิม
+    if (key === "service_history") return !!permissions.service_history || !!permissions.reports;
     return !!permissions[key];
   };
 

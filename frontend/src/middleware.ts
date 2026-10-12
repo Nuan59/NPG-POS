@@ -1,8 +1,10 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 
-// หน้าที่เข้าได้เฉพาะ adm
+// หน้าที่เข้าได้เฉพาะ adm (และผู้ตรวจสอบ)
 const ADMIN_ROUTES = ["/employees", "/reports"];
+// ✅ ผู้ตรวจสอบ (role = mon) เข้าได้แค่หน้าเหล่านี้ (ดูภาพรวม ไม่ดูรายการขาย/สินค้า)
+const MONITOR_PATHS = ["/dashboard", "/employees", "/cashflow", "/reports", "/tasks"];
 
 export default withAuth(
 	function middleware(req) {
@@ -17,7 +19,15 @@ export default withAuth(
 			return NextResponse.redirect(url);
 		}
 
-		// ✅ ผู้ตรวจสอบ (mon) เข้าดูได้ทุกหน้าเหมือน adm (การกันแก้ไขอยู่ที่ backend)
+		if (
+			token?.role === "mon" &&
+			pathname !== "/" &&
+			!MONITOR_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
+		) {
+			return NextResponse.redirect(new URL("/dashboard?unauthorized", req.url));
+		}
+
+		// ✅ ผู้ตรวจสอบ (mon) เข้าหน้าพนักงาน/รายงานได้ (การกันแก้ไขอยู่ที่ backend)
 		if (ADMIN_ROUTES.some((route) => pathname.startsWith(route)) && token?.role !== "adm" && token?.role !== "mon") {
 			return NextResponse.redirect(new URL("/dashboard?unauthorized", req.url));
 		}

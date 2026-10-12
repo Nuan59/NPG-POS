@@ -4,6 +4,8 @@ import { getLatestOrders } from "@/services/OrderService";
 import UserGreeting from "./components/UserGreeting";
 import MenuItems from "./components/MenuItems";
 import CashflowTodayCard from "@/components/global/CashflowTodayCard";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/util/AuthOptions";
 
 const SectionTitle = ({ title, href }: { title: string; href?: string }) => (
   <div className="flex items-center gap-2.5 mt-7 mb-3">
@@ -18,11 +20,17 @@ const SectionTitle = ({ title, href }: { title: string; href?: string }) => (
 );
 
 const Dashboard = async () => {
+  // ✅ ผู้ตรวจสอบ (mon) ดูแค่ภาพรวม ไม่แสดงรายการขายล่าสุด
+  const session = await getServerSession(authOptions);
+  const isMonitor = (session?.user as any)?.role === "mon";
+
   let latestOrders: any = [];
-  try {
-    latestOrders = await getLatestOrders().then((res) => res?.json());
-  } catch {
-    latestOrders = [];
+  if (!isMonitor) {
+    try {
+      latestOrders = await getLatestOrders().then((res) => res?.json());
+    } catch {
+      latestOrders = [];
+    }
   }
 
   return (
@@ -37,10 +45,14 @@ const Dashboard = async () => {
         <SectionTitle title="เมนู" />
         <MenuItems />
 
-        <SectionTitle title="การขายล่าสุด" href="/sales" />
-        <div className="pb-8">
-          <LatestSales sales={Array.isArray(latestOrders) ? latestOrders : []} />
-        </div>
+        {!isMonitor && (
+          <>
+            <SectionTitle title="การขายล่าสุด" href="/sales" />
+            <div className="pb-8">
+              <LatestSales sales={Array.isArray(latestOrders) ? latestOrders : []} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
