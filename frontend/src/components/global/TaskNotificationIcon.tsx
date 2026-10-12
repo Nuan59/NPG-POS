@@ -31,6 +31,7 @@ const TaskNotificationIcon = () => {
         const count = posts.filter(
           (p) =>
             p.post_type === "assigned" &&
+            !(p.content || "").startsWith("[เวร]") && // เวรไม่นับเป็นงานค้าง
             p.assignments.some((a) => a.employee_username === myUsername && a.status !== "done")
         ).length;
         setPendingCount(count);

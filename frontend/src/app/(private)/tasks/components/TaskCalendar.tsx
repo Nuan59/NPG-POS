@@ -1,13 +1,26 @@
 "use client";
 // TaskCalendar.tsx
 // วางไฟล์นี้ใน: frontend/src/app/(private)/tasks/components/TaskCalendar.tsx
-// ปฏิทินงาน: ดึงจากงานที่มอบหมายอยู่แล้ว (ไม่ต้องกรอกซ้ำ)
+// ปฏิทินงาน + เวร: ดึงจากงานที่มอบหมายอยู่แล้ว (ไม่ต้องกรอกซ้ำ)
+// - เวร = โพสต์ที่ขึ้นต้นด้วย "[เวร] " (ลงจากปุ่ม "📅 เวร" ในหน้าโพสต์) → ทุกคนเห็นเวรของทุกคน
 // - ทุกคน (รวม adm / ผู้ตรวจสอบ) เห็นเฉพาะงานที่มอบหมายให้ตัวเอง + ประกาศทั่วไปที่มีกำหนดวัน (งานของทุกคน)
 // - ขึ้นในวันตามกำหนดส่ง (due_date) / งานที่ไม่มีกำหนดวันแสดงแยกด้านล่าง
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { ChevronLeft, ChevronRight, CalendarDays, Megaphone, Target, AlertTriangle } from "lucide-react";
-import { getTaskPosts, TaskPost } from "@/services/TaskService";
+import { ChevronLeft, ChevronRight, CalendarDays, Megaphone, Target, AlertTriangle, UserCheck, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { getTaskPosts, deleteTaskPost, TaskPost } from "@/services/TaskService";
+
+// ต้องตรงกับ DUTY_PREFIX ใน employees/components/TaskBoard.tsx
+const DUTY_PREFIX = "[เวร]";
+const isDutyPost = (p: { content: string }) => (p.content || "").startsWith(DUTY_PREFIX);
+const dutyNameOf = (content: string) => content.slice(DUTY_PREFIX.length).trim() || "เวร";
+
+interface DutyEntry {
+  name: string;
+  users: { username: string; name: string }[];
+  postIds: number[];
+}
 
 type Status = "pending" | "in_progress" | "issue" | "done";
 
@@ -49,6 +62,8 @@ const TaskCalendar = () => {
   const today = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState(() => dayKey(today));
+  const isAdmin = String((session?.user as any)?.role ?? "").toLowerCase() === "adm";
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -56,12 +71,13 @@ const TaskCalendar = () => {
       .then((data) => setPosts(Array.isArray(data) ? data : []))
       .catch(() => setPosts([]))
       .finally(() => setLoaded(true));
-  }, [status]);
+  }, [status, reloadTick]);
 
   // ✅ กรองฝั่งหน้าเว็บ: เหลือแค่งานของฉัน + ประกาศทั่วไปที่มีกำหนดวัน
   const items: CalItem[] = useMemo(() => {
     const out: CalItem[] = [];
     for (const p of posts) {
+      if (isDutyPost(p)) continue; // เวรแสดงแยก (ทุกคนเห็น)
       if (p.post_type === "general") {
         if (!p.due_date) continue;
         out.push({
@@ -115,6 +131,44 @@ const TaskCalendar = () => {
 
   const undated = items.filter((it) => !it.due && it.status !== "done");
 
+  // ✅ เวรรายวัน (ทุกคนเห็น) - รวมเวรชื่อเดียวกันในวันเดียวกันเป็นแถวเดียว
+  const dutyByDay = useMemo(() => {
+    const map = new Map<string, DutyEntry[]>();
+    for (const p of posts) {
+      if (!isDutyPost(p)) continue;
+      const name = dutyNameOf(p.content);
+      for (const a of p.assignments || []) {
+        if (!a.due_date) continue;
+        const k = dayKey(new Date(a.due_date));
+        if (!map.has(k)) map.set(k, []);
+        const list = map.get(k)!;
+        let e = list.find((x) => x.name === name);
+        if (!e) {
+          e = { name, users: [], postIds: [] };
+          list.push(e);
+        }
+        if (!e.users.some((u) => u.username === a.employee_username))
+          e.users.push({ username: a.employee_username, name: a.employee_name });
+        if (!e.postIds.includes(p.id)) e.postIds.push(p.id);
+      }
+    }
+    return map;
+  }, [posts]);
+  const isMine = (e: DutyEntry) => !!myUsername && e.users.some((u) => u.username === myUsername);
+  const dutyLabel = (e: DutyEntry) => `${e.name}: ${e.users.map((u) => u.name).join(", ")}`;
+
+  const removeDuty = async (e: DutyEntry) => {
+    if (!window.confirm(`ลบเวร${e.name}ของวันนี้ใช่ไหม?`)) return;
+    let failed = 0;
+    for (const id of e.postIds) {
+      const r = await deleteTaskPost(id);
+      if (r?.status !== "success") failed += 1;
+    }
+    if (failed) toast.error("ลบเวรไม่สำเร็จ");
+    else toast.success("ลบเวรแล้ว");
+    setReloadTick((t) => t + 1);
+  };
+
   // ตารางเดือน: เริ่มวันอาทิตย์ 6 แถว
   const cells = useMemo(() => {
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -143,12 +197,13 @@ const TaskCalendar = () => {
   if (status !== "authenticated" || !loaded) return null;
 
   const myOpen = items.filter((i) => i.kind === "mine" && i.status !== "done").length;
+  const selectedDuties = dutyByDay.get(selected) || [];
 
   return (
     <section className="mb-8">
       <div className="flex items-center gap-2 mb-3">
         <CalendarDays className="h-5 w-5 text-[#F26B1D]" />
-        <h3 className="text-lg font-bold text-[#1e2432]">ปฏิทินงานของฉัน</h3>
+        <h3 className="text-lg font-bold text-[#1e2432]">ปฏิทินงานและเวร</h3>
         {myOpen > 0 && (
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#F26B1D] text-white">
             ค้าง {myOpen}
@@ -205,6 +260,7 @@ const TaskCalendar = () => {
             const k = dayKey(d);
             const inMonth = d.getMonth() === cursor.getMonth();
             const list = byDay.get(k) || [];
+            const dayDuties = dutyByDay.get(k) || [];
             const isToday = k === todayKey;
             const isSel = k === selected;
             const hasOverdue = list.some((x) => x.overdue);
@@ -233,7 +289,33 @@ const TaskCalendar = () => {
                   {d.getDate()}
                 </span>
 
-                {/* มือถือ: จุดสี / จอใหญ่: ชื่องานย่อ */}
+                {/* เวร - มือถือ: ป้าย "เวร" เฉพาะวันที่เป็นเวรของฉัน / จอใหญ่: ชื่อเวรทุกคน (ส้ม = เวรของฉัน) */}
+                {dayDuties.length > 0 && (
+                  <>
+                    {dayDuties.some(isMine) && (
+                      <div className="mt-1 sm:hidden">
+                        <span className="inline-block rounded px-1 text-[10px] font-bold leading-4 bg-[#F26B1D] text-white">เวร</span>
+                      </div>
+                    )}
+                    <div className="hidden sm:block mt-1 space-y-0.5 w-full min-w-0">
+                      {dayDuties.slice(0, 2).map((e) => (
+                        <div
+                          key={e.name}
+                          className={`truncate rounded px-1 py-0.5 text-[11px] leading-tight font-medium text-white ${
+                            isMine(e) ? "bg-[#F26B1D]" : "bg-[#1e2432]"
+                          }`}
+                        >
+                          {dutyLabel(e)}
+                        </div>
+                      ))}
+                      {dayDuties.length > 2 && (
+                        <div className="text-[11px] text-[#7A7A7A] px-1">+{dayDuties.length - 2} เวร</div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* งาน - มือถือ: จุดสี / จอใหญ่: ชื่องานย่อ */}
                 {list.length > 0 && (
                   <>
                     <div className="flex flex-wrap gap-0.5 mt-1 sm:hidden">
@@ -276,7 +358,38 @@ const TaskCalendar = () => {
           {selected === todayKey ? "วันนี้ · " : ""}
           {selectedDate.toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long" })}
         </p>
-        {selectedItems.length === 0 ? (
+
+        {/* ✅ เวรของวันที่เลือก (ทุกคนเห็น) */}
+        {selectedDuties.length > 0 && (
+          <div className="mb-3 bg-white border rounded-xl divide-y">
+            {selectedDuties.map((e) => {
+              const mine = isMine(e);
+              return (
+                <div key={e.name} className={`flex items-center gap-3 px-4 py-3 ${mine ? "bg-orange-50" : ""}`}>
+                  <UserCheck size={20} className={mine ? "text-[#F26B1D]" : "text-[#1e2432]"} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-[#7A7A7A]">เวร{e.name}</p>
+                    <p className="text-base font-semibold text-[#1e2432] truncate">{e.users.map((u) => u.name).join(", ")}</p>
+                  </div>
+                  {mine && (
+                    <span className="shrink-0 text-xs font-bold px-2.5 py-1 rounded-full bg-[#F26B1D] text-white">เวรของคุณ</span>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      aria-label="ลบเวร"
+                      onClick={() => removeDuty(e)}
+                      className="shrink-0 p-2 rounded-lg text-[#7A7A7A] hover:text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {selectedItems.length === 0 && selectedDuties.length === 0 ? (
           <p className="text-sm text-[#7A7A7A] bg-white border rounded-xl px-4 py-5 text-center">ไม่มีงานวันนี้</p>
         ) : (
           <div className="space-y-2">

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Megaphone, Plus, Trash2, AlertTriangle, Clock, CalendarClock, Target, History, ChevronDown, ChevronUp } from "lucide-react";
+import { Megaphone, Plus, Trash2, AlertTriangle, Clock, CalendarClock, Target, History, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, UserCheck } from "lucide-react";
 import { IEmployee } from "@/types/IEmployee";
 import {
   TaskPost,
@@ -26,6 +26,18 @@ import {
   setTaskStatus,
   addTaskProgress,
 } from "@/services/TaskService";
+
+// ✅ เวร = โพสต์มอบหมายงานที่ขึ้นต้นด้วย "[เวร] " (ใช้ระบบงานเดิม ไม่ต้องมีตารางใหม่)
+// 1 วัน = 1 โพสต์ (ระบบเดิมให้ 1 คนอยู่ในโพสต์เดียวได้ครั้งเดียว) / ทุกคนเห็นเวรของทุกคนในปฏิทิน
+export const DUTY_PREFIX = "[เวร] ";
+export const isDutyPost = (p: { content: string }) => (p.content || "").startsWith(DUTY_PREFIX.trim());
+const DUTY_WEEKDAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+const THAI_MONTHS = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   pending: { label: "ยังไม่ทำ", className: "bg-amber-50 border-amber-400 text-amber-700" },
@@ -210,7 +222,15 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [content, setContent] = useState("");
-  const [postType, setPostType] = useState<"general" | "assigned">("general");
+  const [postType, setPostType] = useState<"general" | "assigned" | "duty">("general");
+  // ✅ ลงเวร: ชื่อเวร + คน + เลือกได้หลายวัน (สร้าง 1 โพสต์ต่อวัน)
+  const [dutyName, setDutyName] = useState("");
+  const [dutyPeople, setDutyPeople] = useState<number[]>([]);
+  const [dutyDates, setDutyDates] = useState<string[]>([]);
+  const [dutyMonth, setDutyMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
   // ✅ กำหนดเวลาของ "ประกาศทั่วไป" - ตัวเดียวใช้ร่วมกันทุกคน
   const [generalDueConfig, setGeneralDueConfig] = useState<DueConfig>(defaultDueConfig);
   // ✅ กำหนดเวลา+เป้าหมายของ "มอบหมายงาน" - แยกได้คนละคน (key = employee id)
@@ -246,6 +266,37 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
     setPostType("general");
     setGeneralDueConfig(defaultDueConfig);
     setAssignConfig({});
+    setDutyName("");
+    setDutyPeople([]);
+    setDutyDates([]);
+  };
+
+  const createDuty = async () => {
+    const name = dutyName.trim();
+    if (!name) return toast.error("กรุณาใส่ชื่อเวร เช่น เปิดร้าน");
+    if (dutyPeople.length === 0) return toast.error("กรุณาเลือกคนเข้าเวร");
+    if (dutyDates.length === 0) return toast.error("กรุณาเลือกวันอย่างน้อย 1 วัน");
+    setSaving(true);
+    let failed = 0;
+    for (const day of [...dutyDates].sort()) {
+      const result = await createTaskPost({
+        content: `${DUTY_PREFIX}${name}`,
+        post_type: "assigned",
+        assignments: dutyPeople.map((id) => ({
+          employee_id: id,
+          due_date: new Date(`${day}T23:59:00`).toISOString(),
+          target_quantity: null,
+          target_unit: "",
+        })),
+      });
+      if (result.status !== "success") failed += 1;
+    }
+    setSaving(false);
+    if (failed) toast.error(`ลงเวรไม่สำเร็จ ${failed} วัน ลองใหม่อีกครั้ง`);
+    else toast.success(`ลงเวร${name} ${dutyDates.length} วันแล้ว`);
+    setDialogOpen(false);
+    resetForm();
+    loadPosts();
   };
 
   const getConfig = (id: number): AssignConfig => assignConfig[id] || defaultAssignConfig;
@@ -254,6 +305,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
   };
 
   const handleCreate = async () => {
+    if (postType === "duty") return createDuty();
     if (!content.trim()) {
       toast.error("กรุณากรอกเนื้อหา");
       return;
@@ -385,6 +437,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
               </DialogHeader>
 
               <div className="space-y-3">
+                {postType !== "duty" && (
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
@@ -392,6 +445,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                   rows={4}
                   className="w-full text-sm border rounded-lg px-3 py-2 border-gray-300 outline-none focus:border-orange-400 resize-none"
                 />
+                )}
 
                 <div className="flex gap-2">
                   <button
@@ -416,7 +470,168 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                   >
                     ✅ มอบหมายเฉพาะคน
                   </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setPostType("duty")}
+                      className={`flex-1 text-sm font-medium rounded-lg border py-2 transition-colors ${
+                        postType === "duty"
+                          ? "bg-orange-50 border-orange-400 text-orange-700"
+                          : "border-gray-200 text-gray-500"
+                      }`}
+                    >
+                      📅 เวร
+                    </button>
+                  )}
                 </div>
+
+                {/* ✅ ลงเวร - ทุกคนเห็นในปฏิทิน */}
+                {postType === "duty" && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-1.5">ชื่อเวร</p>
+                      <input
+                        value={dutyName}
+                        onChange={(e) => setDutyName(e.target.value)}
+                        placeholder="เช่น เปิดร้าน, ปิดร้าน, ทำความสะอาด"
+                        className="w-full text-sm border rounded-lg px-3 py-2 border-gray-300 outline-none focus:border-orange-400"
+                      />
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {["เปิดร้าน", "ปิดร้าน", "ทำความสะอาด"].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setDutyName(n)}
+                            className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-600 hover:border-orange-400"
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-1.5">คนเข้าเวร</p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {employees.map((emp) => {
+                          const on = dutyPeople.includes(emp.id!);
+                          return (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              onClick={() =>
+                                setDutyPeople((p) => (on ? p.filter((x) => x !== emp.id) : [...p, emp.id!]))
+                              }
+                              className={`text-sm text-left rounded-lg border px-3 py-2 truncate ${
+                                on ? "bg-orange-50 border-orange-400 text-orange-700 font-medium" : "border-gray-200 text-gray-700"
+                              }`}
+                            >
+                              {on ? "✓ " : ""}
+                              {emp.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-xs font-medium text-gray-600">
+                          เลือกวัน {dutyDates.length > 0 && <span className="text-orange-600">({dutyDates.length} วัน)</span>}
+                        </p>
+                        {dutyDates.length > 0 && (
+                          <button type="button" onClick={() => setDutyDates([])} className="text-xs text-gray-500 underline">
+                            ล้าง
+                          </button>
+                        )}
+                      </div>
+                      <div className="border rounded-xl p-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <button
+                            type="button"
+                            aria-label="เดือนก่อน"
+                            onClick={() => setDutyMonth(new Date(dutyMonth.getFullYear(), dutyMonth.getMonth() - 1, 1))}
+                            className="p-1.5 rounded-lg hover:bg-gray-100"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <span className="text-sm font-semibold">
+                            {THAI_MONTHS[dutyMonth.getMonth()]} {dutyMonth.getFullYear() + 543}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="เดือนถัดไป"
+                            onClick={() => setDutyMonth(new Date(dutyMonth.getFullYear(), dutyMonth.getMonth() + 1, 1))}
+                            className="p-1.5 rounded-lg hover:bg-gray-100"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                        {(() => {
+                          const y = dutyMonth.getFullYear();
+                          const m = dutyMonth.getMonth();
+                          const first = new Date(y, m, 1).getDay();
+                          const daysInMonth = new Date(y, m + 1, 0).getDate();
+                          const todayStr = ymd(new Date());
+                          const monthDays = Array.from({ length: daysInMonth }, (_, i) => new Date(y, m, i + 1));
+                          // กดชื่อวัน = เลือก/ยกเลิก วันนั้นทั้งเดือน (ไม่รวมวันที่ผ่านไปแล้ว)
+                          const toggleWeekday = (wd: number) => {
+                            const target = monthDays.filter((d) => d.getDay() === wd && ymd(d) >= todayStr).map(ymd);
+                            const allOn = target.length > 0 && target.every((k) => dutyDates.includes(k));
+                            setDutyDates((prev) =>
+                              allOn ? prev.filter((k) => !target.includes(k)) : Array.from(new Set([...prev, ...target]))
+                            );
+                          };
+                          return (
+                            <div className="grid grid-cols-7 gap-1 text-center">
+                              {DUTY_WEEKDAYS.map((w, i) => (
+                                <button
+                                  key={w}
+                                  type="button"
+                                  onClick={() => toggleWeekday(i)}
+                                  title={`เลือกทุกวัน${w}ของเดือนนี้`}
+                                  className={`text-[11px] font-semibold py-1 rounded hover:bg-orange-50 ${i === 0 ? "text-red-500" : "text-gray-500"}`}
+                                >
+                                  {w}
+                                </button>
+                              ))}
+                              {Array.from({ length: first }, (_, i) => (
+                                <span key={`b${i}`} />
+                              ))}
+                              {monthDays.map((d) => {
+                                const k = ymd(d);
+                                const on = dutyDates.includes(k);
+                                const past = k < todayStr;
+                                return (
+                                  <button
+                                    key={k}
+                                    type="button"
+                                    disabled={past}
+                                    onClick={() =>
+                                      setDutyDates((prev) => (on ? prev.filter((x) => x !== k) : [...prev, k]))
+                                    }
+                                    className={`h-9 rounded-lg text-sm font-medium ${
+                                      on
+                                        ? "bg-orange-500 text-white"
+                                        : past
+                                        ? "text-gray-300"
+                                        : k === todayStr
+                                        ? "border border-orange-400 text-gray-800"
+                                        : "text-gray-800 hover:bg-gray-100"
+                                    }`}
+                                  >
+                                    {d.getDate()}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-1.5">กดชื่อวัน (จ, อ, ...) = เลือกทุกวันนั้นของเดือน</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* ✅ ประกาศทั่วไป - กำหนดเวลาเดียวใช้ร่วมกันทุกคน */}
                 {postType === "general" && (
@@ -499,7 +714,7 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                   ยกเลิก
                 </Button>
                 <Button onClick={handleCreate} disabled={saving}>
-                  {saving ? "กำลังโพสต์..." : "โพสต์"}
+                  {saving ? "กำลังบันทึก..." : postType === "duty" ? `ลงเวร${dutyDates.length ? ` ${dutyDates.length} วัน` : ""}` : "โพสต์"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -507,11 +722,18 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
         )}
       </div>
 
-      {posts.length === 0 ? (
+      {/* ✅ เวรไม่แสดงในบอร์ดนี้ (ดูในปฏิทินแทน) กันบอร์ดรก */}
+      {posts.some(isDutyPost) && (
+        <p className="mb-3 text-xs text-gray-500 flex items-center gap-1.5">
+          <UserCheck size={13} className="text-orange-500" />
+          มีเวรที่ลงไว้ {posts.filter(isDutyPost).length} วัน · ดู/ลบเวรได้ในปฏิทินด้านบน
+        </p>
+      )}
+      {posts.filter((p) => !isDutyPost(p)).length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-6">ยังไม่มีประกาศ</p>
       ) : (
         <div className="space-y-4">
-          {posts.map((post) => (
+          {posts.filter((p) => !isDutyPost(p)).map((post) => (
             <div key={post.id} className="border rounded-xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>

@@ -5,6 +5,7 @@ import UserGreeting from "./components/UserGreeting";
 import MenuItems from "./components/MenuItems";
 import CashflowTodayCard from "@/components/global/CashflowTodayCard";
 import MonitorInbox from "@/components/global/MonitorInbox";
+import DutyTodayCard from "@/components/global/DutyTodayCard";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/util/AuthOptions";
 
@@ -41,6 +42,9 @@ const Dashboard = async () => {
 
         {/* ✅ ผู้ตรวจสอบ: รายการรอรับเงิน / รออนุมัติจ่าย แบบกดง่าย (แสดงเฉพาะ role = mon) */}
         {isMonitor && <MonitorInbox />}
+
+        {/* ✅ เวรวันนี้ - ทุกคนเห็น (ถ้าเป็นเวรของเราขึ้นสีส้ม) */}
+        <DutyTodayCard />
 
         <div className="mt-4">
           <CashflowTodayCard />
