@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 import { getEmployees } from "@/services/EmployeeService";
 import TaskBoard from "../employees/components/TaskBoard";
 import CashHandoverPanel from "./components/CashHandoverPanel";
+import TaskCalendar from "./components/TaskCalendar";
 import ExpenseRequestPanel from "./components/ExpenseRequestPanel";
 
 const TasksPage = async () => {
@@ -15,6 +16,8 @@ const TasksPage = async () => {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h2 className="text-2xl font-bold mb-4 text-gray-800">งานของฉัน</h2>
+      {/* ✅ ปฏิทินงาน - แต่ละคนเห็นเฉพาะงานของตัวเอง + ประกาศทั่วไปที่มีกำหนดวัน */}
+      <TaskCalendar />
       {/* ✅ ส่งเงินสดให้ adm - พนักงานส่ง / adm กดรับ */}
       <CashHandoverPanel />
       {/* ✅ รายการจ่าย - พนักงานขอจ่าย / adm อนุมัติ → ลงรายจ่ายเงินสด */}
