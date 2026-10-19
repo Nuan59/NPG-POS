@@ -85,7 +85,8 @@ const CashflowSection = ({
                     className={`text-xs font-semibold rounded-md border px-2 py-1 disabled:opacity-60 ${TYPE_COLOR[row.type]}`}
                     disabled={!canEdit}
                   >
-                    {TYPE_FIELDS.map((t) => (
+                    {/* ✅ "ส่งเงิน" เลือกได้เฉพาะ adm (คนอื่นต้องส่งผ่านหน้า "ส่งเงิน") - แถวที่เป็นส่งเงินอยู่แล้วยังโชว์ชื่อได้ปกติ */}
+                    {TYPE_FIELDS.filter((t) => isAdmin || t !== "sent" || row.type === "sent").map((t) => (
                       <option key={t} value={t}>{TYPE_LABEL[t]}</option>
                     ))}
                   </select>
@@ -142,6 +143,7 @@ const CashflowSection = ({
 
       {addDialogOpen && (
         <AddCashflowRowDialog
+          isAdmin={isAdmin}
           onClose={() => setAddDialogOpen(false)}
           onAdd={({ description, type, amount }) => {
             setRows([...rows, { ...blankUIRow(currentUserName), description, type, amount }]);

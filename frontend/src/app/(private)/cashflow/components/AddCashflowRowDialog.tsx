@@ -9,6 +9,8 @@ import { RowType, TYPE_COLOR, TYPE_FIELDS, TYPE_LABEL } from "../util/cashflowUt
 interface AddCashflowRowDialogProps {
   onClose: () => void;
   onAdd: (data: { description: string; type: RowType; amount: number }) => void;
+  /** ✅ "ส่งเงิน" เลือกได้เฉพาะ adm - คนอื่นต้องส่งผ่านหน้า "ส่งเงิน" เท่านั้น */
+  isAdmin?: boolean;
 }
 
 // ✅ ตัดตัวอักษรอื่นออกเหลือแต่ตัวเลขกับจุดทศนิยม (จุดเดียว) แล้วใส่ comma คั่นหลักพันให้อ่านง่าย
@@ -24,7 +26,8 @@ const formatAmountInput = (raw: string): string => {
 
 const parseAmount = (formatted: string): number => Number(formatted.replace(/,/g, "")) || 0;
 
-const AddCashflowRowDialog = ({ onClose, onAdd }: AddCashflowRowDialogProps) => {
+const AddCashflowRowDialog = ({ onClose, onAdd, isAdmin = false }: AddCashflowRowDialogProps) => {
+  const typeOptions = TYPE_FIELDS.filter((t) => isAdmin || t !== "sent");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<RowType>("income");
   const [amountInput, setAmountInput] = useState("");
@@ -65,7 +68,7 @@ const AddCashflowRowDialog = ({ onClose, onAdd }: AddCashflowRowDialogProps) => 
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">ประเภทรายการ</label>
             <div className="grid grid-cols-3 gap-1.5">
-              {TYPE_FIELDS.map((t) => (
+              {typeOptions.map((t) => (
                 <button
                   key={t}
                   type="button"
