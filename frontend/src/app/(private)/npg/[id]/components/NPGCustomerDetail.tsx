@@ -59,10 +59,10 @@ interface AccountDetail {
   interest_rate: number;
   installment_count: number;
   installment_amount: number;
-  period_type: "รายเดือน" | "รายปี";
+  period_type: "รายวัน" | "รายสัปดาห์" | "รายเดือน" | "รายปี";
   // ✅ ค่าจริงจาก Order.npg_period - แม่นกว่า period_type เดิมที่อาจบันทึกผิดในอดีต
   // (ต้องใช้ตัวนี้ก่อนเสมอ ไม่งั้นจะเจอบั๊กแบบที่เคยเจอ - ตารางโชว์ "รายปี" แต่หน้ารายละเอียดโชว์ "รายเดือน")
-  order_npg_period?: "รายเดือน" | "รายปี" | null;
+  order_npg_period?: "รายวัน" | "รายสัปดาห์" | "รายเดือน" | "รายปี" | null;
   paid_count: number;
   total_paid: number;
   remaining_balance: number;
@@ -122,7 +122,6 @@ interface Payment {
   transfer_bank?: string;
   check_number?: string;
   late_fee?: number; // ✅ ค่าปรับจ่ายล่าช้าจริงที่คิดตอนบันทึกรายการนี้
-  cash_amount?: number | string | null; // ✅ ยอดเงินสด (กรณีแบ่งจ่าย)
   note: string;
 }
 
@@ -136,8 +135,6 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [paymentMethodType, setPaymentMethodType] = useState<string>("เงินสด");
   const [transferBank, setTransferBank] = useState<string>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
-  // ✅ แบ่งจ่าย - ยอดส่วนที่เป็นเงินสด (ที่เหลือ = โอน)
-  const [splitCash, setSplitCash] = useState<string>("");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isCloseAccountDialogOpen, setIsCloseAccountDialogOpen] = useState(false);
   const [closeAccountAmount, setCloseAccountAmount] = useState<number>(0);
@@ -210,10 +207,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     // ✅ ใช้ order_npg_period ก่อนเสมอ (แม่นกว่า period_type ที่อาจบันทึกผิดในอดีต)
     const effectivePeriod = data.order_npg_period || data.period_type;
 
-    // คำนวณจำนวนเดือนที่เหลือ
-    const remainingMonths = effectivePeriod === 'รายปี'
-      ? remainingInstallments * 12 
-      : remainingInstallments;
+    // คำนวณจำนวนเดือนที่เหลือ - รายวัน 1/30, รายสัปดาห์ 7/30, รายเดือน 1, รายปี 12 (ตรงกับ backend)
+    const MONTHS_PER_PERIOD: Record<string, number> = { รายวัน: 1 / 30, รายสัปดาห์: 7 / 30, รายเดือน: 1, รายปี: 12 };
+    const remainingMonths = remainingInstallments * (MONTHS_PER_PERIOD[effectivePeriod] ?? 1);
     
     // ดอกเบี้ยต่อเดือน (ปัดเศษ: < 0.5 ปัดลง, >= 0.5 ปัดขึ้น)
     const interestPerMonthRaw = data.finance_amount * (data.interest_rate / 100);
@@ -241,14 +237,6 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
-    // ✅ แบ่งจ่าย - เงินสดต้องมากกว่า 0 และน้อยกว่ายอดที่รับทั้งหมด (ค่างวด + ค่าปรับ)
-    const payTotal = amount + (account.estimated_late_fee || 0);
-    const cashPart = parseFloat(splitCash);
-    if (paymentMethodType === "แบ่งจ่าย" && (isNaN(cashPart) || cashPart <= 0 || cashPart >= payTotal)) {
-      toast.error(`แบ่งจ่าย: กรอกยอดเงินสดให้มากกว่า 0 และน้อยกว่า ${payTotal.toLocaleString()} ฿`);
-      return;
-    }
-
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/record_payment/`, {
@@ -261,9 +249,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           amount_paid: amount,
           note: paymentNote,
           payment_method: paymentMethodType,
-          transfer_bank: paymentMethodType === "เงินโอน" || paymentMethodType === "แบ่งจ่าย" ? transferBank : "",
+          transfer_bank: paymentMethodType === "เงินโอน" ? transferBank : "",
           check_number: paymentMethodType === "เช็ค" ? checkNumber : "",
-          cash_amount: paymentMethodType === "แบ่งจ่าย" ? cashPart : null,
         }),
       });
 
@@ -276,7 +263,6 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         setPaymentMethodType("เงินสด");
         setTransferBank("");
         setCheckNumber("");
-        setSplitCash("");
         // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
         router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
       } else {
@@ -739,15 +725,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             )}
             <div>
               <Label>วิธีการชำระ</Label>
-              <div className="grid grid-cols-4 gap-2 mt-1">
-                {["เงินสด", "เงินโอน", "เช็ค", "แบ่งจ่าย"].map((m) => (
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() => {
-                      setPaymentMethodType(m);
-                      if (m !== "แบ่งจ่าย") setSplitCash("");
-                    }}
+                    onClick={() => setPaymentMethodType(m)}
                     className={`text-sm py-2 px-3 rounded border transition-colors ${
                       paymentMethodType === m
                         ? "bg-slate-800 text-white border-slate-800"
@@ -759,33 +742,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                 ))}
               </div>
 
-              {/* ✅ แบ่งจ่าย: กรอกเงินสด ส่วนที่เหลือคือโอน */}
-              {paymentMethodType === "แบ่งจ่าย" && (() => {
-                const payTotal = (parseFloat(paymentAmount) || 0) + (account.estimated_late_fee || 0);
-                const cashPart = parseFloat(splitCash) || 0;
-                return (
-                  <div className="mt-2 p-3 rounded-lg bg-orange-50 border border-orange-200 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <Label htmlFor="split-cash">เงินสด (฿)</Label>
-                      <Input
-                        id="split-cash"
-                        type="number"
-                        value={splitCash}
-                        onChange={(e) => setSplitCash(e.target.value)}
-                        className="w-36 text-right bg-white"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>เงินโอน</span>
-                      <span className="w-36 text-right pr-3">{Math.max(payTotal - cashPart, 0).toLocaleString()} ฿</span>
-                    </div>
-                    <p className="text-xs text-gray-500">ยอดรับทั้งหมด {payTotal.toLocaleString()} ฿ (รวมค่าปรับถ้ามี)</p>
-                  </div>
-                );
-              })()}
-
-              {(paymentMethodType === "เงินโอน" || paymentMethodType === "แบ่งจ่าย") && (
+              {paymentMethodType === "เงินโอน" && (
                 <div className="flex gap-2 mt-2">
                   {["KBank", "BBL"].map((b) => (
                     <button
@@ -1195,9 +1152,6 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                     {payment.payment_method || "-"}
                     {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
                     {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
-                    {payment.payment_method === "แบ่งจ่าย" && payment.cash_amount != null
-                      ? ` (สด ${Number(payment.cash_amount).toLocaleString()}${payment.transfer_bank ? ` / โอน ${payment.transfer_bank}` : ""})`
-                      : ""}
                   </TableCell>
                   <TableCell className="text-gray-600">{payment.note || "-"}</TableCell>
                   <TableCell className="text-center">

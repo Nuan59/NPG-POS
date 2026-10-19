@@ -86,6 +86,10 @@ export default function NPGTable({
         className={
           period === "รายเดือน"
             ? "bg-purple-100 text-purple-800"
+            : period === "รายวัน"
+            ? "bg-sky-100 text-sky-800"
+            : period === "รายสัปดาห์"
+            ? "bg-teal-100 text-teal-800"
             : "bg-orange-100 text-orange-800"
         }
       >
@@ -120,6 +124,8 @@ export default function NPGTable({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">ทั้งหมด</SelectItem>
+                <SelectItem value="รายวัน">รายวัน</SelectItem>
+                <SelectItem value="รายสัปดาห์">รายสัปดาห์</SelectItem>
                 <SelectItem value="รายเดือน">รายเดือน</SelectItem>
                 <SelectItem value="รายปี">รายปี</SelectItem>
               </SelectContent>

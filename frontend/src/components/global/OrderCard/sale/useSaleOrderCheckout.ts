@@ -105,7 +105,7 @@ export const useSaleOrderCheckout = ({
 
     if (paymentMethod === "ไฟแนนซ์") {
       if (!financeProvider) return "กรุณาเลือกบริษัทไฟแนนซ์";
-      if (financeProvider === "NPG" && !npgPeriod) return "กรุณาเลือกประเภทดอกเบี้ย (รายเดือน/รายปี)";
+      if (financeProvider === "NPG" && !npgPeriod) return "กรุณาเลือกตัดงวด (วัน/สัปดาห์/เดือน/ปี)";
       if (toNumber(financeAmount) <= 0) return "ยอดจัดต้องมากกว่า 0 (ตรวจราคาขาย/ส่วนลด/เงินดาวน์)";
       if (interest.trim() === "") return "กรุณากรอกดอกเบี้ย (ไม่มีดอกเบี้ยให้ใส่ 0)";
       if (toNumber(installmentCount) <= 0) return "กรุณากรอกจำนวนงวด";
@@ -175,7 +175,7 @@ export const useSaleOrderCheckout = ({
       finance_provider:
         paymentMethod === "ไฟแนนซ์" && financeProvider ? financeProvider : "",
 
-      // ✅ รายเดือน/รายปี - มีความหมายเฉพาะไฟแนนซ์ NPG เท่านั้น (ไฟแนนซ์เจ้าอื่นจ่ายรายเดือนเสมอ
+      // ✅ รายวัน/รายสัปดาห์/รายเดือน/รายปี - มีความหมายเฉพาะไฟแนนซ์ NPG เท่านั้น (ไฟแนนซ์เจ้าอื่นจ่ายรายเดือนเสมอ
       // ตัวเลข "ดอกเบี้ย" ถูกตีความเป็นรายปี/รายเดือนจากขนาดรถแทน ไม่ได้เก็บเป็น field นี้)
       npg_period:
         paymentMethod === "ไฟแนนซ์" && financeProvider === "NPG" ? npgPeriod : "",

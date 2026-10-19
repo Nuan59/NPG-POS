@@ -110,6 +110,8 @@ class Order(models.Model):
     # (ก่อนหน้านี้ค่านี้อ่านต่อจาก NPGAccount.period_type ผ่าน serializer เท่านั้น
     #  ทำให้ถ้า NPGAccount ผิดพลาด ค่านี้จะผิดตามไปด้วย - ตอนนี้ Order เก็บของตัวเองแยกต่างหาก)
     NPG_PERIOD_CHOICES = [
+        ('รายวัน', 'รายวัน'),
+        ('รายสัปดาห์', 'รายสัปดาห์'),
         ('รายเดือน', 'รายเดือน'),
         ('รายปี', 'รายปี'),
     ]
@@ -118,7 +120,7 @@ class Order(models.Model):
         choices=NPG_PERIOD_CHOICES,
         null=True,
         blank=True,
-        verbose_name='รอบชำระ NPG (รายเดือน/รายปี)'
+        verbose_name='รอบชำระ NPG (รายวัน/รายสัปดาห์/รายเดือน/รายปี)'
     )
     
     total = models.FloatField(default=0, null=True)

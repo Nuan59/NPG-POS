@@ -15,9 +15,36 @@ class NPGAccount(models.Model):
     ]
     
     PERIOD_CHOICES = [
+        ('รายวัน', 'รายวัน'),
+        ('รายสัปดาห์', 'รายสัปดาห์'),
         ('รายเดือน', 'รายเดือน'),
         ('รายปี', 'รายปี'),
     ]
+
+    # ✅ รอบตัดงวด -> 1 งวดเท่ากับกี่เดือน (ดอกเบี้ยเป็น % ต่อเดือนเสมอ, 1 เดือน = 30 วัน)
+    # ⚠️ ต้องตรงกับ NPG_PERIOD_MONTHS ใน Financecalculations.ts ฝั่ง frontend
+    PERIOD_MONTHS = {
+        'รายวัน': 1 / 30,
+        'รายสัปดาห์': 7 / 30,
+        'รายเดือน': 1,
+        'รายปี': 12,
+    }
+
+    # ✅ รอบตัดงวด -> ครบกำหนดงวดถัดไปอีกกี่วัน
+    PERIOD_DAYS = {
+        'รายวัน': 1,
+        'รายสัปดาห์': 7,
+        'รายเดือน': 30,
+        'รายปี': 365,
+    }
+
+    @classmethod
+    def months_per_period(cls, period):
+        return cls.PERIOD_MONTHS.get(period, 1)
+
+    @classmethod
+    def days_per_period(cls, period):
+        return cls.PERIOD_DAYS.get(period, 30)
 
     # ✅ แยกประเภทบัญชี - "finance" = ผ่อนไฟแนนซ์ทั้งคันตามปกติ, "down_payment" = ผ่อนเฉพาะเงินดาวน์
     # (ลูกค้าจ่ายสด/ไฟแนนซ์เจ้าอื่นตามปกติ แต่ขอผ่อนเงินดาวน์เองกับร้าน)
@@ -137,25 +164,20 @@ class NPGAccount(models.Model):
 
     def calculate_remaining_balance(self):
         """คำนวณหนี้คงเหลือ"""
-        if self.period_type == 'รายเดือน':
-            total_with_interest = float(self.finance_amount) + (
-                float(self.finance_amount) * (float(self.interest_rate) / 100) * self.installment_count
-            )
-        else:  # รายปี
-            total_with_interest = float(self.finance_amount) + (
-                float(self.finance_amount) * (float(self.interest_rate) / 100) * self.installment_count * 12
-            )
+        # จำนวนเดือนของสัญญา = จำนวนงวด x (1 งวดกี่เดือน) - รายเดือน/รายปี ได้ค่าเท่าเดิม
+        total_months = self.installment_count * self.months_per_period(self.period_type)
+        total_with_interest = float(self.finance_amount) + (
+            float(self.finance_amount) * (float(self.interest_rate) / 100) * total_months
+        )
         
         return total_with_interest - float(self.total_paid)
 
     def update_next_payment_date(self):
         """อัพเดทวันชำระถัดไป"""
-        if self.last_payment_date:
-            days_to_add = 30 if self.period_type == 'รายเดือน' else 365
-            self.next_payment_date = self.last_payment_date + timedelta(days=days_to_add)
-        else:
-            days_to_add = 30 if self.period_type == 'รายเดือน' else 365
-            self.next_payment_date = self.start_date + timedelta(days=days_to_add)
+        # ✅ รายวัน +1 / รายสัปดาห์ +7 / รายเดือน +30 / รายปี +365
+        days_to_add = self.days_per_period(self.period_type)
+        base_date = self.last_payment_date or self.start_date
+        self.next_payment_date = base_date + timedelta(days=days_to_add)
         
         self.save()
 
@@ -186,10 +208,8 @@ class NPGAccount(models.Model):
 
         remaining_installments = self.installment_count - self.paid_count
         
-        if self.period_type == 'รายปี':
-            remaining_months = remaining_installments * 12
-        else:
-            remaining_months = remaining_installments
+        # ✅ แปลงงวดที่เหลือเป็นจำนวนเดือน (รายวัน/รายสัปดาห์ได้เป็นเศษเดือน)
+        remaining_months = remaining_installments * self.months_per_period(self.period_type)
         
         principal_per_installment = float(self.finance_amount) / self.installment_count
         remaining_principal = principal_per_installment * remaining_installments
@@ -205,7 +225,7 @@ class NPGAccount(models.Model):
         
         return {
             'remaining_installments': remaining_installments,
-            'remaining_months': remaining_months,
+            'remaining_months': round(remaining_months, 2),
             'principal_per_installment': round(principal_per_installment, 2),
             'remaining_principal': round(remaining_principal, 2),
             'interest_per_month': round(interest_per_month, 2),

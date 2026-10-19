@@ -9,7 +9,25 @@ import { useEffect, useMemo, useState } from "react";
 
 // ================== TYPES ==================
 export type FinanceProvider = "Cathay" | "ทรัพย์สยาม" | "NPG" | "Summit" | "S Leasing" | "CIMB" | "World Lease" | "เงินติดล้อ" | "";
-export type NpgPeriod = "รายปี" | "รายเดือน" | "";
+export type NpgPeriod = "รายวัน" | "รายสัปดาห์" | "รายเดือน" | "รายปี" | "";
+
+// ✅ รอบตัดงวด NPG -> 1 งวดเท่ากับกี่เดือน (ดอกเบี้ยกรอกเป็น % ต่อเดือนเสมอ)
+// 1 เดือน = 30 วัน -> รายวัน = 1/30 เดือน, รายสัปดาห์ = 7/30 เดือน
+// ⚠️ ต้องตรงกับ NPGAccount.PERIOD_MONTHS ฝั่ง backend
+export const NPG_PERIOD_MONTHS: Record<Exclude<NpgPeriod, "">, number> = {
+  รายวัน: 1 / 30,
+  รายสัปดาห์: 7 / 30,
+  รายเดือน: 1,
+  รายปี: 12,
+};
+
+// หน่วยของ "จำนวนงวด" ตามรอบตัด
+export const NPG_PERIOD_UNIT: Record<Exclude<NpgPeriod, "">, string> = {
+  รายวัน: "วัน",
+  รายสัปดาห์: "สัปดาห์",
+  รายเดือน: "เดือน",
+  รายปี: "ปี",
+};
 export type RoundingMethod = "standard" | "up" | "down";
 
 // ================== UTILITY FUNCTIONS ==================
@@ -155,8 +173,11 @@ export const useFinanceCalculations = ({
     let perPeriod: number;
 
     if (financeProvider === "NPG") {
-      const isYearly = npgPeriod === "รายปี";
-      const months = isYearly ? count * 12 : count;
+      // ✅ รายวัน/รายสัปดาห์/รายเดือน/รายปี - ดอกเบี้ยคิดเป็น % ต่อเดือน × จำนวนเดือนจริงของสัญญา
+      // จำนวนเดือน = จำนวนงวด × (1 งวดกี่เดือน) แล้วหารยอดรวมเท่าๆ กันตามจำนวนงวด
+      // (รายเดือน/รายปี ได้ตัวเลขเท่าเดิมทุกบาท)
+      const monthsPerPeriod = npgPeriod ? NPG_PERIOD_MONTHS[npgPeriod] : 1;
+      const months = count * monthsPerPeriod;
 
       if (months <= 0) {
         setInstallmentPerPeriod("");
@@ -165,8 +186,7 @@ export const useFinanceCalculations = ({
 
       const interestPerMonth = principal * (ratePctEntered / 100);
       const totalInterest = interestPerMonth * months;
-      const perMonth = (principal + totalInterest) / months;
-      perPeriod = isYearly ? perMonth * 12 : perMonth;
+      perPeriod = (principal + totalInterest) / count;
     } else {
       // ไฟแนนซ์เจ้าอื่น: จ่ายรายเดือนเสมอ
       const months = count;
@@ -182,9 +202,11 @@ export const useFinanceCalculations = ({
   }, [financeAmount, installmentCount, interest, financeProvider, npgPeriod, roundingMethod, isBigBike]);
 
   // สร้าง label สำหรับค่างวด
+  // ✅ NPG บอกหน่วยด้วย เช่น "ค่างวด/สัปดาห์"
   const installmentLabel = useMemo(() => {
+    if (financeProvider === "NPG" && npgPeriod) return `ค่างวด/${NPG_PERIOD_UNIT[npgPeriod]}`;
     return "ค่างวด";
-  }, []);
+  }, [financeProvider, npgPeriod]);
 
   return {
     financeAmount,

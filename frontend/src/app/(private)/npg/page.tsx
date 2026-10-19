@@ -28,8 +28,8 @@ export interface NPGAccount {
   interest_rate: number;
   installment_count: number;
   installment_amount: number;
-  period_type: "รายเดือน" | "รายปี";
-  order_npg_period?: "รายเดือน" | "รายปี" | null;  // ✅ ค่าจริงจาก Order.npg_period (แม่นกว่า period_type เดิม)
+  period_type: "รายวัน" | "รายสัปดาห์" | "รายเดือน" | "รายปี";
+  order_npg_period?: "รายวัน" | "รายสัปดาห์" | "รายเดือน" | "รายปี" | null;  // ✅ ค่าจริงจาก Order.npg_period (แม่นกว่า period_type เดิม)
   order_payment_method?: string | null;  // ✅ วิธีชำระเงินหลักของออเดอร์ (ใช้กับบัญชีผ่อนดาวน์)
   paid_count: number;
   total_paid: number;

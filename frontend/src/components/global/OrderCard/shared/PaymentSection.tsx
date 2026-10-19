@@ -10,6 +10,7 @@ import { Banknote, Landmark, FileText, ArrowLeftRight } from "lucide-react";
 import {
   FinanceProvider,
   NpgPeriod,
+  NPG_PERIOD_UNIT,
   numberToInput,
   toNumber,
   calculateDownPaymentInstallment,
@@ -267,13 +268,15 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
         </FormRow>
       )}
 
-      {/* ✅ รายปี/รายเดือน - เฉพาะไฟแนนซ์ NPG */}
+      {/* ✅ รอบตัดงวด - เฉพาะไฟแนนซ์ NPG (รายวัน/รายสัปดาห์/รายเดือน/รายปี) */}
       {financeProvider === "NPG" && (
-        <FormRow label="ประเภทดอกเบี้ย">
+        <FormRow label="ตัดงวด">
           <SegButtons
             options={[
-              { value: "รายเดือน" as NpgPeriod, label: "รายเดือน" },
-              { value: "รายปี" as NpgPeriod, label: "รายปี" },
+              { value: "รายวัน" as NpgPeriod, label: "วัน" },
+              { value: "รายสัปดาห์" as NpgPeriod, label: "สัปดาห์" },
+              { value: "รายเดือน" as NpgPeriod, label: "เดือน" },
+              { value: "รายปี" as NpgPeriod, label: "ปี" },
             ]}
             value={npgPeriod}
             onChange={(v) => setNpgPeriod(v)}
@@ -392,7 +395,7 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             />
           </FormRow>
 
-          <FormRow label="ดอกเบี้ย %">
+          <FormRow label={financeProvider === "NPG" ? "ดอกเบี้ย %/เดือน" : "ดอกเบี้ย %"}>
             <Input
               type="text"
               inputMode="decimal"
@@ -403,7 +406,13 @@ export const FinanceSection: React.FC<FinanceSectionProps> = ({
             />
           </FormRow>
 
-          <FormRow label="จำนวนงวด">
+          <FormRow
+            label={
+              financeProvider === "NPG" && npgPeriod
+                ? `จำนวนงวด (${NPG_PERIOD_UNIT[npgPeriod]})`
+                : "จำนวนงวด"
+            }
+          >
             <Input
               type="text"
               inputMode="decimal"

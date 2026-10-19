@@ -92,7 +92,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             installment_count = int(request.data.get('installment_count', 0))
             installment_amount = float(request.data.get('installment_amount', 0))
             finance_provider = request.data.get('finance_provider', '')
-            npg_period = request.data.get('npg_period', 'รายเดือน')  # ✅ รับค่ารายเดือน/รายปี จาก frontend
+            npg_period = request.data.get('npg_period') or 'รายเดือน'  # ✅ รายวัน/รายสัปดาห์/รายเดือน/รายปี จาก frontend
 
             # วิธีการชำระเงิน
             payment_method = request.data.get('payment_method', '')  # ประเภทการซื้อ
@@ -186,8 +186,9 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # สร้าง NPG Account ถ้าเป็นไฟแนนซ์ NPG
                 if finance_provider == 'NPG' and finance_amount > 0:
                     try:
-                        # ✅ คูณ x12 ถ้าเป็นรายปี (เดิม hardcode รายเดือนตลอด ทำให้ดอกเบี้ยรายปีต่ำกว่าจริง 12 เท่า)
-                        total_months = installment_count * 12 if npg_period == 'รายปี' else installment_count
+                        # ✅ จำนวนเดือนของสัญญา = จำนวนงวด x (1 งวดกี่เดือน)
+                        # รายวัน = 1/30, รายสัปดาห์ = 7/30, รายเดือน = 1, รายปี = 12
+                        total_months = installment_count * NPGAccount.months_per_period(npg_period)
                         total_with_interest_raw = finance_amount + (
                             finance_amount * (interest_rate / 100) * total_months
                         )
@@ -196,9 +197,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                         # แทนยอดดิบที่มีเศษทศนิยม เพื่อให้จ่ายครบทุกงวดแล้วเหลือ 0 พอดี ไม่มีเศษค้าง
                         remaining_balance_final = installment_amount * installment_count
 
-                        # ✅ งวดแรกครบกำหนดเมื่อไหร่ขึ้นกับรอบชำระ - รายปีต้องรอ 1 ปี (365 วัน) ไม่ใช่ 1 เดือน
-                        # (เดิม hardcode 30 วันเสมอ ทำให้บัญชีรายปีขึ้นเกินกำหนดหลังผ่านไปแค่เดือนเดียว)
-                        first_due_days = 365 if npg_period == 'รายปี' else 30
+                        # ✅ งวดแรกครบกำหนดตามรอบตัด - รายวัน +1 / รายสัปดาห์ +7 / รายเดือน +30 / รายปี +365 วัน
+                        first_due_days = NPGAccount.days_per_period(npg_period)
 
                         NPGAccount.objects.create(
                             order=new_order,
