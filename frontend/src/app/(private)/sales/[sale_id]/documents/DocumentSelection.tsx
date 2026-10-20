@@ -8,6 +8,7 @@ import SaleReceiptTemplate from "@/components/pdf/SaleReceiptTemplate";
 import DeliveryNoteTemplate from "@/components/pdf/DeliveryNoteTemplate";
 import PdiTemplate from "@/components/pdf/PdiTemplate";
 import { IOrder } from "@/types/Order";
+import SaleChecklist from "./SaleChecklist";
 
 interface DocumentSelectionProps {
   order: IOrder;
@@ -231,6 +232,11 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* ✅ เช็คลิสต์หลังขาย - ติ๊กให้ครบก่อนกดจบรายการ (ไม่ครบก็จบได้ แต่ข้อที่ขาดจะขึ้นในหมายเหตุ) */}
+        <div className="max-w-xl mx-auto mb-8">
+          <SaleChecklist orderId={Number(order.id)} />
         </div>
 
         {/* Action Buttons */}

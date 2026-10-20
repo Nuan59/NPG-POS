@@ -10,6 +10,71 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from datetime import datetime, timedelta, date
 from rest_framework.permissions import AllowAny
+from django.db import connection
+
+
+# ================== เช็คลิสต์หลังขาย ==================
+# ✅ รายการเช็คหลังขาย (ใช้ทุกการขาย สด/ผ่อน) - เพิ่ม/ลด/เรียงใหม่ได้ที่นี่ที่เดียว หน้าเว็บดึงไปแสดงเอง
+# optional = มีปุ่ม "ไม่มี" (นับว่าเช็คแล้ว)
+# ⚠️ ห้ามเปลี่ยน key ของข้อที่มีอยู่แล้ว (ติ๊กเก่าผูกกับ key) - เปลี่ยนแค่ label ได้
+SALE_CHECKLIST_ITEMS = [
+    {'key': 'id_card', 'label': 'สำเนาบัตรประชาชน'},
+    {'key': 'reg_set', 'label': 'ชุดจดทะเบียน'},
+    {'key': 'reg_book', 'label': 'สมุดคุม พรบ. และทะเบียน'},
+    {'key': 'insurance', 'label': 'พรบ.', 'optional': True},
+    {'key': 'pdi', 'label': 'PDI'},
+    {'key': 'mile_sticker', 'label': 'สติ๊กเกอร์ติดไมล์รถ'},
+    {'key': 'photo_4', 'label': 'ถ่ายรูปรถทั้ง 4 ด้าน + ลอกลายรถ'},
+    {'key': 'photo_pickup', 'label': 'ถ่ายรูปรับรถ'},
+]
+CHECKLIST_KEYS = {i['key'] for i in SALE_CHECKLIST_ITEMS}
+# แถวพิเศษในตารางเดียวกัน = กด "จบรายการ" แล้ว (เก็บชื่อคนกด + เวลา)
+CHECKLIST_FINISHED_KEY = '_finished'
+CHECKLIST_NOTE_PREFIX = 'เช็คลิสต์ขาด:'
+
+
+def _is_adm(user):
+    return str(getattr(user, 'role', '') or '').lower() in ('adm', 'admin', 'administrator')
+
+
+def _user_label(user):
+    return getattr(user, 'name', '') or getattr(user, 'username', '') or ''
+
+
+def _checklist_rows(order_id):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT item_key, value, checked_by, checked_at FROM sale_checklist WHERE order_id = %s",
+            [order_id],
+        )
+        return [
+            {'item_key': r[0], 'value': r[1], 'checked_by': r[2], 'checked_at': r[3].isoformat() if r[3] else None}
+            for r in cursor.fetchall()
+        ]
+
+
+def _checklist_payload(order):
+    rows = _checklist_rows(order.id)
+    finished = next((r for r in rows if r['item_key'] == CHECKLIST_FINISHED_KEY), None)
+    marks = [r for r in rows if r['item_key'] in CHECKLIST_KEYS]
+    done = {m['item_key'] for m in marks}
+    return {
+        'items': SALE_CHECKLIST_ITEMS,
+        'marks': marks,
+        'missing': [i['label'] for i in SALE_CHECKLIST_ITEMS if i['key'] not in done],
+        'finished': finished,
+    }
+
+
+def _sync_checklist_note(order, missing):
+    """เขียน/อัปเดต/ลบ บรรทัด "เช็คลิสต์ขาด: ..." ในหมายเหตุของออเดอร์ (บรรทัดอื่นไม่แตะ)"""
+    lines = [l for l in (order.notes or '').split('\n') if not l.startswith(CHECKLIST_NOTE_PREFIX)]
+    if missing:
+        lines.append(f"{CHECKLIST_NOTE_PREFIX} {', '.join(missing)}")
+    new_notes = '\n'.join(lines).strip('\n')
+    if new_notes != (order.notes or ''):
+        order.notes = new_notes
+        order.save(update_fields=['notes'])
 
 class OrderViewSet(viewsets.ModelViewSet):
     """
@@ -498,6 +563,73 @@ class OrderViewSet(viewsets.ModelViewSet):
         expiring_soon.sort(key=lambda x: x['days_until_expiry'])
         
         return Response(expiring_soon)
+
+    @action(methods=['GET', 'POST', 'DELETE'], detail=True)
+    def checklist(self, request, *args, **kwargs):
+        """
+        เช็คลิสต์หลังขาย
+        GET    /order/{id}/checklist/                         -> {items, marks, missing, finished}
+        POST   /order/{id}/checklist/ {item_key, value}       -> ติ๊ก (value = "done" | "na") ทุกคนติ๊กได้
+        DELETE /order/{id}/checklist/?item_key=xxx            -> เอาติ๊กออก (adm เท่านั้น)
+        ถ้ากดจบรายการไปแล้ว บรรทัด "เช็คลิสต์ขาด" ในหมายเหตุจะอัปเดตตามทุกครั้ง
+        """
+        order = self.get_object()
+
+        if request.method == 'POST':
+            item_key = request.data.get('item_key')
+            value = request.data.get('value') or 'done'
+            item = next((i for i in SALE_CHECKLIST_ITEMS if i['key'] == item_key), None)
+            if not item:
+                return Response({'error': 'ไม่พบรายการเช็คลิสต์นี้'}, status=400)
+            if value not in ('done', 'na') or (value == 'na' and not item.get('optional')):
+                return Response({'error': 'ค่าไม่ถูกต้อง'}, status=400)
+            with connection.cursor() as cursor:
+                # ติ๊กซ้ำ (กดพร้อมกัน 2 เครื่อง) ไม่ทับของคนแรก
+                cursor.execute(
+                    """
+                    INSERT INTO sale_checklist (order_id, item_key, value, checked_by, checked_at)
+                    VALUES (%s, %s, %s, %s, NOW())
+                    ON CONFLICT (order_id, item_key) DO NOTHING
+                    """,
+                    [order.id, item_key, value, _user_label(request.user)],
+                )
+
+        elif request.method == 'DELETE':
+            if not _is_adm(request.user):
+                return Response({'error': 'เอาติ๊กออกได้เฉพาะ adm'}, status=403)
+            item_key = request.query_params.get('item_key') or request.data.get('item_key')
+            if item_key not in CHECKLIST_KEYS:
+                return Response({'error': 'ไม่พบรายการเช็คลิสต์นี้'}, status=400)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM sale_checklist WHERE order_id = %s AND item_key = %s",
+                    [order.id, item_key],
+                )
+
+        payload = _checklist_payload(order)
+        if request.method != 'GET' and payload['finished']:
+            _sync_checklist_note(order, payload['missing'])
+        return Response(payload)
+
+    @action(methods=['POST'], detail=True)
+    def checklist_finish(self, request, *args, **kwargs):
+        """
+        กด "จบรายการ" - จบได้แม้เช็คไม่ครบ แต่จะเขียนข้อที่ขาดลงหมายเหตุของออเดอร์
+        POST /order/{id}/checklist_finish/
+        """
+        order = self.get_object()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO sale_checklist (order_id, item_key, value, checked_by, checked_at)
+                VALUES (%s, %s, 'done', %s, NOW())
+                ON CONFLICT (order_id, item_key) DO NOTHING
+                """,
+                [order.id, CHECKLIST_FINISHED_KEY, _user_label(request.user)],
+            )
+        payload = _checklist_payload(order)
+        _sync_checklist_note(order, payload['missing'])
+        return Response(payload)
 
     @action(methods=['GET'], detail=True)
     def receipt(self, request, *args, **kwargs):

@@ -690,6 +690,29 @@ def convert_handover_to_sent(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: สร้างตารางเช็คลิสต์หลังขาย (1 แถว = 1 ข้อที่ติ๊กของ 1 ออเดอร์) เรียกซ้ำได้
+def create_sale_checklist_table(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        order_table = django_apps.get_model('api', 'Order')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS sale_checklist (
+                    id BIGSERIAL PRIMARY KEY,
+                    order_id BIGINT NOT NULL REFERENCES "{order_table}"(id) ON DELETE CASCADE,
+                    item_key VARCHAR(50) NOT NULL,
+                    value VARCHAR(10) NOT NULL DEFAULT 'done',
+                    checked_by VARCHAR(255) NOT NULL DEFAULT '',
+                    checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (order_id, item_key)
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS sale_checklist_order_idx ON sale_checklist (order_id);")
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง sale_checklist เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -741,6 +764,7 @@ urlpatterns = [
     path('dev/add-cash-amount-columns/', add_cash_amount_columns),
     path('dev/create-expense-request-table/', create_expense_request_table),
     path('dev/convert-handover-to-sent/', convert_handover_to_sent),
+    path('dev/create-sale-checklist-table/', create_sale_checklist_table),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
