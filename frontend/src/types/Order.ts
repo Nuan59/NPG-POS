@@ -37,4 +37,6 @@ export interface IOrder {
   has_checkout?: boolean;
   gifts?: OrderGift[];
   registration_expiry_date?: string | null;  // ✅ วันหมดอายุทะเบียน
+  sale_status?: "pending" | "completed";  // ✅ pending = รอจบรายการ (ยังไม่ตัดขาย)
+  checklist_missing?: number | null;  // ✅ เช็คลิสต์หลังขายยังขาดกี่ข้อ (null = ไม่มีเช็คลิสต์)
 }

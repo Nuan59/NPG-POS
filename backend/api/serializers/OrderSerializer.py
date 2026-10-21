@@ -50,6 +50,40 @@ class OrderSerializer(serializers.ModelSerializer):
 
     npg_period = serializers.SerializerMethodField()
 
+    # ✅ เช็คลิสต์หลังขายยังขาดกี่ข้อ (ใช้ติดป้ายในหน้ารายการขาย)
+    #    None = ไม่มีเช็คลิสต์ (ออเดอร์เก่าก่อนมีระบบ) / 0 = ครบ / > 0 = ขาดกี่ข้อ
+    #    โหลดทีเดียวทั้งตาราง แล้วเก็บไว้ใน context - ไม่ยิง query ทีละออเดอร์
+    checklist_missing = serializers.SerializerMethodField()
+
+    def _checklist_counts(self):
+        cache = self.context.get('_checklist_counts')
+        if cache is None:
+            cache = {}
+            try:
+                from django.db import connection
+                from api.views.OrderViewSet import CHECKLIST_KEYS
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT order_id, COUNT(*) FILTER (WHERE item_key = ANY(%s)) FROM sale_checklist GROUP BY order_id",
+                        [list(CHECKLIST_KEYS)],
+                    )
+                    cache = {row[0]: row[1] for row in cursor.fetchall()}
+            except Exception:
+                cache = {}  # ยังไม่ได้สร้างตาราง sale_checklist
+            self.context['_checklist_counts'] = cache
+        return cache
+
+    def get_checklist_missing(self, obj):
+        try:
+            from api.views.OrderViewSet import CHECKLIST_KEYS
+        except Exception:
+            return None
+        counts = self._checklist_counts()
+        # ออเดอร์เก่า (จบแล้ว และไม่เคยมีเช็คลิสต์) ไม่ต้องติดป้าย
+        if obj.id not in counts and getattr(obj, 'sale_status', 'completed') == 'completed':
+            return None
+        return max(len(CHECKLIST_KEYS) - counts.get(obj.id, 0), 0)
+
     class Meta:
         model = Order
         fields = [
@@ -107,4 +141,6 @@ class OrderSerializer(serializers.ModelSerializer):
             'transaction_type',          # ✅ ประเภทธุรกรรม (ขาย/ซ่อม/ต่อภาษี+พรบ/อื่นๆ)
             'transaction_type_detail',   # ✅ รายละเอียดประเภทงาน (กรณี "อื่นๆ")
             'mileage',                   # ✅ เลขไมล์ตอนรับบริการ
+            'sale_status',               # ✅ pending = รอจบรายการ / completed = ตัดขายแล้ว
+            'checklist_missing',         # ✅ เช็คลิสต์ยังขาดกี่ข้อ (None = ไม่มีเช็คลิสต์)
         ]

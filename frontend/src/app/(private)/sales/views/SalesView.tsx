@@ -129,6 +129,17 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
   const [modelFilter, setModelFilter] = useState<string>("__ALL__");
   const [paymentFilter, setPaymentFilter] = useState<string>("__ALL__");
   const [dateFilter, setDateFilter] = useState<DateRange | undefined>(undefined);
+  // ✅ สถานะ: ทั้งหมด / รอจบ / เช็คลิสต์ไม่ครบ
+  const [statusFilter, setStatusFilter] = useState<string>("__ALL__");
+  const statusOptions: Option[] = [
+    { value: "__ALL__", label: "ทั้งหมด" },
+    { value: "pending", label: "รอจบ" },
+    { value: "missing", label: "เช็คลิสต์ไม่ครบ" },
+  ];
+  const pendingCount = useMemo(() => orders.filter((o) => o.sale_status === "pending").length, [orders]);
+  // เช็คไม่ครบ = จบรายการแล้วแต่ยังติ๊กไม่ครบ (รายการรอจบนับแยกอยู่แล้ว)
+  const isMissing = (o: IOrder) => o.sale_status !== "pending" && (o.checklist_missing ?? 0) > 0;
+  const missingCount = useMemo(() => orders.filter(isMissing).length, [orders]);
 
   // ===== options =====
   const customerOptions = useMemo(
@@ -198,6 +209,12 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
       }
     }
 
+    if (statusFilter === "pending") {
+      filtered = filtered.filter((o) => o.sale_status === "pending");
+    } else if (statusFilter === "missing") {
+      filtered = filtered.filter(isMissing);
+    }
+
     // ✅ กรองช่วงวันที่ในเครื่องด้วย (เดิมให้ backend กรอง ตอนนี้กรองเองจาก orders ที่โหลดมาแล้ว)
     if (dateFilter?.from || dateFilter?.to) {
       filtered = filtered.filter((o) => {
@@ -220,7 +237,7 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
     }
 
     return filtered;
-  }, [orders, searchTerm, customerFilter, modelFilter, paymentFilter, dateFilter]);
+  }, [orders, searchTerm, customerFilter, modelFilter, paymentFilter, statusFilter, dateFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -228,6 +245,7 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
     setModelFilter("__ALL__");
     setPaymentFilter("__ALL__");
     setDateFilter(undefined);
+    setStatusFilter("__ALL__");
   };
 
   return (
@@ -237,6 +255,29 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
         <div>
           <h2 className="text-3xl font-semibold prompt">ประวัติการขาย</h2>
           <h6 className="prompt">รวมทั้งหมด: {ordersDisplay.length}</h6>
+          {/* ✅ กดเพื่อกรองดูเฉพาะรายการที่ต้องตามต่อ */}
+          {(pendingCount > 0 || missingCount > 0) && (
+            <div className="flex flex-wrap gap-2 mt-1">
+              {pendingCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("pending")}
+                  className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F26B1D] text-white"
+                >
+                  รอจบ {pendingCount}
+                </button>
+              )}
+              {missingCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("missing")}
+                  className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300"
+                >
+                  เช็คไม่ครบ {missingCount}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -248,7 +289,7 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
       </div>
 
       {/* Filter row */}
-      <div className="mt-4 grid grid-cols-4 gap-3 items-end">
+      <div className="mt-4 grid grid-cols-5 gap-3 items-end">
         <FilterSelect
           label="ลูกค้า"
           value={customerFilter}
@@ -271,6 +312,14 @@ const OrdersView = ({ orders }: OrdersViewProps) => {
           onChange={setPaymentFilter}
           options={paymentOptions}
           placeholder="เลือกวิธีชำระ..."
+        />
+
+        <FilterSelect
+          label="สถานะ"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={statusOptions}
+          placeholder="เลือกสถานะ..."
         />
 
         <div className="flex flex-col gap-2">

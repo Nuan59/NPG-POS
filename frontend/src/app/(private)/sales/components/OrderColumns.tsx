@@ -16,6 +16,35 @@ export const OrderColumns: ColumnDef<IOrder>[] = [
 		},
 	},
 	{
+		// ✅ สถานะ: รอจบ (ยังไม่ตัดขาย) / เช็คลิสต์ไม่ครบ - ออเดอร์ปกติไม่มีป้าย
+		id: "status",
+		header: "สถานะ",
+		cell: ({ row }) => {
+			const o = row.original;
+			const pending = o.sale_status === "pending";
+			// รอจบ = ยังเช็คได้อยู่ โชว์แค่ป้าย "รอจบ" / จบแล้วแต่เช็คไม่ครบ = ป้าย "เช็คไม่ครบ"
+			const missing = pending ? 0 : o.checklist_missing ?? 0;
+			if (!pending && missing <= 0) return null;
+			return (
+				<div className="flex flex-wrap gap-1">
+					{pending && (
+						<span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[#F26B1D] text-white whitespace-nowrap">
+							รอจบ
+						</span>
+					)}
+					{missing > 0 && (
+						<span
+							title={o.notes?.split("\n").find((l) => l.startsWith("เช็คลิสต์ขาด:")) || ""}
+							className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap"
+						>
+							เช็คไม่ครบ {missing}
+						</span>
+					)}
+				</div>
+			);
+		},
+	},
+	{
 		header: "ชื่อลูกค้า",
 		cell: ({ row }) => {
 			const order = row.original;

@@ -26,6 +26,7 @@ import {
 	Trash2,
 	XCircle,
 	FileText,
+	ClipboardCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { IOrder } from "@/types/Order";
@@ -211,6 +212,20 @@ const OrderRowButtons = ({ order }: { order: IOrder }) => {
 						<DropdownMenuItem className="flex justify-between gap-2">
 							<Eye className="opacity-60 h-4 w-4" />
 							ดู
+						</DropdownMenuItem>
+					</Link>
+
+					{/* ✅ เช็คลิสต์หลังขาย / จบรายการ (หน้าเอกสาร) */}
+					<Link href={`/sales/${order.id}/documents`}>
+						<DropdownMenuItem
+							className={`flex justify-between gap-2 ${
+								order.sale_status === "pending" || (order.checklist_missing ?? 0) > 0
+									? "text-orange-600 focus:text-orange-600 font-semibold"
+									: ""
+							}`}
+						>
+							<ClipboardCheck className="opacity-60 h-4 w-4" />
+							{order.sale_status === "pending" ? "เช็คลิสต์ / จบรายการ" : "เช็คลิสต์"}
 						</DropdownMenuItem>
 					</Link>
 
