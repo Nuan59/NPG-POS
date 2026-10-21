@@ -21,10 +21,12 @@ interface CashflowSectionProps {
   onRowDeleted?: (row: UIRow) => void;
   /** ✅ ผู้ตรวจสอบ: ดูได้อย่างเดียว ไม่มีปุ่มเพิ่ม/แก้/ลบ */
   readOnly?: boolean;
+  /** ✅ ส่วนเงินสด: พนักงานกด "ส่งเงิน" ได้ (ติ๊กจากรายการค้างส่ง) - ส่งแล้วให้หน้าหลักโหลดใหม่ */
+  onHandoverDone?: () => void;
 }
 
 const CashflowSection = ({
-  title, accent, rows, setRows, opening, currentUserName, isAdmin, onRowDeleted, readOnly = false,
+  title, accent, rows, setRows, opening, currentUserName, isAdmin, onRowDeleted, readOnly = false, onHandoverDone,
 }: CashflowSectionProps) => {
   const style = ACCENT[accent];
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -85,7 +87,7 @@ const CashflowSection = ({
                     className={`text-xs font-semibold rounded-md border px-2 py-1 disabled:opacity-60 ${TYPE_COLOR[row.type]}`}
                     disabled={!canEdit}
                   >
-                    {/* ✅ "ส่งเงิน" เลือกได้เฉพาะ adm (คนอื่นต้องส่งผ่านหน้า "ส่งเงิน") - แถวที่เป็นส่งเงินอยู่แล้วยังโชว์ชื่อได้ปกติ */}
+                    {/* ✅ แก้เป็น "ส่งเงิน" เองได้เฉพาะ adm (พนักงานส่งผ่านปุ่มเพิ่มรายการ → ส่งเงิน) - แถวที่เป็นส่งเงินอยู่แล้วยังโชว์ชื่อได้ปกติ */}
                     {TYPE_FIELDS.filter((t) => isAdmin || t !== "sent" || row.type === "sent").map((t) => (
                       <option key={t} value={t}>{TYPE_LABEL[t]}</option>
                     ))}
@@ -144,6 +146,8 @@ const CashflowSection = ({
       {addDialogOpen && (
         <AddCashflowRowDialog
           isAdmin={isAdmin}
+          allowHandover={!!onHandoverDone}
+          onHandoverDone={onHandoverDone}
           onClose={() => setAddDialogOpen(false)}
           onAdd={({ description, type, amount }) => {
             setRows([...rows, { ...blankUIRow(currentUserName), description, type, amount }]);

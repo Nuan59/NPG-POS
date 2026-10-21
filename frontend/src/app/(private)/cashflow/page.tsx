@@ -241,6 +241,18 @@ export default function CashflowPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dirtyTick]);
 
+  // ✅ พนักงานกด "ส่งเงิน" สำเร็จ - backend ลงแถว "ส่งเงิน" (วันนี้) ให้แล้ว
+  // บันทึกแถวที่ยังค้างพิมพ์อยู่ก่อน (ถ้ามี) แล้วโหลดข้อมูลใหม่ / ถ้าดูวันอื่นอยู่ พาไปวันนี้
+  const afterHandover = async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+      await handleSave(true);
+    }
+    if (date !== todayStr()) setDate(todayStr());
+    else loadDay(date);
+  };
+
   const openMonth = async () => {
     setMonthOpen(true);
     setMonthData(await getCashflowMonth(date.slice(0, 7)));
@@ -324,7 +336,7 @@ export default function CashflowPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={updateCashRows}
                 opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin} readOnly={isMonitor}
-                onRowDeleted={(row) => deleteRowNow(row, "cash")} />
+                onRowDeleted={(row) => deleteRowNow(row, "cash")} onHandoverDone={afterHandover} />
               <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={updateTransferRows}
                 opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} readOnly={isMonitor}
                 onRowDeleted={(row) => deleteRowNow(row, "transfer")} />

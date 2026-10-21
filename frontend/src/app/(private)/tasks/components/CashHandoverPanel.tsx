@@ -57,6 +57,10 @@ const when = (iso: string | null) =>
     ? new Date(iso).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
     : "-";
 const keyOf = (i: CashItem) => `${i.source}-${i.source_id}`;
+// ✅ ไม่ใช้เลขใบแล้ว - เรียกการส่งแต่ละครั้งด้วย ชื่อคนส่ง + เวลาที่ส่ง
+const hLabel = (h: Handover) => `${h.created_by_name} · ${when(h.created_at)}`;
+// ส่งเอง (หักลิ้นชักทันที) = คนรับคือคนส่งเอง
+const isSelfSent = (h: Handover) => !!h.received_by && h.received_by === h.created_by_name;
 
 const SOURCE_LABEL: Record<CashItem["source"], { label: string; cls: string }> = {
   sale: { label: "ขาย", cls: "bg-blue-50 text-blue-700" },
@@ -80,7 +84,7 @@ const StatusChip = ({ h }: { h: Handover }) => {
     );
   return (
     <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-      <CheckCircle2 size={12} /> รับแล้ว
+      <CheckCircle2 size={12} /> {isSelfSent(h) ? "ส่งแล้ว" : "รับแล้ว"}
     </span>
   );
 };
@@ -99,9 +103,10 @@ const ItemRow = ({ item }: { item: CashItem }) => {
 
 /**
  * ส่งเงินสดให้ adm
- * - พนักงาน: เห็นเงินสดค้างส่งของตัวเอง เลือกรายการแล้วกดส่ง + ประวัติใบส่งเงิน
+ * - พนักงาน: เห็นเงินสดค้างส่งของตัวเอง เลือกรายการแล้วกดส่ง → หักลิ้นชักทันที (ไม่ต้องรอ adm) + ประวัติการส่ง
+ *   (เหมือนปุ่ม "ส่งเงิน" ในหน้า รายรับ-รายจ่าย ทุกอย่าง - ใช้ /cash-handover/send-now/ ตัวเดียวกัน)
  * - adm: แก้ได้ทุกอย่าง
- *   · ใบที่รอรับ: รับ / ยอดไม่ตรง / แก้ยอดรายการ / เอารายการออก / ยกเลิกใบ
+ *   · ที่ส่งค้างรอรับ (แบบเก่า): รับ / ยอดไม่ตรง / แก้ยอดรายการ / เอารายการออก / ยกเลิก
  *   · ค้างส่ง (พนักงานยังไม่กดส่ง): รับเงินแทน / แก้ยอดเงินสด / ตัดออก (ไม่ต้องส่ง)
  *   · รับแล้ว: แก้ยอดที่รับ / ยกเลิกการรับ → รายรับในหน้า รายรับ-รายจ่าย แก้/ลบตามให้อัตโนมัติ
  *   · ตัดออกแล้ว: คืนรายการกลับไปค้างส่ง
@@ -202,14 +207,14 @@ export default function CashHandoverPanel() {
   const submit = async () => {
     setBusy(true);
     try {
-      const h = await api("submit/", {
+      await api("send-now/", {
         method: "POST",
         body: JSON.stringify({
           items: selectedItems.map((i) => ({ source: i.source, source_id: i.source_id })),
           note: sendNote,
         }),
       });
-      toast.success(`ส่งเงิน ${h.number} แล้ว รอรับเงิน`);
+      toast.success(`ส่งเงินแล้ว ${baht(selectedTotal)} หักเงินในลิ้นชักให้แล้ว`);
       setSendOpen(false);
       setSendNote("");
       load();
@@ -223,7 +228,7 @@ export default function CashHandoverPanel() {
   const cancel = async (h: Handover) => {
     try {
       await api(`${h.id}/cancel/`, { method: "POST" });
-      toast.success(`ยกเลิก ${h.number} แล้ว รายการกลับไปค้างส่ง`);
+      toast.success("ยกเลิกแล้ว รายการกลับไปค้างส่ง");
       load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "ยกเลิกไม่สำเร็จ");
@@ -239,8 +244,8 @@ export default function CashHandoverPanel() {
       });
       toast.success(
         res.status === "mismatch"
-          ? `รับ ${h.number} แล้ว (ยอดไม่ตรง ${baht(res.received_amount - res.total)})`
-          : `รับเงิน ${h.number} แล้ว ลงรายรับให้เรียบร้อย`
+          ? `รับเงิน ${h.created_by_name} แล้ว (ยอดไม่ตรง ${baht(res.received_amount - res.total)})`
+          : `รับเงิน ${h.created_by_name} แล้ว หักเงินในลิ้นชักให้เรียบร้อย`
       );
       setMismatchFor(null);
       load();
@@ -359,28 +364,29 @@ export default function CashHandoverPanel() {
 
           {handovers.length > 0 && (
             <div className="bg-white rounded-xl border">
-              <p className="px-4 py-3 border-b text-sm font-medium">ใบส่งเงินของฉัน</p>
+              <p className="px-4 py-3 border-b text-sm font-medium">ประวัติการส่งเงิน</p>
               <div className="divide-y">
                 {handovers.map((h) => (
                   <details key={h.id} className="group px-4">
                     <summary className="flex items-center gap-3 py-3 cursor-pointer list-none">
                       <ChevronDown size={16} className="text-gray-400 transition-transform group-open:rotate-180" />
-                      <span className="text-sm font-medium">{h.number}</span>
-                      <span className="text-xs text-gray-400">{when(h.created_at)}</span>
+                      <span className="text-sm font-medium">{when(h.created_at)}</span>
+                      <span className="text-xs text-gray-400">{h.items.length} รายการ</span>
                       <StatusChip h={h} />
                       <span className="ml-auto font-semibold tabular-nums">{baht(h.total)}</span>
                     </summary>
                     <div className="pb-3 pl-7">
                       <div className="divide-y">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
-                      {h.status !== "pending" && (
+                      {h.status !== "pending" && !isSelfSent(h) && (
                         <p className="text-xs text-gray-500 mt-2">
                           {h.received_by} รับ {baht(h.received_amount ?? 0)} เมื่อ {when(h.received_at)}
                           {h.received_note && ` · ${h.received_note}`}
                         </p>
                       )}
+                      {h.note && <p className="text-xs text-gray-500 mt-1">หมายเหตุ: {h.note}</p>}
                       {h.status === "pending" && (
                         <Button variant="outline" size="sm" className="mt-2 gap-1 text-red-600" onClick={() => cancel(h)}>
-                          <X size={14} /> ยกเลิกใบส่งเงิน
+                          <X size={14} /> ยกเลิกการส่ง
                         </Button>
                       )}
                     </div>
@@ -409,7 +415,7 @@ export default function CashHandoverPanel() {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <div className="min-w-0">
                         <p className="font-medium">
-                          {h.created_by_name} <span className="text-gray-400 font-normal text-sm">· {h.number}</span>
+                          {h.created_by_name}
                         </p>
                         <p className="text-xs text-gray-400">
                           ส่งเมื่อ {when(h.created_at)} · {h.items.length} รายการ
@@ -426,14 +432,14 @@ export default function CashHandoverPanel() {
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() =>
                             setConfirmAct({
-                              title: `ยกเลิกใบ ${h.number}`,
+                              title: `ยกเลิกการส่ง ${hLabel(h)}`,
                               desc: `${h.items.length} รายการ ${baht(h.total)} จะกลับไปเป็นค้างส่งของ ${h.created_by_name}`,
-                              label: "ยกเลิกใบ",
-                              run: () => act(`${h.id}/cancel/`, {}, `ยกเลิก ${h.number} แล้ว รายการกลับไปค้างส่ง`),
+                              label: "ยกเลิกการส่ง",
+                              run: () => act(`${h.id}/cancel/`, {}, "ยกเลิกแล้ว รายการกลับไปค้างส่ง"),
                             })
                           }
                         >
-                          ยกเลิกใบ
+                          ยกเลิก
                         </Button>
                         )}
                         <Button
@@ -479,12 +485,12 @@ export default function CashHandoverPanel() {
                             </button>
                             <button
                               type="button"
-                              aria-label="เอาออกจากใบ"
-                              title="เอาออกจากใบ (กลับไปค้างส่ง)"
+                              aria-label="เอารายการออก"
+                              title="เอารายการออก (กลับไปค้างส่ง)"
                               disabled={busy}
                               onClick={() =>
                                 setConfirmAct({
-                                  title: "เอารายการออกจากใบ",
+                                  title: "เอารายการออก",
                                   desc: `${i.description} (${baht(i.amount)}) จะกลับไปเป็นค้างส่ง`,
                                   label: "เอาออก",
                                   run: () => act(`${h.id}/remove-item/`, itemRef(i), "เอารายการออกแล้ว"),
@@ -607,7 +613,7 @@ export default function CashHandoverPanel() {
 
           {done.length > 0 && (
             <div className="bg-white rounded-xl border">
-              <p className="px-4 py-3 border-b text-sm font-medium">รับแล้วล่าสุด</p>
+              <p className="px-4 py-3 border-b text-sm font-medium">ประวัติการส่งเงิน</p>
               <div className="divide-y">
                 {done.slice(0, 10).map((h) => (
                   <details key={h.id} className="group px-4">
@@ -615,7 +621,7 @@ export default function CashHandoverPanel() {
                       <ChevronDown size={14} className="text-gray-400 transition-transform group-open:rotate-180" />
                       <span className="font-medium">{h.created_by_name}</span>
                       <span className="text-xs text-gray-400">
-                        {h.number} · รับ {when(h.received_at)}
+                        {isSelfSent(h) ? "ส่ง" : "รับ"} {when(h.received_at)} · {h.items.length} รายการ
                       </span>
                       <StatusChip h={h} />
                       <span className="ml-auto tabular-nums">
@@ -632,7 +638,7 @@ export default function CashHandoverPanel() {
                     <div className="pb-3 pl-6">
                       <div className="divide-y">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
                       <p className="text-xs text-gray-500 mt-2">
-                        {h.received_by} รับ {baht(h.received_amount ?? 0)}
+                        {isSelfSent(h) ? "ส่งเอง หักลิ้นชักทันที" : `${h.received_by} รับ ${baht(h.received_amount ?? 0)}`}
                         {h.note && ` · ${h.note}`}
                         {h.received_note && ` · ${h.received_note}`}
                       </p>
@@ -649,7 +655,7 @@ export default function CashHandoverPanel() {
                             setRecvEditNote(h.received_note || "");
                           }}
                         >
-                          <Pencil size={14} /> แก้ยอดที่รับ
+                          <Pencil size={14} /> แก้ยอด
                         </Button>
                         <Button
                           variant="ghost"
@@ -658,14 +664,14 @@ export default function CashHandoverPanel() {
                           className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() =>
                             setConfirmAct({
-                              title: `ยกเลิกการรับ ${h.number}`,
-                              desc: `ใบนี้จะกลับไปรอรับเงิน และลบรายรับ ${baht(h.received_amount ?? 0)} ในหน้ารายรับ-รายจ่ายออก`,
+                              title: `ยกเลิกการส่ง ${hLabel(h)}`,
+                              desc: `กลับไปรอรับเงิน และลบรายการส่งเงิน ${baht(h.received_amount ?? 0)} ในหน้ารายรับ-รายจ่ายออก (เงินกลับเข้าลิ้นชัก)`,
                               label: "ยกเลิกการรับ",
-                              run: () => act(`${h.id}/unreceive/`, {}, `ยกเลิกการรับ ${h.number} แล้ว`),
+                              run: () => act(`${h.id}/unreceive/`, {}, "ยกเลิกแล้ว"),
                             })
                           }
                         >
-                          <Undo2 size={14} /> ยกเลิกการรับ
+                          <Undo2 size={14} /> ยกเลิกการส่ง
                         </Button>
                       </div>
                       )}
@@ -714,7 +720,7 @@ export default function CashHandoverPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>ส่งเงิน {baht(selectedTotal)}</DialogTitle>
-            <DialogDescription>{selectedItems.length} รายการ · จะขึ้นสถานะรับแล้วเมื่อได้รับเงิน</DialogDescription>
+            <DialogDescription>{selectedItems.length} รายการ · หักออกจากเงินสดในลิ้นชักวันนี้ทันที</DialogDescription>
           </DialogHeader>
           <div className="max-h-56 overflow-y-auto divide-y border rounded-lg px-3">
             {selectedItems.map((i) => <ItemRow key={keyOf(i)} item={i} />)}
@@ -782,7 +788,7 @@ export default function CashHandoverPanel() {
       <Dialog open={!!mismatchFor} onOpenChange={(o) => !o && !busy && setMismatchFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>รับเงิน {mismatchFor?.number} แบบยอดไม่ตรง</DialogTitle>
+            <DialogTitle>รับเงิน {mismatchFor?.created_by_name} แบบยอดไม่ตรง</DialogTitle>
             <DialogDescription>
               {mismatchFor?.created_by_name} แจ้งส่ง {baht(mismatchFor?.total ?? 0)} · กรอกยอดที่ได้รับจริง
             </DialogDescription>
@@ -904,17 +910,17 @@ export default function CashHandoverPanel() {
         </DialogContent>
       </Dialog>
 
-      {/* adm: แก้ยอดรายการในใบที่รอรับ */}
+      {/* adm: แก้ยอดรายการที่รอรับ */}
       <Dialog open={!!itemEdit} onOpenChange={(o) => !o && !busy && setItemEdit(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>แก้ยอดรายการใน {itemEdit?.h.number}</DialogTitle>
+            <DialogTitle>แก้ยอดรายการของ {itemEdit?.h.created_by_name}</DialogTitle>
             <DialogDescription>{itemEdit?.item.description}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <label htmlFor="item-edit" className="text-sm font-medium">ยอดเงินสด (฿)</label>
             <Input id="item-edit" type="number" value={itemEditValue} onChange={(e) => setItemEditValue(e.target.value)} />
-            <p className="text-xs text-gray-500">ยอดรวมของใบจะคำนวณใหม่ให้</p>
+            <p className="text-xs text-gray-500">ยอดรวมจะคำนวณใหม่ให้</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setItemEdit(null)} disabled={busy}>ยกเลิก</Button>
@@ -940,9 +946,9 @@ export default function CashHandoverPanel() {
       <Dialog open={!!recvEdit} onOpenChange={(o) => !o && !busy && setRecvEdit(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>แก้ยอดที่รับ {recvEdit?.number}</DialogTitle>
+            <DialogTitle>แก้ยอด {recvEdit ? hLabel(recvEdit) : ""}</DialogTitle>
             <DialogDescription>
-              ยอดตามใบ {baht(recvEdit?.total ?? 0)} · รายรับในหน้ารายรับ-รายจ่ายจะแก้ตามให้
+              ยอดตามรายการ {baht(recvEdit?.total ?? 0)} · รายการส่งเงินในหน้ารายรับ-รายจ่ายจะแก้ตามให้
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -967,7 +973,7 @@ export default function CashHandoverPanel() {
                 act(
                   `${recvEdit.id}/edit-received/`,
                   { received_amount: Number(recvEditAmount), note: recvEditNote },
-                  `แก้ยอด ${recvEdit.number} แล้ว`,
+                  "แก้ยอดแล้ว",
                   () => setRecvEdit(null)
                 )
               }

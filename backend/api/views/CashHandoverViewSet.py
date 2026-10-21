@@ -10,6 +10,8 @@
   GET    /cash-handover/unsent/            เงินสดค้างส่งของฉัน  (adm: ?all=1 = ของพนักงานทุกคน)
   GET    /cash-handover/                   ใบส่งเงิน (พนักงานเห็นของตัวเอง, adm เห็นทั้งหมด) ?status=pending
   POST   /cash-handover/submit/            { items: [{source, source_id}], note }
+  POST   /cash-handover/send-now/          { items, note? }  ส่งเงินจากหน้า รายรับ-รายจ่าย: หักลิ้นชักทันที ไม่ต้องรอ adm
+                                            (เก็บเป็นประวัติการส่ง status=received - ไม่มีขั้นตอนใบรอรับ)
   POST   /cash-handover/<id>/receive/      (adm) { received_amount?, note? }
   POST   /cash-handover/<id>/cancel/       (เจ้าของใบ / adm ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
   GET    /cash-handover/summary/           ตัวเลขสำหรับ badge
@@ -114,6 +116,7 @@ def _collect_unsent(username=None):
     # 1) ขาย
     qs = Order.objects.filter(
         transaction_type='ขาย', payment_type__in=CASH_TYPES, created_at__gte=start,
+        sale_status='completed',  # ✅ ขึ้นค้างส่งหลังกด "จบรายการ" (ตัดขาย) แล้วเท่านั้น
     ).select_related('customer', 'seller').prefetch_related('bikes', 'additional_fees')
     if username:
         qs = qs.filter(seller__username=username)
@@ -282,7 +285,10 @@ def _sync_cashflow(h, amount, receiver):
         h.cashflow_entry_id = None
         return
     sender = h.created_by_name or h.created_by_username
-    desc = f"ส่งเงิน HO-{h.id:06d} ({sender} → {receiver or h.received_by})"[:255]
+    receiver = receiver or h.received_by
+    # ✅ ไม่มีเลขใบแล้ว - บอกแค่ใครส่ง (→ ใครรับ ถ้าเป็นคนละคน) กี่รายการ
+    who = sender if not receiver or receiver == sender else f"{sender} → {receiver}"
+    desc = f"ส่งเงิน · {who} · {h.items.count()} รายการ"[:255]
     if entry:
         entry.income = 0
         entry.sent = amount
@@ -440,6 +446,44 @@ class CashHandoverViewSet(viewsets.ViewSet):
                     )
                     for r in chosen
                 ])
+        except IntegrityError:
+            return Response({'error': 'มีรายการถูกส่งซ้ำ กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT)
+
+        h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
+        return Response(_handover_json(h), status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='send-now')
+    def send_now(self, request):
+        """
+        ✅ ส่งเงินจากหน้า รายรับ-รายจ่าย - พนักงานติ๊กรายการเงินสดค้างส่งของตัวเอง
+        ยอดคำนวณจากรายการจริงฝั่ง backend (พิมพ์ยอดเองไม่ได้) → ลง "ส่งเงิน" หักลิ้นชักวันนี้ทันที
+        เก็บประวัติไว้ในตาราง cash_handover (status=received) - ใครส่ง / รายการไหน / เมื่อไหร่
+        """
+        keys = set(_parse_keys(request.data.get('items')))
+        if not keys:
+            return Response({'error': 'กรุณาเลือกรายการที่จะส่งอย่างน้อย 1 รายการ'}, status=status.HTTP_400_BAD_REQUEST)
+
+        mine = {(r['source'], r['source_id']): r for r in _collect_unsent(request.user.username)}
+        chosen = [mine[k] for k in keys if k in mine]
+        if len(chosen) != len(keys):
+            return Response(
+                {'error': 'บางรายการถูกส่งไปแล้ว หรือไม่ใช่รายการของคุณ กรุณารีเฟรชแล้วลองใหม่'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        sender = _display_name(request.user)
+        try:
+            with transaction.atomic():
+                h = self._create_handover(
+                    request.user.username, chosen, (request.data.get('note') or '').strip(), status_value='received',
+                )
+                h.received_amount = h.total
+                h.received_by = sender
+                h.received_at = timezone.now()
+                # ลงรายการ "ส่งเงิน" หักลิ้นชักวันนี้
+                h.cashflow_entry_id = None
+                _sync_cashflow(h, h.total, sender)
+                h.save()
         except IntegrityError:
             return Response({'error': 'มีรายการถูกส่งซ้ำ กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT)
 
