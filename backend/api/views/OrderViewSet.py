@@ -63,6 +63,7 @@ def _checklist_payload(order):
         'marks': marks,
         'missing': [i['label'] for i in SALE_CHECKLIST_ITEMS if i['key'] not in done],
         'finished': finished,
+        'sale_status': order.sale_status,
     }
 
 
@@ -75,6 +76,140 @@ def _sync_checklist_note(order, missing):
     if new_notes != (order.notes or ''):
         order.notes = new_notes
         order.save(update_fields=['notes'])
+
+def _post_sale_income(order):
+    """รายรับอัตโนมัติของการขาย - ยอดที่ต้องจ่ายวันนี้ (ตัวเดียวกับที่ขึ้นค้างส่ง)"""
+    from api.views.CashHandoverViewSet import _sale_due_today
+    from api.views.CashflowView import split_payment, sync_auto_income
+    due = _sale_due_today(order)
+    cash, transfer = split_payment(due, order.payment_type, order.cash_amount)
+    bike = order.bikes.first()
+    desc = f"รับเงิน · ขาย O-{order.id:08d} · {order.customer.name if order.customer else '-'}"
+    if bike:
+        desc += f" · {bike.model_name}"
+    seller = (getattr(order.seller, 'name', '') or getattr(order.seller, 'username', '')) if order.seller else ''
+    sync_auto_income('sale', order.id, cash, transfer, desc, seller)
+
+
+def _finalize_sale(order):
+    """
+    ✅ ตัดขายจริง (เรียกตอนกด "จบรายการ") - ต้องเรียกภายใน transaction.atomic()
+    - รถออกจากสต็อก (sold=True) / ตัดสต็อกของแถม
+    - สร้างบัญชี NPG (ไฟแนนซ์ NPG) หรือบัญชีผ่อนดาวน์ (ไฟแนนซ์เจ้าอื่น)
+    - sale_status = completed → นับเป็นยอดขาย / รายงาน / เงินสดค้างส่ง / งานทะเบียน
+    คืนข้อความ error (str) ถ้าตัดขายไม่ได้ / None ถ้าสำเร็จ
+    """
+    if order.sale_status == 'completed':
+        return None
+
+    bikes = list(Bike.objects.select_for_update().filter(pk__in=order.bikes.values_list('id', flat=True)))
+    for b in bikes:
+        if b.sold:
+            return f'{b.model_name} ถูกขายไปแล้ว (ตัดขายซ้ำไม่ได้)'
+    for b in bikes:
+        b.sold = True
+        b.save(update_fields=['sold'])
+
+    for og in order.gifts.select_related('item').all():
+        if og.item:
+            og.item.stock -= og.quantity or 0
+            og.item.save()
+
+    extra = order.checkout_extra or {}
+    finance_provider = order.finance_provider or ''
+    finance_amount = float(order.finance_amount or 0)
+    interest_rate = float(order.interest_rate or 0)
+    installment_count = int(order.installment_count or 0)
+    installment_amount = float(order.installment_amount or 0)
+    npg_period = order.npg_period or 'รายเดือน'
+    down_payment_installment = extra.get('down_payment_installment', False)
+
+    # สร้าง NPG Account ถ้าเป็นไฟแนนซ์ NPG
+    if finance_provider == 'NPG' and finance_amount > 0:
+        try:
+            # ✅ จำนวนเดือนของสัญญา = จำนวนงวด x (1 งวดกี่เดือน)
+            # รายวัน = 1/30, รายสัปดาห์ = 7/30, รายเดือน = 1, รายปี = 12
+            total_months = installment_count * NPGAccount.months_per_period(npg_period)
+            total_with_interest_raw = finance_amount + (
+                finance_amount * (interest_rate / 100) * total_months
+            )
+
+            # ✅ ใช้ installment_amount (ที่ frontend ปัดเศษเป็นจำนวนเต็มแล้ว) x จำนวนงวด
+            # แทนยอดดิบที่มีเศษทศนิยม เพื่อให้จ่ายครบทุกงวดแล้วเหลือ 0 พอดี ไม่มีเศษค้าง
+            remaining_balance_final = installment_amount * installment_count
+
+            # ✅ งวดแรกครบกำหนดตามรอบตัด - รายวัน +1 / รายสัปดาห์ +7 / รายเดือน +30 / รายปี +365 วัน
+            first_due_days = NPGAccount.days_per_period(npg_period)
+
+            # savepoint - ถ้าสร้างบัญชีพัง ไม่ให้ทั้ง transaction ของการตัดขายเสีย
+            with transaction.atomic():
+                NPGAccount.objects.create(
+                    order=order,
+                    status='active',
+                    account_type='finance',
+                    finance_amount=finance_amount,
+                    interest_rate=interest_rate,
+                    installment_count=installment_count,
+                    installment_amount=installment_amount,
+                    period_type=npg_period,  # ✅ ใช้ค่าจริงจาก frontend แทนการ hardcode
+                    paid_count=0,
+                    total_paid=0,
+                    remaining_balance=remaining_balance_final,
+                    start_date=datetime.today().date(),
+                    next_payment_date=datetime.today().date() + timedelta(days=first_due_days),
+                )
+            print(f"✅ สร้าง NPG Account สำหรับ Order #{order.id} (period={npg_period}, remaining={remaining_balance_final}, raw={total_with_interest_raw})")
+        except Exception as e:
+            print(f"❌ ไม่สามารถสร้าง NPG Account: {str(e)}")
+
+    # ✅ สร้างบัญชีผ่อนดาวน์ (account_type='down_payment') - เฉพาะกรณีไฟแนนซ์รถกับเจ้าอื่น
+    # ที่ไม่ใช่ NPG เท่านั้น เพราะ NPGAccount ผูกกับ Order แบบ OneToOneField (1 order = 1 บัญชี)
+    # ถ้า finance_provider เป็น NPG อยู่แล้ว จะชนกับบัญชีไฟแนนซ์หลักด้านบนทันที (unique constraint)
+    # ⚠️ ห้ามลบเงื่อนไข finance_provider != 'NPG' ออก ไม่งั้นจะพังเหมือนที่เคยเกิดมาก่อน
+    if down_payment_installment and finance_provider != 'NPG':
+        try:
+            dp_remaining_balance = float(extra.get('down_payment_remaining_balance', 0))
+            dp_installment_count = int(extra.get('down_payment_installment_count', 0))
+            dp_interest_rate = float(extra.get('down_payment_interest_rate', 0))
+            dp_per_installment = float(extra.get('down_payment_per_remaining_installment', 0))
+            # ✅ วันครบกำหนดงวดถัดไป - รับจาก frontend ตรงๆ (แก้เองได้แล้ว ไม่ใช่ +30 วันตายตัว
+            # เพราะลูกค้าบางคนนัดจ่ายวันอื่น เช่น 15 วันหลังซื้อ) มี fallback +30 วันถ้าไม่ได้ส่งมา
+            dp_next_payment_date_str = extra.get('down_payment_next_payment_date', '')
+            if dp_next_payment_date_str:
+                dp_next_payment_date = datetime.strptime(dp_next_payment_date_str, '%Y-%m-%d').date()
+            else:
+                dp_next_payment_date = datetime.today().date() + timedelta(days=30)
+
+            if dp_installment_count > 0 and dp_remaining_balance > 0 and dp_per_installment > 0:
+                dp_remaining_balance_final = dp_per_installment * dp_installment_count
+
+                # savepoint - ถ้าสร้างบัญชีพัง ไม่ให้ทั้ง transaction ของการตัดขายเสีย
+                with transaction.atomic():
+                    NPGAccount.objects.create(
+                        order=order,
+                        status='active',
+                        account_type='down_payment',
+                        finance_amount=dp_remaining_balance,
+                        interest_rate=dp_interest_rate,
+                        installment_count=dp_installment_count,
+                        installment_amount=dp_per_installment,
+                        period_type='รายเดือน',
+                        paid_count=0,
+                        total_paid=0,
+                        remaining_balance=dp_remaining_balance_final,
+                        start_date=datetime.today().date(),
+                        next_payment_date=dp_next_payment_date,
+                    )
+                print(f"✅ สร้างบัญชีผ่อนดาวน์สำหรับ Order #{order.id} (remaining={dp_remaining_balance_final}, next_payment={dp_next_payment_date})")
+            else:
+                print(f"⚠️ ข้ามสร้างบัญชีผ่อนดาวน์ Order #{order.id}: ข้อมูลไม่ครบ (count={dp_installment_count}, balance={dp_remaining_balance})")
+        except Exception as e:
+            print(f"❌ ไม่สามารถสร้างบัญชีผ่อนดาวน์: {str(e)}")
+
+    order.sale_status = 'completed'
+    order.save(update_fields=['sale_status'])
+    return None
+
 
 class OrderViewSet(viewsets.ModelViewSet):
     """
@@ -177,7 +312,33 @@ class OrderViewSet(viewsets.ModelViewSet):
             mileage_raw = request.data.get('mileage')
             mileage = int(mileage_raw) if mileage_raw not in (None, '', 'null') else None
 
-            # สร้าง Order
+            # ✅ กันขายรถคันเดียวซ้ำ: รถต้องยังไม่ขาย และไม่ได้อยู่ในรายการอื่นที่ "รอจบ"
+            bikes_to_add = []
+            for bike in request.data['bikes']:
+                instance = Bike.objects.filter(pk=bike['id']).first()
+                if not instance:
+                    return Response({'status': 'error', 'message': 'ไม่พบรถคันนี้ในระบบ'}, status=400)
+                if instance.sold:
+                    return Response({'status': 'error', 'message': f'{instance.model_name} ขายไปแล้ว'}, status=400)
+                pending = Order.objects.filter(sale_status='pending', bikes=instance).first()
+                if pending:
+                    return Response({
+                        'status': 'error',
+                        'message': f'{instance.model_name} อยู่ในรายการรอจบ #{pending.id} แล้ว (จบหรือลบรายการนั้นก่อน)',
+                    }, status=400)
+                bikes_to_add.append(instance)
+
+            # ✅ ข้อมูลที่ต้องใช้ตอน "จบรายการ" (สร้างบัญชี NPG / ผ่อนดาวน์) - เก็บไว้กับออเดอร์
+            checkout_extra = {
+                'down_payment_installment': bool(down_payment_installment) and down_payment_installment not in ('false', 'False', '0'),
+                'down_payment_remaining_balance': request.data.get('down_payment_remaining_balance', 0),
+                'down_payment_installment_count': request.data.get('down_payment_installment_count', 0),
+                'down_payment_interest_rate': request.data.get('down_payment_interest_rate', 0),
+                'down_payment_per_remaining_installment': request.data.get('down_payment_per_remaining_installment', 0),
+                'down_payment_next_payment_date': request.data.get('down_payment_next_payment_date', ''),
+            }
+
+            # สร้าง Order (สถานะ "รอจบ" - ยังไม่นับเป็นยอดขาย)
             with transaction.atomic():
                 new_order = Order.objects.create(
                     sale_date=datetime.today(),
@@ -215,13 +376,14 @@ class OrderViewSet(viewsets.ModelViewSet):
                     transaction_type=transaction_type,
                     transaction_type_detail=transaction_type_detail,
                     mileage=mileage,
+
+                    # ✅ รอจบรายการ - ตัดขายจริงตอนกด "จบรายการ" ที่หน้าเอกสาร
+                    sale_status='pending',
+                    checkout_extra=checkout_extra,
                 )
 
-                # เพิ่มรถ
-                for bike in request.data['bikes']:
-                    instance = Bike.objects.filter(pk=bike['id'])[0]
-                    instance.sold = True
-                    instance.save()
+                # เพิ่มรถ - ✅ ยังไม่ตัดสต็อก (รถออกจากสต็อกตอนกด "จบรายการ")
+                for instance in bikes_to_add:
                     new_order.bikes.add(instance)
 
                 # เพิ่มค่าใช้จ่ายเพิ่มเติม
@@ -236,8 +398,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 # เพิ่มของแถม
                 for gift in request.data['gifts']:
                     gift_instance = Gift.objects.filter(pk=gift['id'])[0]
-                    gift_instance.stock -= gift['amount']
-                    gift_instance.save()
+                    # ✅ ยังไม่ตัดสต็อกของแถม - ตัดตอนกด "จบรายการ"
 
                     order_gift = OrderGift.objects.create(
                         item=gift_instance,
@@ -247,84 +408,6 @@ class OrderViewSet(viewsets.ModelViewSet):
                     order_gift.save()
 
                 new_order.save()
-
-                # สร้าง NPG Account ถ้าเป็นไฟแนนซ์ NPG
-                if finance_provider == 'NPG' and finance_amount > 0:
-                    try:
-                        # ✅ จำนวนเดือนของสัญญา = จำนวนงวด x (1 งวดกี่เดือน)
-                        # รายวัน = 1/30, รายสัปดาห์ = 7/30, รายเดือน = 1, รายปี = 12
-                        total_months = installment_count * NPGAccount.months_per_period(npg_period)
-                        total_with_interest_raw = finance_amount + (
-                            finance_amount * (interest_rate / 100) * total_months
-                        )
-
-                        # ✅ ใช้ installment_amount (ที่ frontend ปัดเศษเป็นจำนวนเต็มแล้ว) x จำนวนงวด
-                        # แทนยอดดิบที่มีเศษทศนิยม เพื่อให้จ่ายครบทุกงวดแล้วเหลือ 0 พอดี ไม่มีเศษค้าง
-                        remaining_balance_final = installment_amount * installment_count
-
-                        # ✅ งวดแรกครบกำหนดตามรอบตัด - รายวัน +1 / รายสัปดาห์ +7 / รายเดือน +30 / รายปี +365 วัน
-                        first_due_days = NPGAccount.days_per_period(npg_period)
-
-                        NPGAccount.objects.create(
-                            order=new_order,
-                            status='active',
-                            account_type='finance',
-                            finance_amount=finance_amount,
-                            interest_rate=interest_rate,
-                            installment_count=installment_count,
-                            installment_amount=installment_amount,
-                            period_type=npg_period,  # ✅ ใช้ค่าจริงจาก frontend แทนการ hardcode
-                            paid_count=0,
-                            total_paid=0,
-                            remaining_balance=remaining_balance_final,
-                            start_date=datetime.today().date(),
-                            next_payment_date=datetime.today().date() + timedelta(days=first_due_days),
-                        )
-                        print(f"✅ สร้าง NPG Account สำหรับ Order #{new_order.id} (period={npg_period}, remaining={remaining_balance_final}, raw={total_with_interest_raw})")
-                    except Exception as e:
-                        print(f"❌ ไม่สามารถสร้าง NPG Account: {str(e)}")
-
-                # ✅ สร้างบัญชีผ่อนดาวน์ (account_type='down_payment') - เฉพาะกรณีไฟแนนซ์รถกับเจ้าอื่น
-                # ที่ไม่ใช่ NPG เท่านั้น เพราะ NPGAccount ผูกกับ Order แบบ OneToOneField (1 order = 1 บัญชี)
-                # ถ้า finance_provider เป็น NPG อยู่แล้ว จะชนกับบัญชีไฟแนนซ์หลักด้านบนทันที (unique constraint)
-                # ⚠️ ห้ามลบเงื่อนไข finance_provider != 'NPG' ออก ไม่งั้นจะพังเหมือนที่เคยเกิดมาก่อน
-                if down_payment_installment and finance_provider != 'NPG':
-                    try:
-                        dp_remaining_balance = float(request.data.get('down_payment_remaining_balance', 0))
-                        dp_installment_count = int(request.data.get('down_payment_installment_count', 0))
-                        dp_interest_rate = float(request.data.get('down_payment_interest_rate', 0))
-                        dp_per_installment = float(request.data.get('down_payment_per_remaining_installment', 0))
-                        # ✅ วันครบกำหนดงวดถัดไป - รับจาก frontend ตรงๆ (แก้เองได้แล้ว ไม่ใช่ +30 วันตายตัว
-                        # เพราะลูกค้าบางคนนัดจ่ายวันอื่น เช่น 15 วันหลังซื้อ) มี fallback +30 วันถ้าไม่ได้ส่งมา
-                        dp_next_payment_date_str = request.data.get('down_payment_next_payment_date', '')
-                        if dp_next_payment_date_str:
-                            dp_next_payment_date = datetime.strptime(dp_next_payment_date_str, '%Y-%m-%d').date()
-                        else:
-                            dp_next_payment_date = datetime.today().date() + timedelta(days=30)
-
-                        if dp_installment_count > 0 and dp_remaining_balance > 0 and dp_per_installment > 0:
-                            dp_remaining_balance_final = dp_per_installment * dp_installment_count
-
-                            NPGAccount.objects.create(
-                                order=new_order,
-                                status='active',
-                                account_type='down_payment',
-                                finance_amount=dp_remaining_balance,
-                                interest_rate=dp_interest_rate,
-                                installment_count=dp_installment_count,
-                                installment_amount=dp_per_installment,
-                                period_type='รายเดือน',
-                                paid_count=0,
-                                total_paid=0,
-                                remaining_balance=dp_remaining_balance_final,
-                                start_date=datetime.today().date(),
-                                next_payment_date=dp_next_payment_date,
-                            )
-                            print(f"✅ สร้างบัญชีผ่อนดาวน์สำหรับ Order #{new_order.id} (remaining={dp_remaining_balance_final}, next_payment={dp_next_payment_date})")
-                        else:
-                            print(f"⚠️ ข้ามสร้างบัญชีผ่อนดาวน์ Order #{new_order.id}: ข้อมูลไม่ครบ (count={dp_installment_count}, balance={dp_remaining_balance})")
-                    except Exception as e:
-                        print(f"❌ ไม่สามารถสร้างบัญชีผ่อนดาวน์: {str(e)}")
 
             return Response({"success": True, "data": new_order.id})
         
@@ -475,6 +558,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                 for gift in order_to_delete.gifts.all():
                     gift.delete()
                 
+                # ✅ ลบรายรับอัตโนมัติของการขายนี้ด้วย
+                from api.views.CashflowView import remove_auto_income
+                remove_auto_income('sale', order_to_delete.id)
+
                 # เก็บข้อมูลก่อนลบ
                 order_id = order_to_delete.id
                 customer_name = order_to_delete.customer.name if order_to_delete.customer else "ไม่ระบุ"
@@ -509,7 +596,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(methods=['GET'], detail=False)
     def latest(self, request):
         """Return 4 last sales"""
-        queryset = self.get_queryset()[:4]
+        queryset = self.get_queryset().filter(sale_status='completed')[:4]  # ✅ ไม่นับรายการรอจบ
         serializer = OrderSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -614,19 +701,33 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(methods=['POST'], detail=True)
     def checklist_finish(self, request, *args, **kwargs):
         """
-        กด "จบรายการ" - จบได้แม้เช็คไม่ครบ แต่จะเขียนข้อที่ขาดลงหมายเหตุของออเดอร์
+        กด "จบรายการ" = ตัดขายจริง - จบได้แม้เช็คไม่ครบ แต่จะเขียนข้อที่ขาดลงหมายเหตุของออเดอร์
         POST /order/{id}/checklist_finish/
         """
         order = self.get_object()
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO sale_checklist (order_id, item_key, value, checked_by, checked_at)
-                VALUES (%s, %s, 'done', %s, NOW())
-                ON CONFLICT (order_id, item_key) DO NOTHING
-                """,
-                [order.id, CHECKLIST_FINISHED_KEY, _user_label(request.user)],
-            )
+        was_pending = order.sale_status == 'pending'
+        with transaction.atomic():
+            # ✅ ตัดขายจริงตรงนี้ (รถออกจากสต็อก / บัญชี NPG / นับยอดขาย)
+            error = _finalize_sale(order)
+            if error:
+                transaction.set_rollback(True)
+                return Response({'error': error}, status=400)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO sale_checklist (order_id, item_key, value, checked_by, checked_at)
+                    VALUES (%s, %s, 'done', %s, NOW())
+                    ON CONFLICT (order_id, item_key) DO NOTHING
+                    """,
+                    [order.id, CHECKLIST_FINISHED_KEY, _user_label(request.user)],
+                )
+            # ✅ ลงรายรับให้อัตโนมัติ (เงินที่ลูกค้าจ่ายวันนี้ แยกเงินสด / โอน ตามรูปแบบการชำระ)
+            if was_pending:
+                try:
+                    with transaction.atomic():
+                        _post_sale_income(order)
+                except Exception as e:  # ลงรายรับไม่ได้ ไม่ให้การจบรายการพัง
+                    print(f"⚠️ ลงรายรับอัตโนมัติไม่สำเร็จ Order #{order.id}: {e}")
         payload = _checklist_payload(order)
         _sync_checklist_note(order, payload['missing'])
         return Response(payload)

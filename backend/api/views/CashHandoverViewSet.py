@@ -23,7 +23,9 @@
   POST   /cash-handover/<id>/remove-item/     { source, source_id }      เอารายการออกจากใบที่รอรับ → กลับไปค้างส่ง
   POST   /cash-handover/<id>/edit-item/       { source, source_id, amount }  แก้ยอดรายการในใบที่รอรับ
   POST   /cash-handover/<id>/edit-received/   { received_amount, note? }  แก้ยอดที่รับแล้ว → แก้รายรับให้ตาม
-  POST   /cash-handover/<id>/unreceive/       ยกเลิกการรับ → ใบกลับไปรอรับ + ลบรายรับที่ลงไว้
+  POST   /cash-handover/<id>/unreceive/       ยกเลิกการรับ → ใบกลับไปรอรับ + ลบรายรับที่ลงไว้ (แบบเก่า)
+  POST   /cash-handover/<id>/cancel-send/     (adm) ยกเลิกการส่งในคลิกเดียว → ลบแถว "ส่งเงิน" (เงินกลับเข้าลิ้นชัก)
+                                              + รายการทั้งหมดกลับไปเป็นค้างส่งของพนักงานคนนั้น
 """
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
@@ -40,6 +42,7 @@ from api.models import Order, User, NPGPayment, NPGAccount
 from api.models.ServiceRecord import ServiceRecord
 from api.models.CashHandover import CashHandover, CashHandoverItem, CashHandoverConfig
 from api.models.Cashflow import CashflowEntry
+from api.views.CashflowView import split_payment, sync_auto_income
 
 try:
     from api.models.NPGPayment import NPGFee
@@ -310,6 +313,20 @@ def _recalc_total(h):
 SOURCE_MODEL = {'sale': Order, 'service': ServiceRecord, 'npg_payment': NPGPayment}
 
 
+def _resync_income(source, obj):
+    """✅ adm แก้ยอดเงินสดของรายการ → แยกรายรับเงินสด / โอน ที่ลงอัตโนมัติไว้ใหม่ให้ตรงกัน"""
+    if source == 'sale':
+        total, ptype = _sale_due_today(obj), obj.payment_type
+    elif source == 'service':
+        total, ptype = obj.total, obj.payment_type
+    elif source == 'npg_payment':
+        total, ptype = Decimal(str(obj.amount_paid or 0)) + Decimal(str(obj.late_fee or 0)), obj.payment_method
+    else:
+        return
+    cash, transfer = split_payment(total, ptype, obj.cash_amount)
+    sync_auto_income(source, obj.id, cash, transfer, only_if_exists=True)
+
+
 # ---------------------------------------------------------------- viewset
 
 class CashHandoverViewSet(viewsets.ViewSet):
@@ -397,6 +414,7 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 return Response({'error': 'ยอดเงินสดต้องไม่ติดลบ'}, status=status.HTTP_400_BAD_REQUEST)
             obj.cash_amount = value
         obj.save(update_fields=['cash_amount'])
+        _resync_income(source, obj)
         return Response({'message': 'แก้ยอดเงินสดแล้ว', 'cash_amount': float(obj.cash_amount) if obj.cash_amount is not None else None})
 
     @action(detail=False, methods=['get'])
@@ -669,6 +687,9 @@ class CashHandoverViewSet(viewsets.ViewSet):
             model = SOURCE_MODEL.get(item.source)
             if model is not None:
                 model.objects.filter(pk=item.source_id).update(cash_amount=amount)
+                obj = model.objects.filter(pk=item.source_id).first()
+                if obj:
+                    _resync_income(item.source, obj)
             _recalc_total(h)
             h.save(update_fields=['total'])
         h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
@@ -719,6 +740,22 @@ class CashHandoverViewSet(viewsets.ViewSet):
             h.save()
         h = CashHandover.objects.prefetch_related('items').get(pk=h.pk)
         return Response(_handover_json(h))
+
+    @action(detail=True, methods=['post'], url_path='cancel-send')
+    def cancel_send(self, request, pk=None):
+        """(adm) ยกเลิกการส่งที่หักลิ้นชักไปแล้ว - ลบแถว "ส่งเงิน" + ลบประวัติครั้งนั้น → รายการกลับไปค้างส่ง"""
+        if not _is_admin(request):
+            return _forbidden()
+        with transaction.atomic():
+            h = CashHandover.objects.select_for_update().filter(pk=pk).first()
+            if not h:
+                return Response({'error': 'ไม่พบรายการส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
+            if h.status not in ('received', 'mismatch'):
+                return Response({'error': 'รายการนี้ยังไม่ได้หักลิ้นชัก'}, status=status.HTTP_400_BAD_REQUEST)
+            amount = h.received_amount or h.total
+            _sync_cashflow(h, None, '')  # ลบแถว "ส่งเงิน" → เงินกลับเข้าลิ้นชัก
+            h.delete()                   # รายการในครั้งนั้นถูกลบตาม → กลับไปเป็นค้างส่ง
+        return Response({'message': 'ยกเลิกการส่งแล้ว', 'amount': float(amount)})
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):

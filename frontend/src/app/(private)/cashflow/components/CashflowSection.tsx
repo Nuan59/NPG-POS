@@ -101,6 +101,12 @@ const CashflowSection = ({
                     disabled={!canEdit}
                   />
                   <span className="text-xs text-gray-400">บาท</span>
+                  {/* ✅ รายรับที่ระบบลงให้เองตอนรับเงิน (ขาย / ซ่อม / ค่างวด) */}
+                  {(row as any).auto && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                      อัตโนมัติ
+                    </span>
+                  )}
                   {row.createdBy && (
                     <span className="text-[11px] text-gray-400 ml-auto">โดย {row.createdBy}</span>
                   )}

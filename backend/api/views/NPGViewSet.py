@@ -8,6 +8,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 
 from api.models import NPGAccount, NPGPayment
+from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income
 from api.models.NPGPayment import NPGFee
 from api.serializers.NPGSerializer import (
     NPGAccountSerializer,
@@ -84,6 +85,21 @@ def _build_receipt(payment, account, items, total):
         "items": items,
         "total": total,
     }
+
+
+def _customer_name(account):
+    order = account.order if account else None
+    return order.customer.name if order and order.customer else '-'
+
+
+def _post_payment_income(payment, account, label=None):
+    """✅ รายรับอัตโนมัติของค่างวด NPG (รวมค่าปรับที่เก็บพร้อมงวด)"""
+    total = float(payment.amount_paid or 0) + float(payment.late_fee or 0)
+    cash, transfer = split_payment(total, payment.payment_method, payment.cash_amount)
+    label = label or f"ค่างวด NPG #{account.id} งวดที่ {payment.installment_number}"
+    user = payment.created_by
+    name = (getattr(user, 'name', '') or getattr(user, 'username', '')) if user else ''
+    sync_auto_income('npg_payment', payment.id, cash, transfer, f"รับเงิน · {label} · {_customer_name(account)}", name)
 
 
 def _recalc_account(account):
@@ -251,6 +267,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         _recalc_account(account)
         account.refresh_from_db()
         account.update_next_payment_date()
+        payment.refresh_from_db()
+        _post_payment_income(payment, account)
 
         bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
         bike_desc = f" ({bike.model_name})" if bike else ""
@@ -323,6 +341,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             created_by=request.user
         )
         
+        _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}")
+
         account.status = 'closed'
         account.close_date = timezone.now().date()
         account.close_amount = close_amount
@@ -382,6 +402,13 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             note=request.data.get('note', '') or '',
             created_by=getattr(request.user, 'username', '') or '',
         )
+        # ✅ รายรับอัตโนมัติ (ค่าธรรมเนียมไม่มีแบ่งจ่าย)
+        cash, transfer = split_payment(amount, fee.payment_method)
+        sync_auto_income(
+            'npg_fee', fee.id, cash, transfer,
+            f"รับเงิน · ค่าธรรมเนียม NPG #{account.id}: {description} · {_customer_name(account)}",
+            getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '',
+        )
 
         return Response({
             'message': 'บันทึกค่าธรรมเนียมสำเร็จ',
@@ -401,6 +428,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         deleted, _ = NPGFee.objects.filter(id=fee_id, account=account).delete()
         if not deleted:
             return Response({'error': 'ไม่พบรายการค่าธรรมเนียม'}, status=status.HTTP_404_NOT_FOUND)
+        remove_auto_income('npg_fee', int(fee_id))
 
         return Response({'message': 'ลบค่าธรรมเนียมสำเร็จ'})
 
@@ -495,6 +523,10 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         # คำนวณยอดบัญชีใหม่ทั้งหมดจากทุก payment จริง (กันยอดเพี้ยนจากการแก้ไข)
         _recalc_account(account)
         account.refresh_from_db()
+        # ✅ รายรับอัตโนมัติแก้ตาม (ยอด / วิธีชำระ)
+        payment.refresh_from_db()
+        is_close = (payment.note or '').startswith('ปิดบัญชี')
+        _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None)
 
         return Response({
             'message': 'แก้ไขรายการชำระเงินสำเร็จ',
@@ -513,7 +545,9 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
         payment = self.get_object()
         account = payment.account
+        payment_id = payment.id
         payment.delete()
+        remove_auto_income('npg_payment', payment_id)
 
         # คำนวณยอดบัญชีใหม่ทั้งหมดจากทุก payment ที่เหลืออยู่จริง
         _recalc_account(account)

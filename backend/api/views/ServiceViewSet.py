@@ -6,7 +6,8 @@ API งานบริการ (ซ่อม / ต่อภาษี+พรบ 
   GET    /service/?customer=<id>    รายการของลูกค้าคนนั้น
   GET    /service/<id>/             รายละเอียด
   POST   /service/                  บันทึกรายการใหม่
-  DELETE /service/<id>/             ลบ (ไม่แตะรถ/สต็อกใดๆ)
+  DELETE /service/<id>/             ลบ (ไม่แตะรถ/สต็อกใดๆ) + ลบรายรับอัตโนมัติของรายการนี้
+  ✅ บันทึกแล้วลง "รายรับ" ในหน้า รายรับ-รายจ่าย ให้อัตโนมัติ (เงินสด / โอน แยกตามรูปแบบการชำระ)
 """
 from django.utils import timezone
 from rest_framework import serializers, viewsets, status
@@ -15,6 +16,7 @@ from rest_framework.response import Response
 
 from api.models import Customer, Bike
 from api.models.ServiceRecord import ServiceRecord
+from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income
 
 
 class ServiceRecordSerializer(serializers.ModelSerializer):
@@ -142,7 +144,22 @@ class ServiceViewSet(viewsets.ModelViewSet):
             created_by=getattr(request.user, 'username', '') or '',
         )
 
+        # ✅ รายรับอัตโนมัติ
+        label = detail if transaction_type == 'อื่นๆ' and detail else transaction_type
+        cash, transfer = split_payment(total, payment_type, cash_amount)
+        sync_auto_income(
+            'service', record.id, cash, transfer,
+            f"รับเงิน · {label} S-{record.id:08d} · {customer.name}",
+            getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '',
+        )
+
         return Response(
             {'success': True, 'data': record.id, 'record': ServiceRecordSerializer(record).data},
             status=status.HTTP_201_CREATED,
         )
+
+    def destroy(self, request, *args, **kwargs):
+        record_id = self.get_object().id
+        response = super().destroy(request, *args, **kwargs)
+        remove_auto_income('service', record_id)
+        return response

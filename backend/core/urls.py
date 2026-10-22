@@ -713,6 +713,32 @@ def create_sale_checklist_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: เพิ่มคอลัมน์สถานะการขาย (รอจบ/จบรายการ) ให้ตาราง Order - ออเดอร์เก่าทั้งหมด = completed เรียกซ้ำได้
+def add_order_sale_status_columns(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        table = django_apps.get_model('api', 'Order')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS sale_status VARCHAR(20) NOT NULL DEFAULT \'completed\';')
+            cursor.execute(f'ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS checkout_extra JSONB NULL;')
+            cursor.execute(f'CREATE INDEX IF NOT EXISTS order_sale_status_idx ON "{table}" (sale_status);')
+        return JsonResponse({'status': 'ok', 'table': table, 'message': 'เพิ่มคอลัมน์ sale_status / checkout_extra เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+# ✅ Temp: เพิ่มคอลัมน์รายรับอัตโนมัติ (ชี้กลับรายการต้นทาง) ให้ cashflow_entry เรียกซ้ำได้
+def add_cashflow_auto_columns(request):
+    from django.db import connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("ALTER TABLE cashflow_entry ADD COLUMN IF NOT EXISTS auto_source VARCHAR(20) NOT NULL DEFAULT '';")
+            cursor.execute("ALTER TABLE cashflow_entry ADD COLUMN IF NOT EXISTS auto_source_id BIGINT NULL;")
+            cursor.execute("CREATE INDEX IF NOT EXISTS cashflow_auto_idx ON cashflow_entry (auto_source, auto_source_id);")
+        return JsonResponse({'status': 'ok', 'message': 'เพิ่มคอลัมน์รายรับอัตโนมัติเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
 router.register('storage', StorageViewSet, basename="Storage")
@@ -765,6 +791,8 @@ urlpatterns = [
     path('dev/create-expense-request-table/', create_expense_request_table),
     path('dev/convert-handover-to-sent/', convert_handover_to_sent),
     path('dev/create-sale-checklist-table/', create_sale_checklist_table),
+    path('dev/add-order-sale-status-columns/', add_order_sale_status_columns),
+    path('dev/add-cashflow-auto-columns/', add_cashflow_auto_columns),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

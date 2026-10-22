@@ -6,7 +6,8 @@ import traceback
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, F
+from django.db import transaction
+from django.db.models import Sum, F, Max
 from django.utils import timezone
 
 from api.models.Cashflow import CashflowEntry, CashflowDayMeta
@@ -15,6 +16,79 @@ from api.models.Cashflow import CashflowEntry, CashflowDayMeta
 def _net_expr():
     # ✅ cash_in (เปิดบิล) บวกเข้ายอดคงเหลือเหมือน income แต่แยกคอลัมน์เพื่อไม่ให้ปนกับรายได้จริง
     return F("income") - F("sent") - F("expense") - F("change") - F("deposit_return") + F("cash_in")
+
+
+# ================== รายรับอัตโนมัติ ==================
+# ✅ รับเงินจากลูกค้า (จบรายการขาย / งานบริการ / ค่างวด NPG / ค่าธรรมเนียม NPG) → ลง "รายรับ" ให้เอง
+#    เงินสด → ส่วนเงินสด (เงินในลิ้นชัก) / เงินโอน → ส่วนโอน / แบ่งจ่าย → แยกสองส่วน / เช็ค → ไม่ลง
+#    1 รายการต้นทาง = แถวละ 1 ต่อส่วน (ชี้กลับด้วย auto_source + auto_source_id) แก้/ลบตามต้นทางได้
+
+def split_payment(total, payment_type, cash_amount=None):
+    """แยกยอดเป็น (เงินสด, เงินโอน) ตามรูปแบบการชำระ"""
+    total = Decimal(str(total or 0))
+    if total <= 0:
+        return Decimal("0"), Decimal("0")
+    if payment_type == "เงินโอน":
+        return Decimal("0"), total
+    if payment_type in ("เงินสด", "แบ่งจ่าย"):
+        # ระบุยอดเงินสดไว้ (แบ่งจ่าย / adm แก้ยอดเงินสดในระบบส่งเงิน) → ที่เหลือคือโอน
+        # (ตรงกับ _cash_part ในระบบส่งเงิน - ยอดค้างส่งกับรายรับเงินสดจะเท่ากันเสมอ)
+        if cash_amount is None:
+            return (total, Decimal("0")) if payment_type == "เงินสด" else (Decimal("0"), total)
+        cash = min(Decimal(str(cash_amount)), total)
+        return cash, total - cash
+    return Decimal("0"), Decimal("0")  # เช็ค / สินเชื่อ / ไม่ระบุ - ไม่ใช่เงินเข้าวันนี้
+
+
+def sync_auto_income(source, source_id, cash, transfer, description=None, created_by="", entry_date=None,
+                     only_if_exists=False):
+    """
+    สร้าง / แก้ยอด / ลบ แถวรายรับอัตโนมัติของรายการต้นทาง
+    - มีแถวเดิม → แก้ยอด + คำอธิบาย (คงวันที่เดิม) / ยอด 0 → ลบแถว
+    - ไม่มี → สร้างใหม่ (วันที่ entry_date หรือวันนี้ตามเวลาไทย)
+    - description=None → คงคำอธิบายเดิม / only_if_exists=True → แก้เฉพาะรายการที่เคยลงอัตโนมัติไว้แล้ว
+      (ใช้ตอน adm แก้ยอดเงินสดย้อนหลัง - รายการเก่าก่อนมีระบบนี้จะไม่ถูกเพิ่มแถวใหม่)
+    ห่อ savepoint + try ไว้ - ถ้ามีปัญหา (เช่น ยังไม่ได้เพิ่มคอลัมน์) ไม่ให้การขาย/รับเงินพัง
+    """
+    try:
+        with transaction.atomic():
+            existing = CashflowEntry.objects.filter(auto_source=source, auto_source_id=source_id)
+            if only_if_exists and not existing.exists():
+                return
+            if description is None:
+                description = (existing.values_list("description", flat=True).first() or "รับเงิน")
+            for section, amount in (("cash", cash), ("transfer", transfer)):
+                amount = Decimal(str(amount or 0))
+                entry = CashflowEntry.objects.filter(
+                    auto_source=source, auto_source_id=source_id, section=section
+                ).first()
+                if amount <= 0:
+                    if entry:
+                        entry.delete()
+                    continue
+                if entry:
+                    entry.income = amount
+                    entry.description = description[:255]
+                    entry.save(update_fields=["income", "description"])
+                    continue
+                d = entry_date or timezone.localtime(timezone.now(), ZoneInfo("Asia/Bangkok")).date()
+                next_seq = (CashflowEntry.objects.filter(date=d, section=section).aggregate(m=Max("seq"))["m"] or -1) + 1
+                CashflowEntry.objects.create(
+                    date=d, section=section, seq=next_seq, description=description[:255],
+                    income=amount, created_by=created_by or "",
+                    auto_source=source, auto_source_id=source_id,
+                )
+    except Exception:
+        traceback.print_exc()
+
+
+def remove_auto_income(source, source_id):
+    """ลบแถวรายรับอัตโนมัติของรายการต้นทาง (เช่น ลบรายการขาย / ลบการรับค่างวด)"""
+    try:
+        with transaction.atomic():
+            CashflowEntry.objects.filter(auto_source=source, auto_source_id=source_id).delete()
+    except Exception:
+        traceback.print_exc()
 
 
 def _section_opening(section: str, date_str: str) -> Decimal:
@@ -81,6 +155,8 @@ def _calc_section(entries, opening: Decimal):
             "depositReturn": e.deposit_return,
             "cashIn": e.cash_in,
             "createdBy": e.created_by,
+            # ✅ รายรับที่ระบบลงให้เอง (ใช้ติดป้าย "อัตโนมัติ" ในหน้าเว็บ)
+            "auto": bool(getattr(e, "auto_source", "")),
             "balance": running,
         })
     return rows, totals, running
