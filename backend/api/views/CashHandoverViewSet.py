@@ -10,8 +10,12 @@
   GET    /cash-handover/unsent/            เงินสดค้างส่งของฉัน  (adm: ?all=1 = ของพนักงานทุกคน)
   GET    /cash-handover/                   ใบส่งเงิน (พนักงานเห็นของตัวเอง, adm เห็นทั้งหมด) ?status=pending
   POST   /cash-handover/submit/            { items: [{source, source_id}], note }
-  POST   /cash-handover/send-now/          { items, note? }  ส่งเงินจากหน้า รายรับ-รายจ่าย: หักลิ้นชักทันที ไม่ต้องรอ adm
+  POST   /cash-handover/send-now/          { items: [{source, source_id, amount?}], note? }
+                                            ส่งเงินจากหน้า รายรับ-รายจ่าย: หักลิ้นชักทันที ไม่ต้องรอ adm
+                                            ✅ ส่งเป็นรายรายการ: 1 รายการ = 1 แถว "ส่งเงิน" (auto_source=handover)
+                                            ✅ แก้ยอดที่จะส่งได้ (0 < amount <= ยอดเต็ม) ส่งไม่เต็ม ส่วนที่เหลืออยู่ในลิ้นชัก รายการนั้นจบ
                                             (เก็บเป็นประวัติการส่ง status=received - ไม่มีขั้นตอนใบรอรับ)
+                                            หลังส่ง adm แก้ยอด / ลบ (ยกเลิกเฉพาะรายการนั้น) ได้ที่แถวในหน้า รายรับ-รายจ่าย
   POST   /cash-handover/<id>/receive/      (adm) { received_amount?, note? }
   POST   /cash-handover/<id>/cancel/       (เจ้าของใบ / adm ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
   GET    /cash-handover/summary/           ตัวเลขสำหรับ badge
@@ -119,7 +123,8 @@ def _collect_unsent(username=None):
     # 1) ขาย
     qs = Order.objects.filter(
         transaction_type='ขาย', payment_type__in=CASH_TYPES, created_at__gte=start,
-        sale_status='completed',  # ✅ ขึ้นค้างส่งหลังกด "จบรายการ" (ตัดขาย) แล้วเท่านั้น
+        # ✅ ขึ้นค้างส่งตั้งแต่ "ทำรายการ" (ลูกค้าจ่ายเงินแล้ว เงินอยู่ในลิ้นชัก) - ไม่ต้องรอจบรายการ
+        #    (ยอดขายยังนับตอนจบรายการเหมือนเดิม / รายการรอจบที่ถูกลบ จะหายจากค้างส่งเอง)
     ).select_related('customer', 'seller').prefetch_related('bikes', 'additional_fees')
     if username:
         qs = qs.filter(seller__username=username)
@@ -174,6 +179,30 @@ def _collect_unsent(username=None):
     return rows
 
 
+def _dp_carried(o):
+    """
+    ยอดดาวน์ที่ยกไปผ่อน (ไม่ได้จ่ายวันทำรายการ)
+    - จบรายการแล้ว: ดูจากบัญชีผ่อนดาวน์ (finance_amount)
+    - ยังรอจบ (บัญชียังไม่ถูกสร้าง): ดูจากข้อมูลที่เก็บไว้ตอนทำรายการ - เงื่อนไขเดียวกับ _finalize_sale
+      ทำให้ยอดรับวันนี้ตอนทำรายการ = ตอนจบรายการ เสมอ
+    """
+    dp_account = NPGAccount.objects.filter(order=o, account_type='down_payment').first()
+    if dp_account:
+        return Decimal(str(dp_account.finance_amount or 0))
+    if getattr(o, 'sale_status', 'completed') != 'pending':
+        return Decimal('0')
+    extra = o.checkout_extra or {}
+    if not extra.get('down_payment_installment') or (o.finance_provider or '') == 'NPG':
+        return Decimal('0')
+    try:
+        balance = Decimal(str(extra.get('down_payment_remaining_balance') or 0))
+        count = int(float(extra.get('down_payment_installment_count') or 0))
+        per = Decimal(str(extra.get('down_payment_per_remaining_installment') or 0))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal('0')
+    return balance if (count > 0 and balance > 0 and per > 0) else Decimal('0')
+
+
 def _sale_due_today(o):
     """
     ยอดที่ลูกค้าต้องจ่าย "ในวันที่ทำรายการ" ของงานขาย (ไม่ใช้ Order.total ตรงๆ)
@@ -196,9 +225,7 @@ def _sale_due_today(o):
 
     if is_finance:
         due = Decimal(str(o.down_payment or 0)) + fees - deposit
-        dp_account = NPGAccount.objects.filter(order=o, account_type='down_payment').first()
-        if dp_account:
-            due -= Decimal(str(dp_account.finance_amount or 0))
+        due -= _dp_carried(o)
     else:
         due = Decimal(str(o.sale_price or 0)) + fees - deposit - Decimal(str(o.discount or 0))
 
@@ -216,9 +243,11 @@ def _row_json(r):
     }
 
 
-def _handover_json(h):
+def _handover_json(h, per_item_ids=None):
+    per_item = (h.id in per_item_ids) if per_item_ids is not None else (h.id in _per_item_ids([h]))
     return {
         'id': h.id,
+        'per_item': per_item,  # ✅ ส่งแบบรายรายการ - แก้ยอด/ยกเลิกทีละรายการได้ในหน้า รายรับ-รายจ่าย
         'number': f"HO-{h.id:06d}",
         'created_by_username': h.created_by_username,
         'created_by_name': h.created_by_name or h.created_by_username,
@@ -310,6 +339,115 @@ def _recalc_total(h):
     h.total = sum((i.amount for i in h.items.all()), Decimal('0'))
 
 
+# ---------------------------------------------------------------- ส่งเงินรายรายการ
+
+ITEM_ROW = 'handover'  # CashflowEntry.auto_source ของแถว "ส่งเงิน" รายรายการ (auto_source_id = CashHandoverItem.id)
+
+
+def _item_full(source, source_id):
+    """ยอดเงินสดเต็มของรายการต้นทาง (สูตรเดียวกับค้างส่ง) - ใช้เป็นเพดานตอนแก้ยอดส่ง / None ถ้าหาไม่เจอ"""
+    try:
+        if source == 'sale':
+            o = Order.objects.filter(pk=source_id).first()
+            return _cash_part(_sale_due_today(o), o.cash_amount) if o else None
+        if source == 'service':
+            r = ServiceRecord.objects.filter(pk=source_id).first()
+            return _cash_part(Decimal(str(r.total or 0)), r.cash_amount) if r else None
+        if source == 'npg_payment':
+            p = NPGPayment.objects.filter(pk=source_id).first()
+            return _cash_part(Decimal(str(p.amount_paid or 0)) + Decimal(str(p.late_fee or 0)), p.cash_amount) if p else None
+        if source == 'npg_fee' and NPGFee is not None:
+            f = NPGFee.objects.filter(pk=source_id).first()
+            return Decimal(str(f.amount or 0)) if f else None
+    except Exception:
+        return None
+    return None
+
+
+def _baht(x):
+    x = Decimal(str(x))
+    return f"{x:,.0f}" if x == x.to_integral_value() else f"{x:,.2f}"
+
+
+def _item_row_desc(item, full=None):
+    desc = f"ส่งเงิน · {item.description}"
+    if full is not None and item.amount < full:
+        desc += f" (ส่ง {_baht(item.amount)} จาก {_baht(full)})"
+    return desc[:255]
+
+
+def _item_rows_qs(h):
+    return CashflowEntry.objects.filter(auto_source=ITEM_ROW, auto_source_id__in=h.items.values_list('id', flat=True))
+
+
+def _per_item_ids(handovers):
+    """id ของใบที่ส่งแบบรายรายการ (มีแถวส่งเงินแยกต่อรายการ) - query ทีเดียวทั้งชุด"""
+    item_to_h = {}
+    for h in handovers:
+        for i in h.items.all():
+            item_to_h[i.id] = h.id
+    if not item_to_h:
+        return set()
+    ids = CashflowEntry.objects.filter(auto_source=ITEM_ROW, auto_source_id__in=list(item_to_h)).values_list('auto_source_id', flat=True)
+    return {item_to_h[i] for i in ids}
+
+
+def _sync_handover_totals(h):
+    """รวมยอดใบใหม่จากรายการ (ใบส่งรายรายการ: ยอดที่ส่ง = ยอดรวมของรายการเสมอ)"""
+    _recalc_total(h)
+    h.received_amount = h.total
+    h.status = 'received'
+    h.save(update_fields=['total', 'received_amount', 'status'])
+
+
+def sent_row_max(entry):
+    """เพดานยอดของแถวส่งเงินรายรายการ (ยอดเต็มของรายการต้นทาง) - ใช้แสดงในหน้าเว็บ"""
+    item = CashHandoverItem.objects.filter(pk=entry.auto_source_id).first()
+    if not item:
+        return None
+    full = _item_full(item.source, item.source_id)
+    return full if full is not None else item.amount
+
+
+def edit_sent_row(entry, new_amount):
+    """
+    (adm) แก้ยอดแถว "ส่งเงิน" รายรายการในหน้า รายรับ-รายจ่าย → ยอดรายการในประวัติการส่งแก้ตาม
+    ยอดต้อง > 0 และไม่เกินยอดเต็มของรายการ (เกิน = ปัดลงเป็นยอดเต็ม / <= 0 = ไม่แก้)
+    """
+    try:
+        amount = Decimal(str(new_amount or 0))
+    except InvalidOperation:
+        return
+    if amount <= 0 or amount == entry.sent:
+        return
+    item = CashHandoverItem.objects.select_related('handover').filter(pk=entry.auto_source_id).first()
+    if not item:
+        return
+    full = _item_full(item.source, item.source_id)
+    if full is not None and amount > full:
+        amount = full
+    item.amount = amount
+    item.save(update_fields=['amount'])
+    entry.sent = amount
+    entry.description = _item_row_desc(item, full)
+    entry.save(update_fields=['sent', 'description'])
+    _sync_handover_totals(item.handover)
+
+
+def cancel_sent_row(entry):
+    """(adm) ลบแถว "ส่งเงิน" รายรายการ = ยกเลิกการส่งเฉพาะรายการนั้น → เงินกลับเข้าลิ้นชัก รายการกลับไปค้างส่ง"""
+    item = CashHandoverItem.objects.select_related('handover').filter(pk=entry.auto_source_id).first()
+    entry.delete()
+    if not item:
+        return
+    h = item.handover
+    item.delete()
+    if not h.items.exists():
+        h.delete()
+    else:
+        _sync_handover_totals(h)
+
+
 SOURCE_MODEL = {'sale': Order, 'service': ServiceRecord, 'npg_payment': NPGPayment}
 
 
@@ -354,7 +492,9 @@ class CashHandoverViewSet(viewsets.ViewSet):
         else:
             qs = qs.exclude(status='excluded')  # รายการที่ adm ตัดออก ไม่ใช่ใบส่งเงินจริง
         limit = int(request.query_params.get('limit', 50))
-        return Response([_handover_json(h) for h in qs[:limit]])
+        rows = list(qs[:limit])
+        per_item = _per_item_ids(rows)
+        return Response([_handover_json(h, per_item) for h in rows])
 
     @action(detail=False, methods=['get'])
     def unsent(self, request):
@@ -477,17 +617,42 @@ class CashHandoverViewSet(viewsets.ViewSet):
         ยอดคำนวณจากรายการจริงฝั่ง backend (พิมพ์ยอดเองไม่ได้) → ลง "ส่งเงิน" หักลิ้นชักวันนี้ทันที
         เก็บประวัติไว้ในตาราง cash_handover (status=received) - ใครส่ง / รายการไหน / เมื่อไหร่
         """
-        keys = set(_parse_keys(request.data.get('items')))
+        raw_items = request.data.get('items') or []
+        keys = _parse_keys(raw_items)
         if not keys:
             return Response({'error': 'กรุณาเลือกรายการที่จะส่งอย่างน้อย 1 รายการ'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ✅ ยอดที่จะส่งของแต่ละรายการ (ไม่ส่งมา = ยอดเต็ม)
+        wanted = {}
+        for it in raw_items:
+            try:
+                k = (str(it.get('source')), int(it.get('source_id')))
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if it.get('amount') not in (None, ''):
+                wanted[k] = it.get('amount')
+
         mine = {(r['source'], r['source_id']): r for r in _collect_unsent(request.user.username)}
-        chosen = [mine[k] for k in keys if k in mine]
-        if len(chosen) != len(keys):
-            return Response(
-                {'error': 'บางรายการถูกส่งไปแล้ว หรือไม่ใช่รายการของคุณ กรุณารีเฟรชแล้วลองใหม่'},
-                status=status.HTTP_409_CONFLICT,
-            )
+        chosen = []
+        for k in keys:
+            if k not in mine:
+                return Response(
+                    {'error': 'บางรายการถูกส่งไปแล้ว หรือไม่ใช่รายการของคุณ กรุณารีเฟรชแล้วลองใหม่'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            r = dict(mine[k])
+            r['full'] = r['amount']
+            if k in wanted:
+                amount, err = _parse_amount(wanted[k], 'ยอดที่จะส่ง')
+                if err:
+                    return err
+                if amount <= 0 or amount > r['full']:
+                    return Response(
+                        {'error': f"{r['description']}: ยอดที่จะส่งต้องมากกว่า 0 และไม่เกิน {_baht(r['full'])}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                r['amount'] = amount
+            chosen.append(r)
 
         sender = _display_name(request.user)
         try:
@@ -498,10 +663,20 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 h.received_amount = h.total
                 h.received_by = sender
                 h.received_at = timezone.now()
-                # ลงรายการ "ส่งเงิน" หักลิ้นชักวันนี้
                 h.cashflow_entry_id = None
-                _sync_cashflow(h, h.total, sender)
                 h.save()
+                # ✅ ลง "ส่งเงิน" 1 แถวต่อ 1 รายการ หักลิ้นชักวันนี้
+                full_of = {(r['source'], r['source_id']): r['full'] for r in chosen}
+                today = _today_bkk()
+                seq = (CashflowEntry.objects.filter(date=today, section='cash').aggregate(m=Max('seq'))['m'] or -1) + 1
+                for item in h.items.order_by('id'):
+                    CashflowEntry.objects.create(
+                        date=today, section='cash', seq=seq,
+                        description=_item_row_desc(item, full_of.get((item.source, item.source_id))),
+                        sent=item.amount, created_by=sender,
+                        auto_source=ITEM_ROW, auto_source_id=item.id,
+                    )
+                    seq += 1
         except IntegrityError:
             return Response({'error': 'มีรายการถูกส่งซ้ำ กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT)
 
@@ -711,6 +886,8 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 return Response({'error': 'ไม่พบใบส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
             if h.status not in ('received', 'mismatch'):
                 return Response({'error': 'ใบนี้ยังไม่ได้รับเงิน'}, status=status.HTTP_400_BAD_REQUEST)
+            if _item_rows_qs(h).exists():
+                return Response({'error': 'ส่งแบบรายรายการ - แก้ยอดทีละรายการได้ที่แถว "ส่งเงิน" ในหน้า รายรับ-รายจ่าย'}, status=status.HTTP_400_BAD_REQUEST)
             _sync_cashflow(h, received, _display_name(request.user))
             h.received_amount = received
             if 'note' in request.data:
@@ -731,6 +908,8 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 return Response({'error': 'ไม่พบใบส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
             if h.status not in ('received', 'mismatch'):
                 return Response({'error': 'ใบนี้ยังไม่ได้รับเงิน'}, status=status.HTTP_400_BAD_REQUEST)
+            if _item_rows_qs(h).exists():
+                return Response({'error': 'ส่งแบบรายรายการ - ใช้ "ยกเลิกการส่ง" แทน'}, status=status.HTTP_400_BAD_REQUEST)
             _sync_cashflow(h, None, '')
             h.received_amount = None
             h.received_by = ''
@@ -753,7 +932,8 @@ class CashHandoverViewSet(viewsets.ViewSet):
             if h.status not in ('received', 'mismatch'):
                 return Response({'error': 'รายการนี้ยังไม่ได้หักลิ้นชัก'}, status=status.HTTP_400_BAD_REQUEST)
             amount = h.received_amount or h.total
-            _sync_cashflow(h, None, '')  # ลบแถว "ส่งเงิน" → เงินกลับเข้าลิ้นชัก
+            _item_rows_qs(h).delete()    # ✅ แถว "ส่งเงิน" รายรายการ
+            _sync_cashflow(h, None, '')  # ลบแถว "ส่งเงิน" (แบบรวมแถวเดียว ของเดิม) → เงินกลับเข้าลิ้นชัก
             h.delete()                   # รายการในครั้งนั้นถูกลบตาม → กลับไปเป็นค้างส่ง
         return Response({'message': 'ยกเลิกการส่งแล้ว', 'amount': float(amount)})
 

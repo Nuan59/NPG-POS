@@ -35,7 +35,7 @@ interface AddCashflowRowDialogProps {
   onClose: () => void;
   onAdd: (data: { description: string; type: RowType; amount: number }) => void;
   isAdmin?: boolean;
-  /** ✅ ส่วนเงินสด: พนักงานเลือก "ส่งเงิน" ได้ - ติ๊กจากรายการค้างส่งของตัวเอง (พิมพ์ยอดเองไม่ได้) หักลิ้นชักทันที */
+  /** ✅ ส่วนเงินสด: เลือก "ส่งเงิน" ได้ - ติ๊กจากรายการค้างส่ง (แก้ยอดที่จะส่งได้ทีละรายการ) หรือพิมพ์เอง หักลิ้นชักทันที */
   allowHandover?: boolean;
   /** ส่งเงินสำเร็จ (backend ลงแถว "ส่งเงิน" ให้แล้ว) → หน้าหลักโหลดข้อมูลใหม่ */
   onHandoverDone?: () => void;
@@ -66,13 +66,18 @@ const AddCashflowRowDialog = ({
   const amount = parseAmount(amountInput);
   const isValid = description.trim() !== "" && amount > 0;
 
-  // ---------- ส่งเงิน (พนักงาน) ----------
-  const handoverMode = type === "sent" && !isAdmin && allowHandover;
+  // ---------- ส่งเงิน ----------
+  // ✅ เลือกจากรายการค้างส่ง (1 รายการ = 1 แถวส่งเงิน แก้ยอดที่จะส่งได้) หรือ พิมพ์เอง (เงินที่ไม่อยู่ในรายการค้างส่ง)
+  const [sendTab, setSendTab] = useState<"list" | "manual">("list");
+  const sentMode = type === "sent" && allowHandover;
+  const handoverMode = sentMode && sendTab === "list";
   const { data: session } = useSession();
   const token = (session as any)?.user?.accessToken as string | undefined;
   const [unsent, setUnsent] = useState<UnsentItem[] | null>(null);
   const [history, setHistory] = useState<SendHistory[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // ยอดที่จะส่งของแต่ละรายการ (เริ่มที่ยอดเต็ม) - ส่งไม่เต็ม ส่วนที่เหลืออยู่ในลิ้นชัก รายการนั้นจบ
+  const [sendAmt, setSendAmt] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -86,6 +91,7 @@ const AddCashflowRowDialog = ({
         const list: UnsentItem[] = Array.isArray(u) ? u : [];
         setUnsent(list);
         setPicked(new Set(list.map(keyOf))); // ค่าเริ่มต้น: เลือกทั้งหมด
+        setSendAmt(Object.fromEntries(list.map((i) => [keyOf(i), formatAmountInput(String(i.amount))])));
         setHistory(Array.isArray(h) ? h : []);
       })
       .catch(() => {
@@ -95,7 +101,10 @@ const AddCashflowRowDialog = ({
   }, [handoverMode, token, unsent]);
 
   const pickedItems = (unsent || []).filter((i) => picked.has(keyOf(i)));
-  const pickedTotal = pickedItems.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const amtOf = (i: UnsentItem) => parseAmount(sendAmt[keyOf(i)] ?? String(i.amount));
+  const badAmt = (i: UnsentItem) => amtOf(i) <= 0 || amtOf(i) > Number(i.amount) + 0.001;
+  const pickedTotal = pickedItems.reduce((s, i) => s + amtOf(i), 0);
+  const hasBadAmt = pickedItems.some(badAmt);
   const togglePick = (k: string) => {
     const next = new Set(picked);
     if (next.has(k)) next.delete(k);
@@ -104,13 +113,13 @@ const AddCashflowRowDialog = ({
   };
 
   const handleSendNow = async () => {
-    if (!pickedItems.length || sending) return;
+    if (!pickedItems.length || sending || hasBadAmt) return;
     setSending(true);
     try {
       const res = await fetch(`${API_BASE_URL}/cash-handover/send-now/`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ items: pickedItems.map(({ source, source_id }) => ({ source, source_id })) }),
+        body: JSON.stringify({ items: pickedItems.map((i) => ({ source: i.source, source_id: i.source_id, amount: amtOf(i) })) }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
@@ -118,7 +127,7 @@ const AddCashflowRowDialog = ({
         if (res.status === 409) setUnsent(null); // โหลดรายการใหม่
         return;
       }
-      toast.success(`ส่งเงินแล้ว ฿${fmt(pickedTotal)}`);
+      toast.success(`ส่งเงินแล้ว ฿${fmt(pickedTotal)} · ${pickedItems.length} รายการ หักลิ้นชักแล้ว`);
       onHandoverDone?.();
       onClose();
     } catch {
@@ -136,14 +145,14 @@ const AddCashflowRowDialog = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-gray-800">เพิ่มรายการ</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
         </div>
 
         <div className="space-y-3">
-          {/* รายการนั้นชื่ออะไร (ส่งเงินไม่ต้องกรอก - ระบบตั้งชื่อให้) */}
+          {/* รายการนั้นชื่ออะไร (ส่งเงินจากรายการค้างส่งไม่ต้องกรอก - ระบบตั้งชื่อให้ทีละรายการ) */}
           {!handoverMode && (
           <div>
             <label className="text-xs font-medium text-gray-500 mb-1 block">รายการนี้คืออะไร</label>
@@ -153,7 +162,7 @@ const AddCashflowRowDialog = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && isValid && handleAdd()}
-              placeholder="เช่น ค่าน้ำมัน, ขายอะไหล่, ทอนเงินลูกค้า..."
+              placeholder={sentMode ? "เช่น ส่งเงินให้เจ้าของร้าน" : "เช่น ค่าน้ำมัน, ขายอะไหล่, ทอนเงินลูกค้า..."}
               className="w-full text-sm border rounded-lg px-3 py-2 border-gray-300 outline-none focus:border-orange-400"
             />
           </div>
@@ -178,7 +187,28 @@ const AddCashflowRowDialog = ({
             </div>
           </div>
 
-          {/* ✅ ส่งเงิน (พนักงาน): ติ๊กรายการเงินสดค้างส่งของตัวเอง ยอดรวมให้เอง พิมพ์ยอดเองไม่ได้ */}
+          {/* ✅ ส่งเงิน: เลือกจากรายการค้างส่ง / พิมพ์เอง */}
+          {sentMode && (
+            <div className="grid grid-cols-2 border rounded-lg overflow-hidden text-xs font-medium">
+              {([["list", "เลือกจากรายการค้างส่ง"], ["manual", "พิมพ์เอง"]] as const).map(([k, l]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setSendTab(k)}
+                  className={`py-2 ${sendTab === k ? "bg-slate-800 text-white" : "bg-white text-gray-600"}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+          {sentMode && sendTab === "manual" && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 rounded-md px-2 py-1.5">
+              ใช้กับเงินที่ไม่อยู่ในรายการค้างส่ง ถ้าเป็นเงินจากขาย / ซ่อม / NPG ให้เลือกจากรายการ ไม่งั้นรายการนั้นจะยังขึ้นค้างส่งอยู่
+            </p>
+          )}
+
+          {/* ✅ ส่งเงิน: ติ๊กรายการเงินสดค้างส่ง แก้ยอดที่จะส่งได้ทีละรายการ (ไม่เกินยอดเต็ม) */}
           {handoverMode && (
             <div>
               <label className="text-xs font-medium text-gray-500 mb-1 block">เงินสดที่ยังไม่ได้ส่ง</label>
@@ -193,26 +223,42 @@ const AddCashflowRowDialog = ({
                   {unsent.map((i) => {
                     const k = keyOf(i);
                     const on = picked.has(k);
+                    const left = Number(i.amount) - amtOf(i);
                     return (
-                      <button
-                        key={k}
-                        type="button"
-                        onClick={() => togglePick(k)}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm ${on ? "bg-orange-50" : "bg-white"}`}
-                      >
-                        <span
+                      <div key={k} className={`flex items-center gap-2 px-2.5 py-2 text-sm ${on ? "bg-orange-50" : "bg-white"}`}>
+                        <button
+                          type="button"
+                          onClick={() => togglePick(k)}
+                          aria-label={on ? "ไม่ส่งรายการนี้" : "ส่งรายการนี้"}
                           className={`w-5 h-5 shrink-0 rounded border grid place-items-center ${
                             on ? "bg-orange-500 border-orange-500 text-white" : "border-gray-300 text-transparent"
                           }`}
                         >
                           <Check size={14} strokeWidth={3} />
-                        </span>
-                        <span className="flex-1 min-w-0">
+                        </button>
+                        <button type="button" onClick={() => togglePick(k)} className="flex-1 min-w-0 text-left">
                           <span className="block truncate">{i.description}</span>
-                          <span className="block text-[11px] text-gray-400">{timeTH(i.record_date)}</span>
-                        </span>
-                        <span className="font-semibold whitespace-nowrap">{fmt(i.amount)}</span>
-                      </button>
+                          <span className="block text-[11px] text-gray-400">
+                            {timeTH(i.record_date)} · เต็ม {fmt(i.amount)}
+                          </span>
+                        </button>
+                        <div className="shrink-0 text-right">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            disabled={!on}
+                            value={sendAmt[k] ?? ""}
+                            onChange={(e) => setSendAmt({ ...sendAmt, [k]: formatAmountInput(e.target.value) })}
+                            aria-label="ยอดที่จะส่ง"
+                            className={`w-24 text-right text-sm font-semibold border rounded-md px-2 py-1 outline-none disabled:bg-transparent disabled:text-gray-400 ${
+                              on && badAmt(i) ? "border-red-400 text-red-600" : "border-gray-300 focus:border-orange-400"
+                            }`}
+                          />
+                          {on && !badAmt(i) && left > 0.001 && (
+                            <span className="block text-[10px] text-gray-500 mt-0.5">เหลือในลิ้นชัก {fmt(left)}</span>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -221,6 +267,9 @@ const AddCashflowRowDialog = ({
                 <span className="text-sm text-gray-600">ยอดส่ง ({pickedItems.length} รายการ)</span>
                 <span className="text-lg font-bold text-gray-800">{fmt(pickedTotal)} บาท</span>
               </div>
+              {hasBadAmt && (
+                <p className="text-[11px] text-red-600 px-1">ยอดที่จะส่งแต่ละรายการต้องมากกว่า 0 และไม่เกินยอดเต็ม</p>
+              )}
 
               {/* ประวัติการส่งล่าสุดของฉัน */}
               {history.length > 0 && (
@@ -270,7 +319,7 @@ const AddCashflowRowDialog = ({
           {handoverMode ? (
             <button
               onClick={handleSendNow}
-              disabled={!pickedItems.length || sending}
+              disabled={!pickedItems.length || sending || hasBadAmt}
               className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-300 text-white text-sm font-medium py-2 rounded-lg"
             >
               {sending ? "กำลังส่ง..." : `ส่งเงิน ${fmt(pickedTotal)} บาท`}

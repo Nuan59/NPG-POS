@@ -41,6 +41,7 @@ interface Handover {
   received_note: string;
   created_at: string;
   items: CashItem[];
+  per_item?: boolean; // ✅ ส่งแบบรายรายการ (1 รายการ = 1 แถวส่งเงิน) - แก้ยอดทีละรายการในหน้า รายรับ-รายจ่าย
 }
 
 interface UnsentGroup {
@@ -642,8 +643,12 @@ export default function CashHandoverPanel() {
                         {h.note && ` · ${h.note}`}
                         {h.received_note && ` · ${h.received_note}`}
                       </p>
+                      {isAdmin && h.per_item && (
+                        <p className="text-[11px] text-gray-400 mt-1">แก้ยอดทีละรายการได้ที่แถว &quot;ส่งเงิน&quot; ในหน้า รายรับ-รายจ่าย</p>
+                      )}
                       {isAdmin && (
                       <div className="flex gap-2 mt-2">
+                        {!h.per_item && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -657,6 +662,7 @@ export default function CashHandoverPanel() {
                         >
                           <Pencil size={14} /> แก้ยอด
                         </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -665,9 +671,10 @@ export default function CashHandoverPanel() {
                           onClick={() =>
                             setConfirmAct({
                               title: `ยกเลิกการส่ง ${hLabel(h)}`,
-                              desc: `กลับไปรอรับเงิน และลบรายการส่งเงิน ${baht(h.received_amount ?? 0)} ในหน้ารายรับ-รายจ่ายออก (เงินกลับเข้าลิ้นชัก)`,
-                              label: "ยกเลิกการรับ",
-                              run: () => act(`${h.id}/unreceive/`, {}, "ยกเลิกแล้ว"),
+                              desc: `ลบรายการส่งเงิน ${baht(h.received_amount ?? 0)} ในหน้ารายรับ-รายจ่าย (เงินกลับเข้าลิ้นชัก) และ ${h.items.length} รายการกลับไปเป็นค้างส่งของ ${h.created_by_name}`,
+                              label: "ยกเลิกการส่ง",
+                              // ✅ คลิกเดียวจบ: ลบแถวส่งเงิน + รายการกลับไปค้างส่ง (ไม่ต้องไปกดยกเลิกที่ "รอรับเงิน" ซ้ำ)
+                              run: () => act(`${h.id}/cancel-send/`, {}, "ยกเลิกการส่งแล้ว เงินกลับเข้าลิ้นชัก รายการกลับไปค้างส่ง"),
                             })
                           }
                         >

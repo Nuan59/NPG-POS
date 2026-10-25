@@ -45,6 +45,8 @@ const CashflowSection = ({
     setRows(next);
   };
   const removeRow = (idx: number) => {
+    // ✅ แถวส่งเงินรายรายการ: ลบ = ยกเลิกการส่งรายการนั้น (เงินกลับเข้าลิ้นชัก รายการกลับไปค้างส่ง)
+    if ((rows[idx] as any).handover && !window.confirm("ยกเลิกการส่งรายการนี้?\nเงินกลับเข้าลิ้นชัก และรายการกลับไปเป็นค้างส่ง")) return;
     onRowDeleted?.(rows[idx]);
     setRows(rows.filter((_, i) => i !== idx));
   };
@@ -53,9 +55,16 @@ const CashflowSection = ({
   // - admin: แก้ไข/ลบได้ทุกแถว ไม่ว่าจะบันทึกไปแล้วหรือยัง
   // - พนักงานทั่วไป: แก้ไข/ลบได้เฉพาะแถวที่ "ยังไม่บันทึก" (ไม่มี id) เท่านั้น
   //   พอ auto-save ไปแล้ว (ได้ id จาก server) จะแก้ไข/ลบไม่ได้อีกต่อไป
+  // - แถว "อัตโนมัติ": ทุกคน (รวม admin) แก้/ลบในหน้านี้ไม่ได้ ต้องแก้ที่รายการต้นทาง (ขาย / งานซ่อม / NPG)
+  // - แถว "ส่งเงิน" รายรายการ (ส่งจากรายการค้างส่ง): แก้ได้เฉพาะ adm - แก้ยอด (ไม่เกินยอดเต็ม) / ลบ = ยกเลิกการส่งรายการนั้น
+  //   ชื่อรายการ / ประเภท แก้ไม่ได้
   const getPermission = (row: UIRow) => {
-    const editable = !readOnly && (isAdmin || !row.id);
-    return { canEdit: editable, canDelete: editable };
+    if ((row as any).handover) {
+      const adm = !readOnly && isAdmin;
+      return { canEdit: false, canEditAmount: adm, canDelete: adm };
+    }
+    const editable = !readOnly && !(row as any).auto && (isAdmin || !row.id);
+    return { canEdit: editable, canEditAmount: editable, canDelete: editable };
   };
 
   return (
@@ -69,9 +78,10 @@ const CashflowSection = ({
           </div>
         )}
         {computed.map((row, idx) => {
-          const { canEdit, canDelete } = getPermission(row);
+          const { canEdit, canEditAmount, canDelete } = getPermission(row);
+          const maxAmount = (row as any).handover ? Number((row as any).maxAmount) || 0 : 0;
           return (
-            <div key={idx} className={`flex items-start gap-2 border rounded-lg p-2 ${canEdit ? "hover:bg-gray-50" : "bg-gray-50/60"}`}>
+            <div key={idx} className={`flex items-start gap-2 border rounded-lg p-2 ${canEdit || canEditAmount ? "hover:bg-gray-50" : "bg-gray-50/60"}`}>
               <div className="flex-1 min-w-0 space-y-1.5">
                 <input
                   className="w-full bg-transparent outline-none text-sm font-medium border-b border-dashed border-gray-200 pb-1 disabled:text-gray-500"
@@ -96,14 +106,30 @@ const CashflowSection = ({
                     type="number"
                     className="w-28 text-right text-sm border rounded-md px-2 py-1 border-gray-200 outline-none focus:border-orange-400 disabled:text-gray-500"
                     value={row.amount || ""}
-                    onChange={(e) => updateRow(idx, { amount: Number(e.target.value) })}
+                    onChange={(e) => {
+                      let v = Number(e.target.value);
+                      if (maxAmount > 0 && v > maxAmount) v = maxAmount; // ส่งเงินรายรายการ: ไม่เกินยอดเต็ม
+                      updateRow(idx, { amount: v });
+                    }}
+                    max={maxAmount > 0 ? maxAmount : undefined}
                     placeholder="จำนวนเงิน"
-                    disabled={!canEdit}
+                    disabled={!canEditAmount}
                   />
                   <span className="text-xs text-gray-400">บาท</span>
                   {/* ✅ รายรับที่ระบบลงให้เองตอนรับเงิน (ขาย / ซ่อม / ค่างวด) */}
-                  {(row as any).auto && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                  {(row as any).handover && (
+                    <span
+                      title={isAdmin ? `adm แก้ยอดได้ (ไม่เกิน ${fmt(maxAmount)}) / กด ✕ = ยกเลิกการส่งรายการนี้` : "ส่งแล้ว แก้ได้เฉพาะ adm"}
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200"
+                    >
+                      ส่งจากรายการ{maxAmount > 0 && Number(row.amount) < maxAmount ? ` · เต็ม ${fmt(maxAmount)}` : ""}
+                    </span>
+                  )}
+                  {(row as any).auto && !(row as any).handover && (
+                    <span
+                      title="ระบบลงให้เอง แก้หรือลบที่รายการต้นทาง (ขาย / งานซ่อม / NPG)"
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"
+                    >
                       อัตโนมัติ
                     </span>
                   )}

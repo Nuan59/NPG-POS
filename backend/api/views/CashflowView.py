@@ -32,9 +32,10 @@ def split_payment(total, payment_type, cash_amount=None):
         return Decimal("0"), total
     if payment_type in ("เงินสด", "แบ่งจ่าย"):
         # ระบุยอดเงินสดไว้ (แบ่งจ่าย / adm แก้ยอดเงินสดในระบบส่งเงิน) → ที่เหลือคือโอน
-        # (ตรงกับ _cash_part ในระบบส่งเงิน - ยอดค้างส่งกับรายรับเงินสดจะเท่ากันเสมอ)
+        # ไม่ระบุ → เงินสดทั้งหมด (เหมือน _cash_part ในระบบส่งเงินทุกกรณี - ยอดค้างส่งกับรายรับเงินสดเท่ากันเสมอ
+        # เช่น ปิดบัญชี NPG แบบแบ่งจ่ายที่ไม่มีช่องกรอกเงินสด → adm แก้ยอดเงินสดได้ในหน้าส่งเงิน แล้วรายรับแก้ตาม)
         if cash_amount is None:
-            return (total, Decimal("0")) if payment_type == "เงินสด" else (Decimal("0"), total)
+            return total, Decimal("0")
         cash = min(Decimal(str(cash_amount)), total)
         return cash, total - cash
     return Decimal("0"), Decimal("0")  # เช็ค / สินเชื่อ / ไม่ระบุ - ไม่ใช่เงินเข้าวันนี้
@@ -82,13 +83,63 @@ def sync_auto_income(source, source_id, cash, transfer, description=None, create
         traceback.print_exc()
 
 
-def remove_auto_income(source, source_id):
-    """ลบแถวรายรับอัตโนมัติของรายการต้นทาง (เช่น ลบรายการขาย / ลบการรับค่างวด)"""
+def _sent_row_max(e):
     try:
-        with transaction.atomic():
-            CashflowEntry.objects.filter(auto_source=source, auto_source_id=source_id).delete()
+        from api.views.CashHandoverViewSet import sent_row_max
+        return sent_row_max(e)
     except Exception:
         traceback.print_exc()
+        return None
+
+
+def _today_bkk():
+    return timezone.localtime(timezone.now(), ZoneInfo("Asia/Bangkok")).date()
+
+
+def remove_auto_income(source, source_id, created_by=""):
+    """
+    รายการต้นทางถูกลบ / ยกเลิก (ลบรายการขาย / งานบริการ / ค่างวด / ค่าธรรมเนียม)
+    - แถวของ "วันนี้" → ลบทิ้งเลย
+    - แถวของ "วันก่อน" → คงไว้ (ยอดของวันที่นับเงิน/เช็คไปแล้วไม่เปลี่ยน) แล้วลงแถว "ยกเลิก" ยอดติดลบวันนี้แทน
+      (auto_source = void / แถวเดิมเปลี่ยนเป็น void_src ไม่ให้ถูกยกเลิกซ้ำ - ทั้งสองแถวแก้/ลบในหน้ารายรับ-รายจ่ายไม่ได้)
+    """
+    try:
+        with transaction.atomic():
+            today = _today_bkk()
+            for e in list(CashflowEntry.objects.filter(auto_source=source, auto_source_id=source_id)):
+                if e.date >= today:
+                    e.delete()
+                    continue
+                desc = e.description or ""
+                if desc.startswith("รับเงิน · "):
+                    desc = desc[len("รับเงิน · "):]
+                next_seq = (CashflowEntry.objects.filter(date=today, section=e.section).aggregate(m=Max("seq"))["m"] or -1) + 1
+                CashflowEntry.objects.create(
+                    date=today, section=e.section, seq=next_seq,
+                    description=f"ยกเลิก · {desc} (รับเมื่อ {e.date:%d/%m/%Y})"[:255],
+                    income=-e.income, created_by=created_by or "",
+                    auto_source="void", auto_source_id=e.id,
+                )
+                e.auto_source = "void_src"
+                e.save(update_fields=["auto_source"])
+    except Exception:
+        traceback.print_exc()
+
+
+def handover_block(source, source_id):
+    """
+    ✅ รายการที่อยู่ในการส่งเงินแล้ว ห้ามลบ / แก้ยอด (ไม่งั้นรายรับเปลี่ยน แต่แถว "ส่งเงิน" ยังเท่าเดิม ลิ้นชักเพี้ยน)
+    คืนข้อความ error / None ถ้าแก้ได้ (รายการที่ adm "ตัดออก ไม่ต้องส่ง" แก้ได้ เพราะไม่มีแถวส่งเงิน)
+    """
+    try:
+        from api.models.CashHandover import CashHandoverItem
+        if CashHandoverItem.objects.filter(source=source, source_id=source_id).exclude(
+            handover__status="excluded"
+        ).exists():
+            return 'รายการนี้ส่งเงินไปแล้ว ให้ adm กด "ยกเลิกการส่ง" ก่อน แล้วค่อยแก้หรือลบ'
+    except Exception:
+        traceback.print_exc()
+    return None
 
 
 def _section_opening(section: str, date_str: str) -> Decimal:
@@ -157,6 +208,9 @@ def _calc_section(entries, opening: Decimal):
             "createdBy": e.created_by,
             # ✅ รายรับที่ระบบลงให้เอง (ใช้ติดป้าย "อัตโนมัติ" ในหน้าเว็บ)
             "auto": bool(getattr(e, "auto_source", "")),
+            # ✅ แถว "ส่งเงิน" รายรายการ - adm แก้ยอด (ไม่เกิน maxAmount) / ลบ (ยกเลิกการส่งรายการนั้น) ได้
+            "handover": getattr(e, "auto_source", "") == "handover",
+            "maxAmount": _sent_row_max(e) if getattr(e, "auto_source", "") == "handover" else None,
             "balance": running,
         })
     return rows, totals, running
@@ -270,6 +324,8 @@ class CashflowViewSet(viewsets.ViewSet):
                 current_user_name = getattr(request.user, "name", None) or getattr(request.user, "username", "") or ""
             except Exception:
                 current_user_name = ""
+            is_admin = str(getattr(request.user, "role", "") or "").lower() == "adm"
+            from api.views.CashHandoverViewSet import edit_sent_row, cancel_sent_row
 
             # ✅ เดิมใช้วิธี "ลบทั้งวันแล้วสร้างใหม่ทั้งหมดจากสิ่งที่ browser ส่งมา" ซึ่งถ้ามีหลายคน
             # เปิดวันเดียวกันพร้อมกัน (auto-save คนละเครื่อง/แท็บ) ฝั่งที่บันทึกทีหลังจะลบรายการที่
@@ -281,7 +337,15 @@ class CashflowViewSet(viewsets.ViewSet):
                     e.id: e for e in CashflowEntry.objects.filter(date=date_str, section=section)
                 }
 
-                ids_to_delete = [i for i in (deleted_ids or []) if i in existing]
+                # ✅ แถวอัตโนมัติ (auto_source) แก้/ลบที่ต้นทางเท่านั้น - หน้าเว็บส่งมาก็ไม่แตะ
+                #    (กันหน้าที่เปิดค้างไว้ส่งยอดเก่ามาเขียนทับ ตอนต้นทางเพิ่งแก้ยอด)
+                #    ยกเว้นแถว "ส่งเงิน" รายรายการ: adm ลบ = ยกเลิกการส่งรายการนั้น (เงินกลับลิ้นชัก รายการกลับไปค้างส่ง)
+                for i in (deleted_ids or []):
+                    e = existing.get(i)
+                    if e is not None and is_admin and getattr(e, "auto_source", "") == "handover":
+                        cancel_sent_row(e)
+                        existing.pop(i, None)
+                ids_to_delete = [i for i in (deleted_ids or []) if i in existing and not getattr(existing[i], "auto_source", "")]
                 if ids_to_delete:
                     CashflowEntry.objects.filter(id__in=ids_to_delete).delete()
                     for i in ids_to_delete:
@@ -301,9 +365,18 @@ class CashflowViewSet(viewsets.ViewSet):
                     )
                     if row_id and row_id in existing:
                         entry = existing[row_id]
+                        if getattr(entry, "auto_source", "") == "handover":
+                            # ✅ adm แก้ยอดแถวส่งเงินรายรายการ (ไม่เกินยอดเต็ม) - ชื่อ/ประเภทแก้ไม่ได้
+                            if is_admin:
+                                edit_sent_row(entry, row.get("sent"))
+                            continue
+                        if getattr(entry, "auto_source", ""):
+                            continue
                         for k, v in fields.items():
                             setattr(entry, k, v)
                         entry.save()
+                    elif row_id:
+                        continue  # แถวที่ถูกลบไปแล้ว (เช่น รายรับอัตโนมัติที่ต้นทางลบ) ไม่สร้างกลับมา
                     else:
                         CashflowEntry.objects.create(date=date_str, section=section, seq=next_seq, **fields)
                         next_seq += 1
