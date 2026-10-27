@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from api.serializers import BikeSerializer
-from api.models import Bike, Storage
+from api.serializers.BikeSerializer import BikeSourceSerializer
+from api.models import Bike, Storage, BikeSource
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,13 +10,89 @@ from datetime import date
 from rest_framework.permissions import IsAuthenticated
 
 
+STOCK_CATEGORIES = ('new', 'pre_owned')
+
+
+def _is_adm(request):
+    return str(getattr(request.user, 'role', '') or '').lower() == 'adm'
+
+
+def _check_source(category, source_id, required=True):
+    """คืน Response error ถ้าที่มาไม่ถูกต้อง / None ถ้าใช้ได้"""
+    if source_id in (None, '', 'null'):
+        if required and category in STOCK_CATEGORIES:
+            return Response({'source': ['กรุณาเลือกที่มาของรถ']}, status=status.HTTP_400_BAD_REQUEST)
+        return None
+    try:
+        ok = BikeSource.objects.filter(pk=int(source_id)).exists()
+    except (TypeError, ValueError):
+        ok = False
+    if not ok:
+        return Response({'source': ['ไม่พบที่มานี้ในระบบ']}, status=status.HTTP_400_BAD_REQUEST)
+    return None
+
+
+class BikeSourceViewSet(viewsets.ViewSet):
+    """
+    ที่มาของรถ (ร้าน / ซัพพลายเออร์ที่รับรถมา)
+      GET   /bike-sources/        ทุกคน (พนักงานได้แค่โค้ด / adm ได้ชื่อเต็มด้วย)
+      POST  /bike-sources/        { code, name }  ทุกคนเพิ่มได้ - โค้ดเป็นตัวพิมพ์ใหญ่ ห้ามซ้ำ
+      PATCH /bike-sources/<id>/   { code?, name? }  เฉพาะ adm
+    """
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        qs = BikeSource.objects.all().order_by('code')
+        return Response(BikeSourceSerializer(qs, many=True, context={'request': request}).data)
+
+    @staticmethod
+    def _clean_code(raw):
+        code = ''.join(str(raw or '').split()).upper()  # ตัดช่องว่างทั้งหมด + ตัวพิมพ์ใหญ่
+        if not code:
+            return None, 'กรุณากรอกโค้ด'
+        if len(code) > 20:
+            return None, 'โค้ดยาวได้ไม่เกิน 20 ตัวอักษร'
+        return code, None
+
+    def create(self, request):
+        code, err = self._clean_code(request.data.get('code'))
+        if err:
+            return Response({'error': err}, status=status.HTTP_400_BAD_REQUEST)
+        name = str(request.data.get('name') or '').strip()
+        if not name:
+            return Response({'error': 'กรุณากรอกชื่อร้าน / ซัพพลายเออร์'}, status=status.HTTP_400_BAD_REQUEST)
+        if BikeSource.objects.filter(code__iexact=code).exists():
+            return Response({'error': f'โค้ด {code} มีอยู่แล้ว'}, status=status.HTTP_400_BAD_REQUEST)
+        src = BikeSource.objects.create(
+            code=code, name=name[:200],
+            created_by=getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '',
+        )
+        return Response(BikeSourceSerializer(src, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        if not _is_adm(request):
+            return Response({'error': 'เฉพาะ adm เท่านั้น'}, status=status.HTTP_403_FORBIDDEN)
+        src = get_object_or_404(BikeSource, pk=pk)
+        if 'code' in request.data:
+            code, err = self._clean_code(request.data.get('code'))
+            if err:
+                return Response({'error': err}, status=status.HTTP_400_BAD_REQUEST)
+            if BikeSource.objects.filter(code__iexact=code).exclude(pk=src.pk).exists():
+                return Response({'error': f'โค้ด {code} มีอยู่แล้ว'}, status=status.HTTP_400_BAD_REQUEST)
+            src.code = code
+        if 'name' in request.data:
+            src.name = str(request.data.get('name') or '').strip()[:200]
+        src.save()
+        return Response(BikeSourceSerializer(src, context={'request': request}).data)
+
+
 class BikeViewSet(viewsets.ModelViewSet):
     """Listing all registered bikes in stock"""
     serializer_class = BikeSerializer
     permission_classes = [IsAuthenticated, ]
 
     def get_queryset(self):
-        queryset = Bike.objects.all().order_by('-id')
+        queryset = Bike.objects.select_related('source', 'storage_place').order_by('-id')
 
         storage_id = self.request.query_params.get('storage')
         category = self.request.query_params.get('category')
@@ -69,7 +146,20 @@ class BikeViewSet(viewsets.ModelViewSet):
                 {'error': f'Bike with chassi "{chassi}" already exists.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        # ✅ รถในสต็อก (ใหม่ / มือสอง) ต้องระบุที่มา - รถลูกค้าที่มาใช้บริการไม่ต้อง
+        err = _check_source(request.data.get('category') or 'new', request.data.get('source'), required=True)
+        if err:
+            return err
         return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        # ✅ แก้ไขรถ: ถ้าส่งที่มามา ต้องเป็นที่มาที่มีอยู่จริง (รถในสต็อกห้ามล้างที่มาเป็นค่าว่าง)
+        if 'source' in request.data:
+            instance = self.get_object()
+            err = _check_source(request.data.get('category') or instance.category, request.data.get('source'), required=True)
+            if err:
+                return err
+        return super().update(request, *args, **kwargs)
 
     @action(methods=['POST'], detail=False)
     def import_inventory(self, request):
@@ -85,9 +175,18 @@ class BikeViewSet(viewsets.ModelViewSet):
         storage = get_object_or_404(Storage, pk=storageId)
         errors = []
         created = []
+        # ✅ ที่มา: ไฟล์ใส่เป็นโค้ด (ไม่สนตัวพิมพ์เล็ก/ใหญ่) → แปลงเป็นที่มาในระบบ
+        sources = {s.code.upper(): s for s in BikeSource.objects.all()}
 
         for bike in bikesImport:
             chassi_value = bike.get('chassi') or bike.get('chassis', '')
+            source_code = str(bike.get('source_code') or '').strip().upper()
+            source = sources.get(source_code)
+            if not source:
+                errors.append(
+                    f'Chassi "{chassi_value}": ' + (f'ไม่พบที่มา "{source_code}" ในระบบ' if source_code else 'ไม่ได้ระบุที่มา') + ' — skipped.'
+                )
+                continue
 
             # ✅ ตรวจ duplicate chassi ก่อน insert
             if Bike.objects.filter(chassi=chassi_value).exists():
@@ -109,6 +208,7 @@ class BikeViewSet(viewsets.ModelViewSet):
                     wholesale_price=bike.get('wholesale_price', '') or None,
                     brand=bike.get('brand', 'Honda'),
                     storage_place=storage,
+                    source=source,
                     received_date=bike.get('received_date') or date.today(),
                 )
                 created.append(newInstance.id)

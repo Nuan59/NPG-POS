@@ -19,6 +19,7 @@ from api.views import (
 )
 from api.views.NPGViewSet import NPGAccountViewSet, NPGPaymentViewSet
 from api.views.ServiceViewSet import ServiceViewSet
+from api.views.BikeViewSet import BikeSourceViewSet
 from api.views.CashflowView import CashflowViewSet
 from api.views.CashHandoverViewSet import CashHandoverViewSet
 from api.views.ExpenseRequestViewSet import ExpenseRequestViewSet
@@ -727,6 +728,28 @@ def add_order_sale_status_columns(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: ที่มาของรถ - สร้างตาราง bike_source + เพิ่มคอลัมน์ source_id ให้ตารางรถ (เรียกซ้ำได้)
+def create_bike_source_table(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        bike_table = django_apps.get_model('api', 'Bike')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS bike_source (
+                    id BIGSERIAL PRIMARY KEY,
+                    code VARCHAR(20) NOT NULL UNIQUE,
+                    name VARCHAR(200) NOT NULL DEFAULT '',
+                    created_by VARCHAR(255) NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            """)
+            cursor.execute(f'ALTER TABLE "{bike_table}" ADD COLUMN IF NOT EXISTS source_id BIGINT NULL REFERENCES bike_source(id) ON DELETE SET NULL;')
+            cursor.execute(f'CREATE INDEX IF NOT EXISTS bike_source_id_idx ON "{bike_table}" (source_id);')
+        return JsonResponse({'status': 'ok', 'table': bike_table, 'message': 'สร้างตารางที่มาของรถเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เพิ่มคอลัมน์รายรับอัตโนมัติ (ชี้กลับรายการต้นทาง) ให้ cashflow_entry เรียกซ้ำได้
 def add_cashflow_auto_columns(request):
     from django.db import connection
@@ -741,6 +764,7 @@ def add_cashflow_auto_columns(request):
 
 router.register('customers', CustomerViewSet, basename="Customers")
 router.register('inventory', BikeViewSet, basename="Inventory")
+router.register('bike-sources', BikeSourceViewSet, basename="bike-sources")
 router.register('storage', StorageViewSet, basename="Storage")
 router.register('order', OrderViewSet, basename="Order")
 router.register('service', ServiceViewSet, basename='service')
@@ -793,6 +817,7 @@ urlpatterns = [
     path('dev/create-sale-checklist-table/', create_sale_checklist_table),
     path('dev/add-order-sale-status-columns/', add_order_sale_status_columns),
     path('dev/add-cashflow-auto-columns/', add_cashflow_auto_columns),
+    path('dev/create-bike-source-table/', create_bike_source_table),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

@@ -34,6 +34,10 @@ import { CSVLink } from "react-csv";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface ImportFormsProps {
 	storages: IStorage[];
@@ -58,6 +62,23 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 	const [bikesImport, setBikesImport] = useState<IBike[]>([]);
 	const [selectedStorage, setSelectedStorage] = useState<number>(0);
 
+	// ✅ ที่มาของรถ: ในไฟล์ใส่เป็นโค้ด (เช่น AP) ต้องเป็นโค้ดที่มีในระบบแล้ว
+	const { data: session } = useSession();
+	const token = (session as any)?.user?.accessToken as string | undefined;
+	const [sourceCodes, setSourceCodes] = useState<Set<string> | null>(null);
+	useEffect(() => {
+		if (!token) return;
+		fetch(`${API_BASE_URL}/bike-sources/`, { headers: { Authorization: `Bearer ${token}` } })
+			.then((r) => (r.ok ? r.json() : []))
+			.then((d) => setSourceCodes(new Set((Array.isArray(d) ? d : []).map((s: any) => String(s.code).toUpperCase()))))
+			.catch(() => setSourceCodes(new Set()));
+	}, [token]);
+	const badSource = (b: IBike) => {
+		const c = (b.source_code_import || "").toUpperCase();
+		return !c || (sourceCodes !== null && !sourceCodes.has(c));
+	};
+	const badSourceRows = bikesImport.filter(badSource);
+
 	const csvHeaders = [
 		[
 			"ชื่อรุ่น",
@@ -72,6 +93,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 			"ยี่ห้อ",
 			"วันที่รับ",
 			"ราคาขายส่ง",
+			"ที่มา",
 		],
 	];
 
@@ -100,6 +122,8 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 							brand: obj["ยี่ห้อ"] || obj["Brand"],
 							...(received_date && { received_date }),
 							wholesale_price: String(obj["ราคาขายส่ง"] || obj["Wholesale price"] || ""),
+							// ✅ ที่มา (โค้ด) - ตัดช่องว่าง + ตัวพิมพ์ใหญ่
+							source_code_import: String(obj["ที่มา"] || obj["Source"] || "").replace(/\s+/g, "").toUpperCase(),
 						} as unknown as IBike;
 						
 						// ✅ เช็คว่ามีข้อมูลจริงๆ (ไม่ใช่แถวว่าง)
@@ -137,7 +161,18 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 			return;
 		}
 
-		importInventory({ storage: selectedStorage, bikes: bikesImport }).then(
+		// ✅ ทุกคันต้องมีที่มา และต้องเป็นโค้ดที่มีในระบบ
+		if (badSourceRows.length > 0) {
+			const codes = Array.from(new Set(badSourceRows.map((b) => b.source_code_import || "(ว่าง)")));
+			toast.error(`ที่มาไม่ถูกต้อง ${badSourceRows.length} คัน`, {
+				description: `โค้ด: ${codes.join(", ")} · เพิ่มที่มาใหม่ได้ที่หน้าเพิ่มสินค้า แล้วอัปโหลดไฟล์ใหม่`,
+			});
+			return;
+		}
+
+		const payloadBikes = bikesImport.map(({ source_code_import, ...b }) => ({ ...b, source_code: source_code_import })) as unknown as IBike[];
+
+		importInventory({ storage: selectedStorage, bikes: payloadBikes }).then(
 			async (res) => {
 				const data = res.data ? await res.data : null;
 				console.log("IMPORT RESPONSE:", JSON.stringify(data));
@@ -176,6 +211,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 		{ label: "ประเภท", value: "category" },
 		{ label: "วันที่รับ", value: "received_date" },
 		{ label: "ราคาขายส่ง", value: "wholesale_price" },
+		{ label: "ที่มา", value: "source_code_import" },
 	];
 
 	return (
@@ -230,7 +266,12 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 				<div className="border rounded-lg">
 					<ScrollArea className="h-[400px] w-full">
 						<Table>
-							<TableCaption>รายการสินค้าที่จะนำเข้า ({bikesImport.length} รายการ)</TableCaption>
+							<TableCaption>
+								รายการสินค้าที่จะนำเข้า ({bikesImport.length} รายการ)
+								{badSourceRows.length > 0 && (
+									<span className="block text-red-600">ที่มาไม่ถูกต้อง {badSourceRows.length} คัน - แก้ในไฟล์ หรือเพิ่มที่มาใหม่ก่อนนำเข้า</span>
+								)}
+							</TableCaption>
 							<TableHeader>
 								<TableRow>
 									{bikeProperties.map((prop) => (
@@ -244,9 +285,15 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 								{bikesImport.map((bike, index) => (
 									<TableRow key={index}>
 										{bikeProperties.map((prop) => (
-											<TableCell key={prop.value} className="min-w-[120px]">
+											<TableCell
+												key={prop.value}
+												className={`min-w-[120px] ${prop.value === "source_code_import" && badSource(bike) ? "text-red-600 font-semibold bg-red-50" : ""}`}
+											>
 												{/* @ts-expect-error */}
 												{bike[prop.value] || "-"}
+												{prop.value === "source_code_import" && badSource(bike) && (
+													<span className="block text-[11px] font-normal">{bike.source_code_import ? "ไม่มีในระบบ" : "ยังไม่ระบุ"}</span>
+												)}
 											</TableCell>
 										))}
 									</TableRow>
@@ -267,7 +314,7 @@ const ImportForm = ({ storages }: ImportFormsProps) => {
 				</Link>
 				<Button 
 					onClick={handleSubmitImport}
-					disabled={bikesImport.length === 0 || selectedStorage === 0}
+					disabled={bikesImport.length === 0 || selectedStorage === 0 || badSourceRows.length > 0}
 				>
 					นำเข้าสินค้า ({bikesImport.length} รายการ)
 				</Button>

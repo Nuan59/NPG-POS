@@ -1,5 +1,5 @@
 from .AdditionalFee import AdditionalFee
-from .Bike import Bike
+from .Bike import Bike, BikeSource
 from .Customer import Customer
 from .Order import Order
 from .Storage import Storage

@@ -5,6 +5,7 @@ type ProductInfoItem = {
   options?: { label: string; value: string }[];
   type?: string;
   showOnlyFor?: "new" | "pre_owned";
+  custom?: boolean; // ✅ ช่องที่วาดเอง (เช่น ที่มา - dropdown + เพิ่มใหม่ได้)
 };
 
 export const product_info: ProductInfoItem[] = [
@@ -30,6 +31,13 @@ export const product_info: ProductInfoItem[] = [
       { label: "Vespa", value: "Vespa" },
       { label: "Kawasaki", value: "Kawasaki" }
     ],
+  },
+  // ✅ ที่มาของรถ (ร้าน / ซัพพลายเออร์) - dropdown โค้ดสั้น พนักงานเพิ่มที่มาใหม่ได้เลย
+  {
+    name: "source",
+    label: "ที่มา",
+    placeholder: "เลือกที่มา",
+    custom: true,
   },
   {
     name: "model_name",

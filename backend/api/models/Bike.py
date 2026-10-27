@@ -1,6 +1,26 @@
 from django.db import models
 from .Storage import Storage
 
+
+class BikeSource(models.Model):
+    """
+    ✅ ที่มาของรถ (ร้าน / ซัพพลายเออร์ที่รับรถมา) - พนักงานเพิ่มเองได้
+    code = โค้ดสั้น (พนักงานเห็นแค่โค้ด) / name = ชื่อเต็ม (adm เห็น)
+    ตารางสร้างผ่าน /dev/create-bike-source-table/
+    """
+    code = models.CharField(max_length=20, unique=True)
+    name = models.CharField(max_length=200, blank=True, default='')
+    created_by = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'bike_source'
+        ordering = ['code']
+
+    def __str__(self) -> str:
+        return self.code
+
+
 class Bike(models.Model):
     model_name = models.CharField(max_length=200)
     model_code = models.CharField(max_length=100)
@@ -39,6 +59,9 @@ class Bike(models.Model):
     brand = models.CharField(max_length=20, choices=BRAND_CHOICES, default='Honda', null=True)
 
     storage_place = models.ForeignKey(Storage, on_delete=models.SET_NULL, null=True)
+
+    # ✅ ที่มาของรถ (บังคับเฉพาะรถในสต็อก: ใหม่ / มือสอง - รถลูกค้าที่มาใช้บริการไม่ต้องมี)
+    source = models.ForeignKey(BikeSource, on_delete=models.SET_NULL, null=True, blank=True, related_name='bikes')
 
     invoice_number = models.CharField(max_length=100, default='', blank=True, null=True)
     invoice_picture = models.ImageField(upload_to='invoices/%Y/%m/', blank=True, null=True)

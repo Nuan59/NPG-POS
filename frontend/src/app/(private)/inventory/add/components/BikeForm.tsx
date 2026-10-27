@@ -38,11 +38,152 @@ import { asOptionalField } from "@/util/ZodOptionalField";
 import DateSelector from "./DateSelector";
 import { createBike, editBike } from "@/services/InventoryService";
 import { getDate } from "@/util/GetDateString";
-import { Info } from "lucide-react";
+import { Info, Plus } from "lucide-react";
 import { useSession } from "next-auth/react";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+// ✅ ที่มาของรถ - บังคับทุกคัน (ค่า null/undefined จากรถเก่า = ยังไม่เลือก)
+const sourceField = z.preprocess(
+  (v) => (v === null || v === undefined ? "" : String(v)),
+  z.string().min(1, "กรุณาเลือกที่มาของรถ")
+);
+
+interface BikeSourceOption {
+  id: number;
+  code: string;
+  name?: string; // มีเฉพาะ adm
+}
+
+/**
+ * ✅ dropdown ที่มาของรถ
+ * - พนักงานเห็นแค่โค้ด / adm เห็น "โค้ด · ชื่อเต็ม"
+ * - เลือก "+ เพิ่มที่มาใหม่" → กรอกโค้ด + ชื่อร้าน แล้วเลือกให้อัตโนมัติ
+ */
+const SourceSelect = ({
+  value,
+  onChange,
+  token,
+  isAdm,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  token?: string;
+  isAdm: boolean;
+}) => {
+  const [sources, setSources] = useState<BikeSourceOption[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE_URL}/bike-sources/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setSources(Array.isArray(d) ? d : []))
+      .catch(() => setSources([]));
+  }, [token]);
+
+  const label = (s: BikeSourceOption) => (isAdm && s.name ? `${s.code} · ${s.name}` : s.code);
+
+  const save = async () => {
+    const c = code.replace(/\s+/g, "").toUpperCase();
+    if (!c) return toast.error("กรุณากรอกโค้ด");
+    if (!name.trim()) return toast.error("กรุณากรอกชื่อร้าน / ซัพพลายเออร์");
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/bike-sources/`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ code: c, name: name.trim() }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(d?.error || "เพิ่มที่มาไม่สำเร็จ");
+        return;
+      }
+      setSources((prev) => [...prev, d].sort((a, b) => a.code.localeCompare(b.code)));
+      onChange(String(d.id));
+      setAdding(false);
+      setCode("");
+      setName("");
+      toast.success(`เพิ่มที่มา ${d.code} แล้ว`);
+    } catch {
+      toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Select
+        value={value || ""}
+        onValueChange={(v) => {
+          if (v === "__new__") {
+            setAdding(true);
+            return;
+          }
+          onChange(v);
+        }}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="เลือกที่มา" />
+        </SelectTrigger>
+        <SelectContent>
+          {sources.map((s) => (
+            <SelectItem key={s.id} value={String(s.id)}>
+              {label(s)}
+            </SelectItem>
+          ))}
+          <SelectItem value="__new__" className="text-orange-600 font-medium">
+            + เพิ่มที่มาใหม่
+          </SelectItem>
+        </SelectContent>
+      </Select>
+
+      {adding && (
+        <div className="border rounded-md p-2 flex flex-col gap-2 bg-orange-50/50">
+          <div className="flex gap-2">
+            <Input
+              autoFocus
+              className="w-28 uppercase"
+              placeholder="โค้ด เช่น AP"
+              maxLength={20}
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+            />
+            <Input
+              className="flex-1"
+              placeholder="ชื่อร้าน / ซัพพลายเออร์"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  save();
+                }
+              }}
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)} disabled={saving}>
+              ยกเลิก
+            </Button>
+            <Button type="button" size="sm" onClick={save} disabled={saving} className="gap-1">
+              <Plus size={14} /> {saving ? "กำลังบันทึก..." : "เพิ่มที่มา"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const editBikeFormSchema = z.object({
   brand: z.string(),
+  source: sourceField,
   model_name: z.string(),
   model_code: z.string(),
   engine: z.string(),
@@ -59,6 +200,7 @@ const editBikeFormSchema = z.object({
 
 const createBikeFormSchema = z.object({
   brand: z.string().nonempty("กรุณาเลือกแบรนด์"),
+  source: sourceField,
   model_name: z.string().nonempty("กรุณากรอกชื่อรุ่น"),
   model_code: z.string().nonempty("กรุณากรอกรหัสรุ่น"),
   engine: z.string().nonempty("กรุณากรอกเลขเครื่องยนต์"),
@@ -103,6 +245,8 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
   const router = useRouter();
   const { data: session } = useSession();
   const userInfo = session?.user;
+  const token = (session as any)?.user?.accessToken as string | undefined;
+  const isAdm = (userInfo as any)?.role === "adm";
 
   const form = useForm<CreateBikeFormData>({
     resolver: zodResolver(bike ? editBikeFormSchema : createBikeFormSchema),
@@ -111,6 +255,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
       ? undefined
       : {
           brand: "",
+          source: "",
           model_name: "",
           model_code: "",
           engine: "",
@@ -176,6 +321,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
   const onSubmit = async (values: any) => {
     let payload = {
       ...values,
+      source: values.source ? Number(values.source) : null, // ✅ ที่มา (id)
       received_date: selectedDate.toISOString().split("T")[0],
     };
 
@@ -246,7 +392,14 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
                       <FormLabel>{item.label}</FormLabel>
                       <div className={controlWrap}>
                         <FormControl>
-                          {item.options ? (
+                          {item.custom && item.name === "source" ? (
+                            <SourceSelect
+                              value={field.value == null ? "" : String(field.value)}
+                              onChange={field.onChange}
+                              token={token}
+                              isAdm={isAdm}
+                            />
+                          ) : item.options ? (
                             <Select
                               value={(field.value ?? "") as string}
                               onValueChange={field.onChange}
