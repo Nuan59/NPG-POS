@@ -77,10 +77,16 @@ def _sync_checklist_note(order, missing):
         order.notes = new_notes
         order.save(update_fields=['notes'])
 
-def _post_sale_income(order):
-    """รายรับอัตโนมัติของการขาย - ยอดที่ต้องจ่ายวันนี้ (ตัวเดียวกับที่ขึ้นค้างส่ง)"""
+def _post_sale_income(order, only_if_exists=False):
+    """
+    รายรับอัตโนมัติของการขาย - ยอดที่ลูกค้าจ่ายวันทำรายการ (ตัวเดียวกับที่ขึ้นค้างส่ง)
+    ✅ ลงตอน "ทำรายการ" (ตอนรับเงินจริง) / จบรายการ-แก้ไขรายการ → แก้ยอดตามเฉพาะที่เคยลงไว้ (only_if_exists)
+       รายการที่ทำก่อนมีระบบนี้ (พนักงานพิมพ์รายรับเอง) จะไม่ถูกลงซ้ำ
+    """
     from api.views.CashHandoverViewSet import _sale_due_today
     from api.views.CashflowView import split_payment, sync_auto_income
+    if (order.transaction_type or 'ขาย') != 'ขาย':
+        return  # เหมือนระบบส่งเงิน - นับเฉพาะงานขาย
     due = _sale_due_today(order)
     cash, transfer = split_payment(due, order.payment_type, order.cash_amount)
     bike = order.bikes.first()
@@ -88,7 +94,7 @@ def _post_sale_income(order):
     if bike:
         desc += f" · {bike.model_name}"
     seller = (getattr(order.seller, 'name', '') or getattr(order.seller, 'username', '')) if order.seller else ''
-    sync_auto_income('sale', order.id, cash, transfer, desc, seller)
+    sync_auto_income('sale', order.id, cash, transfer, desc, seller, only_if_exists=only_if_exists)
 
 
 def _finalize_sale(order):
@@ -409,6 +415,12 @@ class OrderViewSet(viewsets.ModelViewSet):
 
                 new_order.save()
 
+            # ✅ ลงรายรับอัตโนมัติตั้งแต่ทำรายการ (ลูกค้าจ่ายเงินแล้ว) - พังก็ไม่กระทบการทำรายการ
+            try:
+                _post_sale_income(new_order)
+            except Exception as e:
+                print(f"⚠️ ลงรายรับอัตโนมัติไม่สำเร็จ Order #{new_order.id}: {e}")
+
             return Response({"success": True, "data": new_order.id})
         
         except Exception as e:
@@ -433,66 +445,80 @@ class OrderViewSet(viewsets.ModelViewSet):
         """
         try:
             order_to_edit = Order.objects.get(pk=kwargs['pk'])
+            # ✅ ยอดรับวันนี้ก่อนแก้ - ถ้าเปลี่ยน รายรับอัตโนมัติแก้ตาม / ถ้าส่งเงินไปแล้วห้ามเปลี่ยนยอด
+            from api.views.CashHandoverViewSet import _sale_due_today
+            from api.views.CashflowView import handover_block
+            due_before = _sale_due_today(order_to_edit)
 
-            new_total = 0
+            with transaction.atomic():
+
+                new_total = 0
             
-            # แก้ไขฟิลด์เดี่ยว
-            order_to_edit.notes = request.data.get('notes', '')
-            order_to_edit.payment_method = request.data.get('paymentMethod', '')  # ประเภทการซื้อ
-            order_to_edit.discount = request.data.get('discount', 0)
-            order_to_edit.down_payment = request.data.get('downPayment', 0)
+                # แก้ไขฟิลด์เดี่ยว
+                order_to_edit.notes = request.data.get('notes', '')
+                order_to_edit.payment_method = request.data.get('paymentMethod', '')  # ประเภทการซื้อ
+                order_to_edit.discount = request.data.get('discount', 0)
+                order_to_edit.down_payment = request.data.get('downPayment', 0)
 
-            # แก้ไขวันที่ขาย
-            sale_date = request.data.get('sale_date')
-            if sale_date:
-                order_to_edit.sale_date = sale_date
+                # แก้ไขวันที่ขาย
+                sale_date = request.data.get('sale_date')
+                if sale_date:
+                    order_to_edit.sale_date = sale_date
 
-            # แก้ไขวันหมดอายุทะเบียน
-            registration_expiry_date = request.data.get('registration_expiry_date')
-            if registration_expiry_date:
-                order_to_edit.registration_expiry_date = registration_expiry_date
-            elif registration_expiry_date == '' or registration_expiry_date is None:
-                order_to_edit.registration_expiry_date = None
+                # แก้ไขวันหมดอายุทะเบียน
+                registration_expiry_date = request.data.get('registration_expiry_date')
+                if registration_expiry_date:
+                    order_to_edit.registration_expiry_date = registration_expiry_date
+                elif registration_expiry_date == '' or registration_expiry_date is None:
+                    order_to_edit.registration_expiry_date = None
 
-            # แก้ไขข้อมูลไฟแนนซ์
-            order_to_edit.deposit = request.data.get('deposit', order_to_edit.deposit)
-            order_to_edit.finance_amount = request.data.get('finance_amount', order_to_edit.finance_amount)
-            order_to_edit.interest_rate = request.data.get('interest_rate', order_to_edit.interest_rate)
-            order_to_edit.installment_count = request.data.get('installment_count', order_to_edit.installment_count)
-            order_to_edit.installment_amount = request.data.get('installment_amount', order_to_edit.installment_amount)
-            order_to_edit.finance_provider = request.data.get('finance_provider', order_to_edit.finance_provider)
-            # ✅ แก้ไขรอบชำระ NPG (ถ้ามีส่งมา)
-            if 'npgPeriod' in request.data:
-                order_to_edit.npg_period = request.data.get('npgPeriod') or None
-            elif 'npg_period' in request.data:
-                order_to_edit.npg_period = request.data.get('npg_period') or None
+                # แก้ไขข้อมูลไฟแนนซ์
+                order_to_edit.deposit = request.data.get('deposit', order_to_edit.deposit)
+                order_to_edit.finance_amount = request.data.get('finance_amount', order_to_edit.finance_amount)
+                order_to_edit.interest_rate = request.data.get('interest_rate', order_to_edit.interest_rate)
+                order_to_edit.installment_count = request.data.get('installment_count', order_to_edit.installment_count)
+                order_to_edit.installment_amount = request.data.get('installment_amount', order_to_edit.installment_amount)
+                order_to_edit.finance_provider = request.data.get('finance_provider', order_to_edit.finance_provider)
+                # ✅ แก้ไขรอบชำระ NPG (ถ้ามีส่งมา)
+                if 'npgPeriod' in request.data:
+                    order_to_edit.npg_period = request.data.get('npgPeriod') or None
+                elif 'npg_period' in request.data:
+                    order_to_edit.npg_period = request.data.get('npg_period') or None
 
-            # แก้ไขราคารถ
-            bike_to_edit = order_to_edit.bikes.all()[0]
-            bike_to_edit.sale_price = request.data.get('bikePrice', bike_to_edit.sale_price)
-            bike_to_edit.save()
+                # แก้ไขราคารถ
+                bike_to_edit = order_to_edit.bikes.all()[0]
+                bike_to_edit.sale_price = request.data.get('bikePrice', bike_to_edit.sale_price)
+                bike_to_edit.save()
 
-            # แก้ไขค่าใช้จ่ายเพิ่มเติม
-            for old_fee in order_to_edit.additional_fees.all():
-                order_to_edit.additional_fees.remove(old_fee)
-                old_fee.delete()
+                # แก้ไขค่าใช้จ่ายเพิ่มเติม
+                for old_fee in order_to_edit.additional_fees.all():
+                    order_to_edit.additional_fees.remove(old_fee)
+                    old_fee.delete()
 
-            for new_fee in request.data.get('additionalFees', []):
-                create_fee = AdditionalFee.objects.create(
-                    description=new_fee['description'],
-                    amount=new_fee['amount']
-                )
-                order_to_edit.additional_fees.add(create_fee)
-                new_total += float(create_fee.amount)
-                create_fee.save()
+                for new_fee in request.data.get('additionalFees', []):
+                    create_fee = AdditionalFee.objects.create(
+                        description=new_fee['description'],
+                        amount=new_fee['amount']
+                    )
+                    order_to_edit.additional_fees.add(create_fee)
+                    new_total += float(create_fee.amount)
+                    create_fee.save()
 
-            # สูตร: ค่าใช้จ่าย + เงินดาวน์ - ส่วนลด
-            new_total = new_total + float(order_to_edit.down_payment) - float(order_to_edit.discount)
+                # สูตร: ค่าใช้จ่าย + เงินดาวน์ - ส่วนลด
+                new_total = new_total + float(order_to_edit.down_payment) - float(order_to_edit.discount)
 
-            order_to_edit.total = new_total
-            order_to_edit.total_price = new_total
-            order_to_edit.save()
-            
+                order_to_edit.total = new_total
+                order_to_edit.total_price = new_total
+                order_to_edit.save()
+
+                order_to_edit.refresh_from_db()
+                if _sale_due_today(order_to_edit) != due_before:
+                    blocked = handover_block('sale', order_to_edit.id)
+                    if blocked:
+                        transaction.set_rollback(True)
+                        return Response({'status': 'error', 'message': f'แก้ยอดเงินไม่ได้: {blocked}', 'error': blocked}, status=400)
+                    _post_sale_income(order_to_edit, only_if_exists=True)
+
             return Response({'message': 'order edited!'}, status=200)
         
         except Order.DoesNotExist:
@@ -530,6 +556,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'message': f'เกิดข้อผิดพลาด: {str(e)}'
             }, status=400)
 
+        # ✅ ส่งเงินไปแล้ว ห้ามลบ (ไม่งั้นรายรับหาย แต่แถวส่งเงินยังอยู่ ลิ้นชักติดลบ)
+        from api.views.CashflowView import handover_block, remove_auto_income
+        blocked = handover_block('sale', order_to_delete.id)
+        if blocked:
+            return Response({'status': 'error', 'message': blocked, 'error': blocked}, status=400)
+
         # อ่าน parameter restore_stock (default = false)
         restore_stock_param = request.query_params.get('restore_stock', 'false')
         restore_stock = restore_stock_param.lower() == 'true'
@@ -558,9 +590,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 for gift in order_to_delete.gifts.all():
                     gift.delete()
                 
-                # ✅ ลบรายรับอัตโนมัติของการขายนี้ด้วย
-                from api.views.CashflowView import remove_auto_income
-                remove_auto_income('sale', order_to_delete.id)
+                # ✅ รายรับอัตโนมัติ: ของวันนี้ลบทิ้ง / ของวันก่อนลงแถว "ยกเลิก" วันนี้แทน
+                remove_auto_income('sale', order_to_delete.id, _user_label(request.user))
 
                 # เก็บข้อมูลก่อนลบ
                 order_id = order_to_delete.id
@@ -721,13 +752,13 @@ class OrderViewSet(viewsets.ModelViewSet):
                     """,
                     [order.id, CHECKLIST_FINISHED_KEY, _user_label(request.user)],
                 )
-            # ✅ ลงรายรับให้อัตโนมัติ (เงินที่ลูกค้าจ่ายวันนี้ แยกเงินสด / โอน ตามรูปแบบการชำระ)
+            # ✅ รายรับลงไปแล้วตั้งแต่ทำรายการ - ตรงนี้แค่เช็คยอดให้ตรงอีกรอบ (เฉพาะที่เคยลงอัตโนมัติไว้)
             if was_pending:
                 try:
                     with transaction.atomic():
-                        _post_sale_income(order)
-                except Exception as e:  # ลงรายรับไม่ได้ ไม่ให้การจบรายการพัง
-                    print(f"⚠️ ลงรายรับอัตโนมัติไม่สำเร็จ Order #{order.id}: {e}")
+                        _post_sale_income(order, only_if_exists=True)
+                except Exception as e:  # ไม่ให้การจบรายการพัง
+                    print(f"⚠️ แก้ยอดรายรับอัตโนมัติไม่สำเร็จ Order #{order.id}: {e}")
         payload = _checklist_payload(order)
         _sync_checklist_note(order, payload['missing'])
         return Response(payload)

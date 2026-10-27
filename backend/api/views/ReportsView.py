@@ -8,6 +8,11 @@ from api.models import Order, Bike
 from api.models.Cashflow import CashflowEntry
 
 
+def _sold_orders():
+    """✅ เฉพาะงานขายที่ "จบรายการ" (ตัดขาย) แล้ว - รายการที่ยังรอจบไม่นับในรายงาน"""
+    return Order.objects.filter(sale_status='completed')
+
+
 # =========================
 # THAI MONTH MAPPING
 # =========================
@@ -180,7 +185,7 @@ def get_total_cashflow_expense():
 @permission_classes([IsAuthenticated])
 def sales_volume(request):
     qs = (
-        Order.objects.all()
+        _sold_orders()
         .annotate(
             year=ExtractYear("sale_date"),
             month=ExtractMonth("sale_date"),
@@ -206,7 +211,7 @@ def sales_volume(request):
 def sales_by_condition(request):
     result_map = {}
     
-    for order in Order.objects.all():
+    for order in _sold_orders():
         if not order.sale_date:
             continue
         
@@ -235,7 +240,7 @@ def sales_by_condition(request):
 @permission_classes([IsAuthenticated])
 def sales_payment_method(request):
     qs = (
-        Order.objects.values("payment_method")
+        _sold_orders().values("payment_method")
         .annotate(total_sales=Count("id"))
         .order_by("-total_sales")
     )
@@ -249,7 +254,7 @@ def vehicle_type_total(request):
     new_count = 0
     pre_owned_count = 0
     
-    for order in Order.objects.all():
+    for order in _sold_orders():
         new_count += order.bikes.filter(category="new").count()
         pre_owned_count += order.bikes.filter(category="pre_owned").count()
     
@@ -266,7 +271,7 @@ def vehicle_type_total(request):
 def sales_by_model(request):
     result_map = {}
     
-    for order in Order.objects.select_related().all():
+    for order in _sold_orders():
         if not order.sale_date:
             continue
         
@@ -386,7 +391,7 @@ def financial_summary(request):
 def _financial_summary_impl(request):
     result_map = {}
     
-    for order in Order.objects.select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
+    for order in _sold_orders().select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
         if not order.sale_date:
             continue
 
@@ -487,7 +492,7 @@ def _financial_by_model_impl(request):
 
     result_map = {}
     
-    for order in Order.objects.select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
+    for order in _sold_orders().select_related('customer').prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
         if not order.sale_date:
             continue
 
@@ -554,7 +559,7 @@ def _financial_overview_impl(request):
     total_additional_fees = 0
     total_orders = 0
     
-    for order in Order.objects.prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
+    for order in _sold_orders().prefetch_related('bikes', 'additional_fees', 'gifts__item').all():
         try:
             # ✅ รายได้ = ราคาสินค้า + ค่าใช้จ่ายเพิ่มเติมที่เก็บจากลูกค้า
             order_additional_fee_revenue = get_additional_fee_revenue(order)

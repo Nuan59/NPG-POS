@@ -8,7 +8,7 @@ from django.db.models import Sum, Q
 from django.utils import timezone
 
 from api.models import NPGAccount, NPGPayment
-from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income
+from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income, handover_block
 from api.models.NPGPayment import NPGFee
 from api.serializers.NPGSerializer import (
     NPGAccountSerializer,
@@ -92,14 +92,19 @@ def _customer_name(account):
     return order.customer.name if order and order.customer else '-'
 
 
-def _post_payment_income(payment, account, label=None):
+def _user_name(request):
+    return getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or ''
+
+
+def _post_payment_income(payment, account, label=None, only_if_exists=False):
     """✅ รายรับอัตโนมัติของค่างวด NPG (รวมค่าปรับที่เก็บพร้อมงวด)"""
     total = float(payment.amount_paid or 0) + float(payment.late_fee or 0)
     cash, transfer = split_payment(total, payment.payment_method, payment.cash_amount)
     label = label or f"ค่างวด NPG #{account.id} งวดที่ {payment.installment_number}"
     user = payment.created_by
     name = (getattr(user, 'name', '') or getattr(user, 'username', '')) if user else ''
-    sync_auto_income('npg_payment', payment.id, cash, transfer, f"รับเงิน · {label} · {_customer_name(account)}", name)
+    sync_auto_income('npg_payment', payment.id, cash, transfer, f"รับเงิน · {label} · {_customer_name(account)}", name,
+                     only_if_exists=only_if_exists)
 
 
 def _recalc_account(account):
@@ -425,10 +430,13 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             return Response({'error': 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบค่าธรรมเนียมได้'}, status=status.HTTP_403_FORBIDDEN)
 
         account = self.get_object()
+        blocked = handover_block('npg_fee', int(fee_id))
+        if blocked:
+            return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
         deleted, _ = NPGFee.objects.filter(id=fee_id, account=account).delete()
         if not deleted:
             return Response({'error': 'ไม่พบรายการค่าธรรมเนียม'}, status=status.HTTP_404_NOT_FOUND)
-        remove_auto_income('npg_fee', int(fee_id))
+        remove_auto_income('npg_fee', int(fee_id), _user_name(request))
 
         return Response({'message': 'ลบค่าธรรมเนียมสำเร็จ'})
 
@@ -497,6 +505,17 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         payment = self.get_object()
         account = payment.account
 
+        # ✅ ส่งเงินไปแล้ว ห้ามเปลี่ยนยอด / วิธีชำระ (แก้หมายเหตุ / วันที่ได้ตามปกติ)
+        blocked = handover_block('npg_payment', payment.id)
+        if blocked:
+            try:
+                amount_changed = 'amount_paid' in request.data and float(request.data.get('amount_paid')) != float(payment.amount_paid)
+            except (TypeError, ValueError):
+                amount_changed = True
+            method_changed = 'payment_method' in request.data and (request.data.get('payment_method') or '') != (payment.payment_method or '')
+            if amount_changed or method_changed:
+                return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
+
         if 'amount_paid' in request.data:
             try:
                 new_amount = float(request.data.get('amount_paid'))
@@ -526,7 +545,9 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         # ✅ รายรับอัตโนมัติแก้ตาม (ยอด / วิธีชำระ)
         payment.refresh_from_db()
         is_close = (payment.note or '').startswith('ปิดบัญชี')
-        _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None)
+        # only_if_exists: ค่างวดที่รับก่อนมีระบบนี้ (พนักงานพิมพ์รายรับเอง) ไม่ลงใหม่ซ้ำ
+        _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None,
+                             only_if_exists=True)
 
         return Response({
             'message': 'แก้ไขรายการชำระเงินสำเร็จ',
@@ -546,8 +567,11 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         payment = self.get_object()
         account = payment.account
         payment_id = payment.id
+        blocked = handover_block('npg_payment', payment_id)
+        if blocked:
+            return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
         payment.delete()
-        remove_auto_income('npg_payment', payment_id)
+        remove_auto_income('npg_payment', payment_id, _user_name(request))
 
         # คำนวณยอดบัญชีใหม่ทั้งหมดจากทุก payment ที่เหลืออยู่จริง
         _recalc_account(account)

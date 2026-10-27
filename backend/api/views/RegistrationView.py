@@ -12,7 +12,8 @@ def registration_list(request):
     status_filter = request.query_params.get('status', None)
 
     orders = Order.objects.select_related('customer', 'seller').prefetch_related('bikes').filter(
-        sale_date__isnull=False
+        sale_date__isnull=False,
+        sale_status='completed',  # ✅ รายการที่ยังรอจบ ยังไม่ขึ้นงานทะเบียน
     ).order_by('-created_at')
 
     now = timezone.now()

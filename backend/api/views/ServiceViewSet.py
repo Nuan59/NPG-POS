@@ -6,7 +6,7 @@ API งานบริการ (ซ่อม / ต่อภาษี+พรบ 
   GET    /service/?customer=<id>    รายการของลูกค้าคนนั้น
   GET    /service/<id>/             รายละเอียด
   POST   /service/                  บันทึกรายการใหม่
-  DELETE /service/<id>/             ลบ (ไม่แตะรถ/สต็อกใดๆ) + ลบรายรับอัตโนมัติของรายการนี้
+  DELETE /service/<id>/             ลบ (ไม่แตะรถ/สต็อกใดๆ) + ยกเลิกรายรับอัตโนมัติ (ส่งเงินไปแล้วลบไม่ได้)
   ✅ บันทึกแล้วลง "รายรับ" ในหน้า รายรับ-รายจ่าย ให้อัตโนมัติ (เงินสด / โอน แยกตามรูปแบบการชำระ)
 """
 from django.utils import timezone
@@ -16,7 +16,7 @@ from rest_framework.response import Response
 
 from api.models import Customer, Bike
 from api.models.ServiceRecord import ServiceRecord
-from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income
+from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income, handover_block
 
 
 class ServiceRecordSerializer(serializers.ModelSerializer):
@@ -160,6 +160,11 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         record_id = self.get_object().id
+        # ✅ ส่งเงินไปแล้ว ห้ามลบ (ต้องให้ adm ยกเลิกการส่งก่อน)
+        blocked = handover_block('service', record_id)
+        if blocked:
+            return Response({'error': blocked, 'message': blocked}, status=status.HTTP_400_BAD_REQUEST)
         response = super().destroy(request, *args, **kwargs)
-        remove_auto_income('service', record_id)
+        # รายรับอัตโนมัติ: ของวันนี้ลบทิ้ง / ของวันก่อนลงแถว "ยกเลิก" วันนี้แทน
+        remove_auto_income('service', record_id, getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '')
         return response

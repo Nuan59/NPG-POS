@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Lock, X } from "lucide-react";
 
@@ -27,6 +28,7 @@ interface ChecklistData {
   marks: ChecklistMark[];
   missing: string[];
   finished: { checked_by: string; checked_at: string } | null;
+  sale_status?: "pending" | "completed";
 }
 
 const timeTH = (iso?: string | null) =>
@@ -37,9 +39,11 @@ const timeTH = (iso?: string | null) =>
 /**
  * เช็คลิสต์หลังขาย (หน้า documents)
  * - ทุกคนติ๊กได้ / เอาติ๊กออกได้เฉพาะ adm / ผู้ตรวจสอบ (mon) ดูอย่างเดียว
- * - "จบรายการ" กดได้แม้ยังไม่ครบ แต่ข้อที่ขาดจะไปขึ้นในหมายเหตุของรายการขาย
+ * - "จบรายการ" = ตัดขายจริง (รถออกจากสต็อก / นับยอดขาย / บัญชี NPG) แล้วกลับหน้ารายการขาย
+ *   กดได้แม้ยังไม่ครบ แต่ข้อที่ขาดจะไปขึ้นในหมายเหตุของรายการขาย
  */
 export default function SaleChecklist({ orderId }: { orderId: number }) {
+  const router = useRouter();
   const { data: session } = useSession();
   const token = (session as any)?.user?.accessToken as string | undefined;
   const role = String((session as any)?.user?.role ?? "").toLowerCase();
@@ -90,7 +94,11 @@ export default function SaleChecklist({ orderId }: { orderId: number }) {
   const finish = () =>
     run("_finish", async () => {
       const d = await call("POST", "checklist_finish/");
-      toast.success(d.missing.length ? "จบรายการแล้ว (ข้อที่ขาดอยู่ในหมายเหตุ)" : "จบรายการแล้ว เช็คครบทุกข้อ");
+      toast.success(
+        d.missing.length ? "จบรายการแล้ว ตัดขายเรียบร้อย (ข้อที่ขาดอยู่ในหมายเหตุ)" : "จบรายการแล้ว ตัดขายเรียบร้อย"
+      );
+      router.push("/sales");
+      router.refresh();
       return d;
     });
 
@@ -200,7 +208,7 @@ export default function SaleChecklist({ orderId }: { orderId: number }) {
           <button
             type="button"
             disabled={!!busyKey}
-            onClick={() => (data.missing.length ? setConfirmOpen(true) : finish())}
+            onClick={() => setConfirmOpen(true)}
             className="w-full rounded-xl py-3 text-base font-semibold bg-orange-500 hover:bg-orange-600 disabled:bg-slate-400 text-white"
           >
             {busyKey === "_finish" ? "กำลังบันทึก..." : "จบรายการ"}
@@ -212,17 +220,27 @@ export default function SaleChecklist({ orderId }: { orderId: number }) {
       {confirmOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 grid place-items-center p-4" onClick={() => setConfirmOpen(false)}>
           <div className="bg-white rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-            <p className="text-lg font-bold mb-1">ยังเช็คไม่ครบ {data.missing.length} ข้อ</p>
-            <p className="text-sm text-slate-600 mb-2">จะบันทึกลงหมายเหตุของรายการขายว่า</p>
-            <div className="text-sm bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-4">
-              <b>เช็คลิสต์ขาด:</b> {data.missing.join(", ")}
-            </div>
+            {/* ✅ จบรายการ = ตัดขาย ยืนยันทุกครั้ง */}
+            <p className="text-lg font-bold mb-1">จบรายการ / ตัดขาย?</p>
+            <p className="text-sm text-slate-600 mb-3">รถจะออกจากสต็อก และนับเป็นยอดขาย</p>
+            {data.missing.length > 0 ? (
+              <>
+                <p className="text-sm text-slate-600 mb-2">
+                  ยังเช็คไม่ครบ {data.missing.length} ข้อ จะบันทึกลงหมายเหตุว่า
+                </p>
+                <div className="text-sm bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-4">
+                  <b>เช็คลิสต์ขาด:</b> {data.missing.join(", ")}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2 mb-4">เช็คครบทุกข้อแล้ว</p>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={() => setConfirmOpen(false)}
                 className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700"
               >
-                กลับไปเช็ค
+                ยกเลิก
               </button>
               <button
                 onClick={() => {

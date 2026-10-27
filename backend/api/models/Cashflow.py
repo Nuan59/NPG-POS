@@ -26,6 +26,12 @@ class CashflowEntry(models.Model):
 
     created_by = models.CharField(max_length=255, blank=True, default="")  # ชื่อพนักงานที่บันทึกรายการนี้
 
+    # ✅ รายรับอัตโนมัติ - ชี้กลับไปรายการต้นทาง (sale / service / npg_payment / npg_fee + id)
+    # ว่าง = พิมพ์เอง / มีค่า = ระบบลงให้ตอนรับเงิน (แก้/ลบตามรายการต้นทางให้เอง)
+    # คอลัมน์สร้างผ่าน /dev/add-cashflow-auto-columns/
+    auto_source = models.CharField(max_length=20, blank=True, default="")
+    auto_source_id = models.BigIntegerField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

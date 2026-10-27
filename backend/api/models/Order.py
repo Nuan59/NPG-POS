@@ -151,6 +151,17 @@ class Order(models.Model):
     )
     
     created_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    # ✅ สถานะการขาย - "pending" = กด "ทำรายการ" แล้ว รอจบรายการ (ยังไม่ตัดขาย ไม่นับยอด)
+    #                   "completed" = กด "จบรายการ" แล้ว (ตัดขายจริง) - ออเดอร์เก่าทั้งหมดเป็น completed
+    # คอลัมน์สร้างผ่าน /dev/add-order-sale-status-columns/
+    SALE_STATUS_CHOICES = [
+        ('pending', 'รอจบ'),
+        ('completed', 'จบรายการแล้ว'),
+    ]
+    sale_status = models.CharField(max_length=20, choices=SALE_STATUS_CHOICES, default='completed')
+    # ✅ ข้อมูลตอนทำรายการที่ต้องใช้ตอนจบรายการ (เช่น ผ่อนดาวน์) - ใช้ภายในเท่านั้น
+    checkout_extra = models.JSONField(null=True, blank=True)
     
     # ✅ วันหมดอายุทะเบียน
     registration_expiry_date = models.DateField(

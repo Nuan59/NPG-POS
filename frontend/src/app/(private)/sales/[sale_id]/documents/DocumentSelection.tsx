@@ -150,10 +150,15 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
               />
             </svg>
           </div>
+          {/* ✅ รอจบ = ทำรายการแล้วแต่ยังไม่ตัดขาย / จบรายการแล้ว = ตัดขายแล้ว */}
           <h1 className="text-4xl font-bold text-gray-800 mb-3">
-            ชำระเงินสำเร็จ!
+            {order.sale_status === "pending" ? "ทำรายการแล้ว" : "จบรายการแล้ว"}
           </h1>
-          <p className="text-gray-600 text-lg">เลือกเอกสารที่ต้องการพิมพ์</p>
+          <p className="text-gray-600 text-lg">
+            {order.sale_status === "pending"
+              ? "พิมพ์เอกสาร เช็คลิสต์ แล้วกด \"จบรายการ\" เพื่อตัดขาย"
+              : "เลือกเอกสารที่ต้องการพิมพ์"}
+          </p>
         </div>
 
         {/* Document Cards */}

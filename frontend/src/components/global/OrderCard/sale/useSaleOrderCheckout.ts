@@ -224,7 +224,8 @@ export const useSaleOrderCheckout = ({
         const data = await checkout.data;
         const orderId = data?.data;
 
-        toast.success("ชำระเงินสำเร็จ!");
+        // ✅ ยังไม่ตัดขาย - ตัดขายจริงตอนกด "จบรายการ" ที่หน้าเอกสาร
+        toast.success("ทำรายการแล้ว · เช็คลิสต์แล้วกดจบรายการเพื่อตัดขาย");
         resetOrder();
         if (orderId) {
           router.push(`/sales/${orderId}/documents`);
@@ -233,7 +234,7 @@ export const useSaleOrderCheckout = ({
         }
       } else {
         const error = await checkout?.data;
-        toast.error(getErrorMessage(error, "สั่งซื้อไม่สำเร็จ"));
+        toast.error(getErrorMessage(error, "ทำรายการไม่สำเร็จ"));
       }
     } catch (err) {
       console.error("❌ sale checkout error:", err);
