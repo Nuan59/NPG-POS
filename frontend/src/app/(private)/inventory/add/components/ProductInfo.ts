@@ -32,13 +32,6 @@ export const product_info: ProductInfoItem[] = [
       { label: "Kawasaki", value: "Kawasaki" }
     ],
   },
-  // ✅ ที่มาของรถ (ร้าน / ซัพพลายเออร์) - dropdown โค้ดสั้น พนักงานเพิ่มที่มาใหม่ได้เลย
-  {
-    name: "source",
-    label: "ที่มา",
-    placeholder: "เลือกที่มา",
-    custom: true,
-  },
   {
     name: "model_name",
     label: "ชื่อรุ่น",

@@ -57,8 +57,8 @@ interface BikeSourceOption {
 
 /**
  * ✅ dropdown ที่มาของรถ
- * - พนักงานเห็นแค่โค้ด / adm เห็น "โค้ด · ชื่อเต็ม"
- * - เลือก "+ เพิ่มที่มาใหม่" → กรอกโค้ด + ชื่อร้าน แล้วเลือกให้อัตโนมัติ
+ * - พนักงาน: เห็นแค่โค้ด / เพิ่มที่มาใหม่ได้โดยกรอกแค่โค้ด
+ * - adm: เห็น "โค้ด · ชื่อเต็ม" / เพิ่มใหม่ใส่ชื่อได้ / กด "เติมชื่อ" ให้โค้ดที่พนักงานเพิ่มไว้ได้
  */
 const SourceSelect = ({
   value,
@@ -72,7 +72,7 @@ const SourceSelect = ({
   isAdm: boolean;
 }) => {
   const [sources, setSources] = useState<BikeSourceOption[]>([]);
-  const [adding, setAdding] = useState(false);
+  const [mode, setMode] = useState<"none" | "add" | "name">("none");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -85,30 +85,54 @@ const SourceSelect = ({
       .catch(() => setSources([]));
   }, [token]);
 
-  const label = (s: BikeSourceOption) => (isAdm && s.name ? `${s.code} · ${s.name}` : s.code);
+  const selected = sources.find((s) => String(s.id) === value);
+  const label = (s: BikeSourceOption) =>
+    isAdm ? `${s.code} · ${s.name ? s.name : "(ยังไม่มีชื่อ)"}` : s.code;
+
+  const close = () => {
+    setMode("none");
+    setCode("");
+    setName("");
+  };
 
   const save = async () => {
-    const c = code.replace(/\s+/g, "").toUpperCase();
-    if (!c) return toast.error("กรุณากรอกโค้ด");
-    if (!name.trim()) return toast.error("กรุณากรอกชื่อร้าน / ซัพพลายเออร์");
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/bike-sources/`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ code: c, name: name.trim() }),
-      });
-      const d = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(d?.error || "เพิ่มที่มาไม่สำเร็จ");
-        return;
+      if (mode === "add") {
+        const c = code.replace(/\s+/g, "").toUpperCase();
+        if (!c) {
+          toast.error("กรุณากรอกโค้ด");
+          return;
+        }
+        const res = await fetch(`${API_BASE_URL}/bike-sources/`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ code: c, name: isAdm ? name.trim() : "" }),
+        });
+        const d = await res.json().catch(() => null);
+        if (!res.ok) {
+          toast.error(d?.error || "เพิ่มที่มาไม่สำเร็จ");
+          return;
+        }
+        setSources((prev) => [...prev, d].sort((x, y) => x.code.localeCompare(y.code)));
+        onChange(String(d.id));
+        toast.success(`เพิ่มที่มา ${d.code} แล้ว`);
+        close();
+      } else if (mode === "name" && selected) {
+        const res = await fetch(`${API_BASE_URL}/bike-sources/${selected.id}/`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() }),
+        });
+        const d = await res.json().catch(() => null);
+        if (!res.ok) {
+          toast.error(d?.error || "บันทึกชื่อไม่สำเร็จ");
+          return;
+        }
+        setSources((prev) => prev.map((s) => (s.id === d.id ? d : s)));
+        toast.success(`บันทึกชื่อ ${d.code} แล้ว`);
+        close();
       }
-      setSources((prev) => [...prev, d].sort((a, b) => a.code.localeCompare(b.code)));
-      onChange(String(d.id));
-      setAdding(false);
-      setCode("");
-      setName("");
-      toast.success(`เพิ่มที่มา ${d.code} แล้ว`);
     } catch {
       toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
     } finally {
@@ -118,61 +142,89 @@ const SourceSelect = ({
 
   return (
     <div className="flex flex-col gap-2">
-      <Select
-        value={value || ""}
-        onValueChange={(v) => {
-          if (v === "__new__") {
-            setAdding(true);
-            return;
-          }
-          onChange(v);
-        }}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="เลือกที่มา" />
-        </SelectTrigger>
-        <SelectContent>
-          {sources.map((s) => (
-            <SelectItem key={s.id} value={String(s.id)}>
-              {label(s)}
+      <div className="flex gap-2">
+        <Select
+          value={value || ""}
+          onValueChange={(v) => {
+            if (v === "__new__") {
+              setMode("add");
+              return;
+            }
+            onChange(v);
+          }}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="เลือกที่มา" />
+          </SelectTrigger>
+          <SelectContent>
+            {sources.map((s) => (
+              <SelectItem key={s.id} value={String(s.id)}>
+                {label(s)}
+              </SelectItem>
+            ))}
+            <SelectItem value="__new__" className="text-orange-600 font-medium">
+              + เพิ่มที่มาใหม่
             </SelectItem>
-          ))}
-          <SelectItem value="__new__" className="text-orange-600 font-medium">
-            + เพิ่มที่มาใหม่
-          </SelectItem>
-        </SelectContent>
-      </Select>
+          </SelectContent>
+        </Select>
+        {/* adm: เติม/แก้ชื่อเต็มของที่มาที่เลือกอยู่ */}
+        {isAdm && selected && mode === "none" && (
+          <Button
+            type="button"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => {
+              setName(selected.name || "");
+              setMode("name");
+            }}
+          >
+            {selected.name ? "แก้ชื่อ" : "เติมชื่อ"}
+          </Button>
+        )}
+      </div>
 
-      {adding && (
+      {mode !== "none" && (
         <div className="border rounded-md p-2 flex flex-col gap-2 bg-orange-50/50">
           <div className="flex gap-2">
-            <Input
-              autoFocus
-              className="w-28 uppercase"
-              placeholder="โค้ด เช่น AP"
-              maxLength={20}
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-            />
-            <Input
-              className="flex-1"
-              placeholder="ชื่อร้าน / ซัพพลายเออร์"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  save();
-                }
-              }}
-            />
+            {mode === "add" && (
+              <Input
+                autoFocus
+                className={isAdm ? "w-28 uppercase" : "flex-1 uppercase"}
+                placeholder="โค้ด เช่น AP"
+                maxLength={20}
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    save();
+                  }
+                }}
+              />
+            )}
+            {isAdm && (
+              <Input
+                autoFocus={mode === "name"}
+                className="flex-1"
+                placeholder={mode === "name" ? `ชื่อเต็มของ ${selected?.code ?? ""}` : "ชื่อร้าน / ซัพพลายเออร์ (ใส่ทีหลังได้)"}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    save();
+                  }
+                }}
+              />
+            )}
           </div>
           <div className="flex gap-2 justify-end">
-            <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)} disabled={saving}>
+            <Button type="button" size="sm" variant="ghost" onClick={close} disabled={saving}>
               ยกเลิก
             </Button>
             <Button type="button" size="sm" onClick={save} disabled={saving} className="gap-1">
-              <Plus size={14} /> {saving ? "กำลังบันทึก..." : "เพิ่มที่มา"}
+              {mode === "add" ? <Plus size={14} /> : null}
+              {saving ? "กำลังบันทึก..." : mode === "add" ? "เพิ่มที่มา" : "บันทึกชื่อ"}
             </Button>
           </div>
         </div>
@@ -392,14 +444,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
                       <FormLabel>{item.label}</FormLabel>
                       <div className={controlWrap}>
                         <FormControl>
-                          {item.custom && item.name === "source" ? (
-                            <SourceSelect
-                              value={field.value == null ? "" : String(field.value)}
-                              onChange={field.onChange}
-                              token={token}
-                              isAdm={isAdm}
-                            />
-                          ) : item.options ? (
+                          {item.options ? (
                             <Select
                               value={(field.value ?? "") as string}
                               onValueChange={field.onChange}
@@ -450,6 +495,27 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
               )}
             </h4>
             <div className="flex flex-col gap-2">
+              {/* ✅ ที่มาของรถ (ร้าน / ซัพพลายเออร์) - บังคับทุกคัน */}
+              <FormField
+                control={form.control}
+                name="source"
+                render={({ field }) => (
+                  <FormItem className="flex items-start justify-between gap-5">
+                    <FormLabel className="pt-3">ที่มา</FormLabel>
+                    <div className={controlWrap}>
+                      <FormControl>
+                        <SourceSelect
+                          value={field.value == null ? "" : String(field.value)}
+                          onChange={field.onChange}
+                          token={token}
+                          isAdm={isAdm}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
               <DateSelector date={selectedDate} setDate={setSelectedDate} />
               {price_info(storages).map((item) => {
                 if (item.admin && userInfo?.role !== "adm") return null;

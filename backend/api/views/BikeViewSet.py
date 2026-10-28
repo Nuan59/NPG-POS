@@ -36,8 +36,8 @@ class BikeSourceViewSet(viewsets.ViewSet):
     """
     ที่มาของรถ (ร้าน / ซัพพลายเออร์ที่รับรถมา)
       GET   /bike-sources/        ทุกคน (พนักงานได้แค่โค้ด / adm ได้ชื่อเต็มด้วย)
-      POST  /bike-sources/        { code, name }  ทุกคนเพิ่มได้ - โค้ดเป็นตัวพิมพ์ใหญ่ ห้ามซ้ำ
-      PATCH /bike-sources/<id>/   { code?, name? }  เฉพาะ adm
+      POST  /bike-sources/        { code, name? }  ทุกคนเพิ่มได้ - โค้ดตัวพิมพ์ใหญ่ ห้ามซ้ำ (ชื่อเต็มเฉพาะ adm ใส่ได้)
+      PATCH /bike-sources/<id>/   { code?, name? }  เฉพาะ adm (เติมชื่อให้โค้ดที่พนักงานเพิ่มไว้)
     """
     permission_classes = [IsAuthenticated]
 
@@ -58,9 +58,8 @@ class BikeSourceViewSet(viewsets.ViewSet):
         code, err = self._clean_code(request.data.get('code'))
         if err:
             return Response({'error': err}, status=status.HTTP_400_BAD_REQUEST)
-        name = str(request.data.get('name') or '').strip()
-        if not name:
-            return Response({'error': 'กรุณากรอกชื่อร้าน / ซัพพลายเออร์'}, status=status.HTTP_400_BAD_REQUEST)
+        # ✅ พนักงานใส่แค่โค้ด (ชื่อเต็มไม่บันทึก) / adm ใส่ชื่อได้ หรือเติมทีหลังด้วย PATCH
+        name = str(request.data.get('name') or '').strip() if _is_adm(request) else ''
         if BikeSource.objects.filter(code__iexact=code).exists():
             return Response({'error': f'โค้ด {code} มีอยู่แล้ว'}, status=status.HTTP_400_BAD_REQUEST)
         src = BikeSource.objects.create(
