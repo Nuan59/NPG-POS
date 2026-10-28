@@ -13,6 +13,12 @@ export const BikeColumns: ColumnDef<IBike>[] = [
 		cell: ({ row }) => row.original.brand || "-",
 	},
 	{
+		// ✅ ที่มาของรถ (โค้ด)
+		accessorKey: "source_code",
+		header: "ที่มา",
+		cell: ({ row }) => row.original.source_code || "-",
+	},
+	{
 		accessorKey: "model_name",
 		header: "ชื่อรุ่น",
 		cell: ({ row }) => row.original.model_name || "-",
@@ -55,4 +61,4 @@ export const BikeColumns: ColumnDef<IBike>[] = [
 			return <BikeRowButtons bike={bike} />;
 		},
 	},
-];	
+];

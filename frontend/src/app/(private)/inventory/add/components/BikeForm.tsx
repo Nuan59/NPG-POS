@@ -38,7 +38,16 @@ import { asOptionalField } from "@/util/ZodOptionalField";
 import DateSelector from "./DateSelector";
 import { createBike, editBike } from "@/services/InventoryService";
 import { getDate } from "@/util/GetDateString";
-import { Info, Plus } from "lucide-react";
+import { Info, Check, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useSession } from "next-auth/react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -55,27 +64,44 @@ interface BikeSourceOption {
   name?: string; // มีเฉพาะ adm
 }
 
+const LAST_SOURCE_KEY = "npg_last_bike_source";
+const readLastSource = () => {
+  try {
+    return window.localStorage.getItem(LAST_SOURCE_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+const saveLastSource = (id: string) => {
+  try {
+    if (id) window.localStorage.setItem(LAST_SOURCE_KEY, id);
+  } catch {
+    /* ไม่มี localStorage ก็ไม่เป็นไร */
+  }
+};
+
 /**
- * ✅ dropdown ที่มาของรถ
- * - พนักงาน: เห็นแค่โค้ด / เพิ่มที่มาใหม่ได้โดยกรอกแค่โค้ด
- * - adm: เห็น "โค้ด · ชื่อเต็ม" / เพิ่มใหม่ใส่ชื่อได้ / กด "เติมชื่อ" ให้โค้ดที่พนักงานเพิ่มไว้ได้
+ * ✅ dropdown ที่มาของรถ (เลือกอย่างเดียว - พิมพ์ค้นหาโค้ด/ชื่อได้)
+ * - พนักงานเห็นแค่โค้ด / adm เห็น "โค้ด · ชื่อเต็ม"
+ * - เพิ่มสินค้าใหม่: เลือกที่มาล่าสุดที่เคยใช้ในเครื่องนี้ให้อัตโนมัติ (ลงรถหลายคันจากดีลเลอร์เดียว)
+ * - เพิ่ม / แก้ไขที่มา ที่เมนู คลัง → แท็บ "ที่มารถ"
  */
 const SourceSelect = ({
   value,
   onChange,
   token,
   isAdm,
+  rememberLast = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   token?: string;
   isAdm: boolean;
+  rememberLast?: boolean;
 }) => {
-  const [sources, setSources] = useState<BikeSourceOption[]>([]);
-  const [mode, setMode] = useState<"none" | "add" | "name">("none");
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [sources, setSources] = useState<BikeSourceOption[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [usedLast, setUsedLast] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -85,149 +111,64 @@ const SourceSelect = ({
       .catch(() => setSources([]));
   }, [token]);
 
-  const selected = sources.find((s) => String(s.id) === value);
+  // ✅ เพิ่มสินค้าใหม่: ใส่ที่มาล่าสุดให้ (ถ้ายังมีอยู่ในระบบ)
+  useEffect(() => {
+    if (!rememberLast || value || !sources?.length) return;
+    const last = readLastSource();
+    if (last && sources.some((s) => String(s.id) === last)) {
+      onChange(last);
+      setUsedLast(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sources, rememberLast]);
+
   const label = (s: BikeSourceOption) =>
     isAdm ? `${s.code} · ${s.name ? s.name : "(ยังไม่มีชื่อ)"}` : s.code;
-
-  const close = () => {
-    setMode("none");
-    setCode("");
-    setName("");
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      if (mode === "add") {
-        const c = code.replace(/\s+/g, "").toUpperCase();
-        if (!c) {
-          toast.error("กรุณากรอกโค้ด");
-          return;
-        }
-        const res = await fetch(`${API_BASE_URL}/bike-sources/`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ code: c, name: isAdm ? name.trim() : "" }),
-        });
-        const d = await res.json().catch(() => null);
-        if (!res.ok) {
-          toast.error(d?.error || "เพิ่มที่มาไม่สำเร็จ");
-          return;
-        }
-        setSources((prev) => [...prev, d].sort((x, y) => x.code.localeCompare(y.code)));
-        onChange(String(d.id));
-        toast.success(`เพิ่มที่มา ${d.code} แล้ว`);
-        close();
-      } else if (mode === "name" && selected) {
-        const res = await fetch(`${API_BASE_URL}/bike-sources/${selected.id}/`, {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim() }),
-        });
-        const d = await res.json().catch(() => null);
-        if (!res.ok) {
-          toast.error(d?.error || "บันทึกชื่อไม่สำเร็จ");
-          return;
-        }
-        setSources((prev) => prev.map((s) => (s.id === d.id ? d : s)));
-        toast.success(`บันทึกชื่อ ${d.code} แล้ว`);
-        close();
-      }
-    } catch {
-      toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const selected = (sources || []).find((s) => String(s.id) === value);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <Select
-          value={value || ""}
-          onValueChange={(v) => {
-            if (v === "__new__") {
-              setMode("add");
-              return;
-            }
-            onChange(v);
-          }}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="เลือกที่มา" />
-          </SelectTrigger>
-          <SelectContent>
-            {sources.map((s) => (
-              <SelectItem key={s.id} value={String(s.id)}>
-                {label(s)}
-              </SelectItem>
-            ))}
-            <SelectItem value="__new__" className="text-orange-600 font-medium">
-              + เพิ่มที่มาใหม่
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        {/* adm: เติม/แก้ชื่อเต็มของที่มาที่เลือกอยู่ */}
-        {isAdm && selected && mode === "none" && (
-          <Button
-            type="button"
-            variant="outline"
-            className="shrink-0"
-            onClick={() => {
-              setName(selected.name || "");
-              setMode("name");
-            }}
-          >
-            {selected.name ? "แก้ชื่อ" : "เติมชื่อ"}
+    <div className="flex flex-col gap-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
+            <span className={selected ? "truncate" : "truncate text-muted-foreground"}>
+              {selected ? label(selected) : "เลือกที่มา"}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 opacity-60" />
           </Button>
-        )}
-      </div>
-
-      {mode !== "none" && (
-        <div className="border rounded-md p-2 flex flex-col gap-2 bg-orange-50/50">
-          <div className="flex gap-2">
-            {mode === "add" && (
-              <Input
-                autoFocus
-                className={isAdm ? "w-28 uppercase" : "flex-1 uppercase"}
-                placeholder="โค้ด เช่น AP"
-                maxLength={20}
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    save();
-                  }
-                }}
-              />
-            )}
-            {isAdm && (
-              <Input
-                autoFocus={mode === "name"}
-                className="flex-1"
-                placeholder={mode === "name" ? `ชื่อเต็มของ ${selected?.code ?? ""}` : "ชื่อร้าน / ซัพพลายเออร์ (ใส่ทีหลังได้)"}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    save();
-                  }
-                }}
-              />
-            )}
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button type="button" size="sm" variant="ghost" onClick={close} disabled={saving}>
-              ยกเลิก
-            </Button>
-            <Button type="button" size="sm" onClick={save} disabled={saving} className="gap-1">
-              {mode === "add" ? <Plus size={14} /> : null}
-              {saving ? "กำลังบันทึก..." : mode === "add" ? "เพิ่มที่มา" : "บันทึกชื่อ"}
-            </Button>
-          </div>
-        </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[240px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="พิมพ์โค้ดเพื่อค้นหา..." />
+            <CommandList>
+              <CommandEmpty>ไม่พบที่มานี้</CommandEmpty>
+              <CommandGroup>
+                {(sources || []).map((s) => (
+                  <CommandItem
+                    key={s.id}
+                    value={`${s.code} ${isAdm ? s.name || "" : ""}`}
+                    onSelect={() => {
+                      onChange(String(s.id));
+                      saveLastSource(String(s.id));
+                      setUsedLast(false);
+                      setOpen(false);
+                    }}
+                    className="flex justify-between"
+                  >
+                    {label(s)}
+                    {String(s.id) === value && <Check className="h-4 w-4 opacity-70" />}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {usedLast && selected && (
+        <p className="text-xs text-muted-foreground">ใช้ที่มาล่าสุด ({selected.code}) · เปลี่ยนได้</p>
+      )}
+      {sources !== null && sources.length === 0 && (
+        <p className="text-xs text-orange-600">ยังไม่มีที่มา เพิ่มได้ที่เมนู คลัง → แท็บ &quot;ที่มารถ&quot;</p>
       )}
     </div>
   );
@@ -395,6 +336,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
         payload = { ...payload, sold: false };
         const req = await createBike(payload);
         if (req.status === "success") {
+          if (payload.source) saveLastSource(String(payload.source)); // ✅ จำที่มาไว้ใช้คันถัดไป
           toast.success("เพิ่มสินค้าเรียบร้อยแล้ว", { description: getDate(new Date()) });
           router.push("/inventory");
           return;
@@ -509,6 +451,7 @@ const BikeForm = ({ storages, bike }: BikeFormProps) => {
                           onChange={field.onChange}
                           token={token}
                           isAdm={isAdm}
+                          rememberLast={!bike}
                         />
                       </FormControl>
                       <FormMessage />

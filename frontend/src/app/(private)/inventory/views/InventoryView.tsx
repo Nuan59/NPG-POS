@@ -147,6 +147,19 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
   const [brandFilter, setBrandFilter] = useState("__ALL__");
   const [storageFilter, setStorageFilter] = useState("__ALL__");
   const [categoryFilter, setCategoryFilter] = useState("__ALL__");
+  const [sourceFilter, setSourceFilter] = useState("__ALL__"); // ✅ ที่มาของรถ (โค้ด)
+
+  // ✅ เปิดจากแท็บ "ที่มารถ" ในเมนูคลัง: /inventory/all?source=AP&sold=1
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const src = p.get("source");
+      if (src) setSourceFilter(src.toUpperCase());
+      if (p.get("sold") === "1") setIncludeSold(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // ✅ Handle row click - เพิ่มสินค้าเข้า Order
   const handleRowClick = (bike: IBike) => {
@@ -237,6 +250,17 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
 
 
 
+  // ✅ ตัวเลือกที่มา - ดึงจากรถที่มีในหน้านี้ (กรองในเครื่อง ไม่ยิง API เพิ่ม)
+  const sourceOptions: Option[] = useMemo(() => {
+    const codes = Array.from(new Set(bikes.map((b) => b.source_code).filter(Boolean) as string[])).sort();
+    const opts: Option[] = [{ value: "__ALL__", label: "ทั้งหมด" }, ...codes.map((c) => ({ value: c, label: c }))];
+    if (bikes.some((b) => !b.source_code)) opts.push({ value: "__NONE__", label: "ยังไม่ระบุที่มา" });
+    if (sourceFilter !== "__ALL__" && sourceFilter !== "__NONE__" && !codes.includes(sourceFilter)) {
+      opts.push({ value: sourceFilter, label: sourceFilter });
+    }
+    return opts;
+  }, [bikes, sourceFilter]);
+
   const categoryOptions: Option[] = [
     { value: "__ALL__", label: "ทั้งหมด" },
     { value: "new", label: "มือใหม่" },
@@ -263,6 +287,12 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
       filtered = filtered.filter((b) => b.category === categoryFilter);
     }
 
+    if (sourceFilter === "__NONE__") {
+      filtered = filtered.filter((b) => !b.source_code);
+    } else if (sourceFilter !== "__ALL__") {
+      filtered = filtered.filter((b) => (b.source_code || "").toUpperCase() === sourceFilter);
+    }
+
     setBikesDisplay(filtered);
   }, [
     bikes,
@@ -271,6 +301,7 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
     brandFilter,
     storageFilter,
     categoryFilter,
+    sourceFilter,
   ]);
 
   const clearFilters = () => {
@@ -279,6 +310,7 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
     setBrandFilter("__ALL__");
     setStorageFilter("__ALL__");
     setCategoryFilter("__ALL__");
+    setSourceFilter("__ALL__");
   };
 
   return (
@@ -315,7 +347,7 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-3 items-end">
+      <div className="mt-4 grid grid-cols-5 gap-3 items-end">
         <FilterSelect
           label="ยี่ห้อ"
           value={brandFilter}
@@ -329,6 +361,14 @@ const InventoryView = ({ bikes = [] }: InventoryViewProps) => {
           value={storageFilter}
           onChange={setStorageFilter}
           options={storageOptions}
+          placeholder="ทั้งหมด"
+        />
+
+        <FilterSelect
+          label="ที่มา"
+          value={sourceFilter}
+          onChange={setSourceFilter}
+          options={sourceOptions}
           placeholder="ทั้งหมด"
         />
 

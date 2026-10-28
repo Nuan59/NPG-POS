@@ -38,12 +38,33 @@ class BikeSourceViewSet(viewsets.ViewSet):
       GET   /bike-sources/        ทุกคน (พนักงานได้แค่โค้ด / adm ได้ชื่อเต็มด้วย)
       POST  /bike-sources/        { code, name? }  ทุกคนเพิ่มได้ - โค้ดตัวพิมพ์ใหญ่ ห้ามซ้ำ (ชื่อเต็มเฉพาะ adm ใส่ได้)
       PATCH /bike-sources/<id>/   { code?, name? }  เฉพาะ adm (เติมชื่อให้โค้ดที่พนักงานเพิ่มไว้)
+      DELETE /bike-sources/<id>/  เฉพาะ adm - ลบได้เฉพาะที่มาที่ยังไม่มีรถใช้อยู่
+    ✅ จัดการที่เมนู คลัง → แท็บ "ที่มารถ" (หน้าเพิ่มสินค้าเลือกจาก dropdown อย่างเดียว)
     """
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
-        qs = BikeSource.objects.all().order_by('code')
-        return Response(BikeSourceSerializer(qs, many=True, context={'request': request}).data)
+        from django.db.models import Count, Q
+        qs = BikeSource.objects.annotate(
+            n=Count('bikes'),
+            n_stock=Count('bikes', filter=Q(bikes__sold=False)),
+        ).order_by('code')
+        data = BikeSourceSerializer(qs, many=True, context={'request': request}).data
+        for row, src in zip(data, qs):
+            row['bike_count'] = src.n            # รถทั้งหมดที่ใช้ที่มานี้
+            row['in_stock'] = src.n_stock        # ยังไม่ขาย
+            row['sold_count'] = src.n - src.n_stock  # ขายแล้ว
+        return Response(data)
+
+    def destroy(self, request, pk=None):
+        if not _is_adm(request):
+            return Response({'error': 'เฉพาะ adm เท่านั้น'}, status=status.HTTP_403_FORBIDDEN)
+        src = get_object_or_404(BikeSource, pk=pk)
+        n = Bike.objects.filter(source=src).count()
+        if n:
+            return Response({'error': f'ลบไม่ได้ มีรถใช้ที่มา {src.code} อยู่ {n} คัน'}, status=status.HTTP_400_BAD_REQUEST)
+        src.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @staticmethod
     def _clean_code(raw):

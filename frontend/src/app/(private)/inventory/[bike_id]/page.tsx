@@ -66,6 +66,11 @@ export default async function InventoryViewPage({ params }: PageProps) {
     { label: "เลขเครื่อง", value: bike.engine },
     { label: "เลขตัวถัง", value: bike.chassi },
     { label: "ประเภทสินค้า", value: categoryLabel },
+    // ✅ ที่มาของรถ - adm เห็นชื่อเต็มด้วย (backend ส่ง source_name มาเฉพาะ adm)
+    {
+      label: "ที่มา",
+      value: bike.source_code ? (bike.source_name ? `${bike.source_code} · ${bike.source_name}` : bike.source_code) : "-",
+    },
   ];
 
   // ✅ ถ้าเป็นรถมือสอง เพิ่มฟิลด์ทะเบียนและวันหมดอายุ
