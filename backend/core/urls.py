@@ -728,6 +728,32 @@ def add_order_sale_status_columns(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: เช็คอินงานประจำวัน - ตาราง task_checkin + task_assignment_touch (เรียกซ้ำได้)
+def create_task_checkin_tables(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        user_table = django_apps.get_model('api', 'User')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS task_checkin (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES "{user_table}"(id) ON DELETE CASCADE,
+                    date DATE NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (user_id, date)
+                );
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS task_assignment_touch (
+                    assignment_id BIGINT PRIMARY KEY REFERENCES task_assignment(id) ON DELETE CASCADE,
+                    last_update_at TIMESTAMPTZ NOT NULL
+                );
+            """)
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตารางเช็คอินงานเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: ที่มาของรถ - สร้างตาราง bike_source + เพิ่มคอลัมน์ source_id ให้ตารางรถ (เรียกซ้ำได้)
 def create_bike_source_table(request):
     from django.db import connection
@@ -818,6 +844,7 @@ urlpatterns = [
     path('dev/add-order-sale-status-columns/', add_order_sale_status_columns),
     path('dev/add-cashflow-auto-columns/', add_cashflow_auto_columns),
     path('dev/create-bike-source-table/', create_bike_source_table),
+    path('dev/create-task-checkin-tables/', create_task_checkin_tables),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

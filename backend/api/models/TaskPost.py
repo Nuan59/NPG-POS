@@ -82,3 +82,30 @@ class TaskProgressLog(models.Model):
 
     def __str__(self):
         return f"ProgressLog-{self.id} - assignment {self.assignment_id} - +{self.amount}"
+
+
+class TaskCheckin(models.Model):
+    """
+    ✅ เช็คอินงานประจำวัน - พนักงานต้องอัปเดตงานค้างของตัวเองครบก่อนใช้ POS (วันละครั้ง)
+    1 แถว = พนักงาน 1 คน เช็คอินแล้วใน 1 วัน (วันที่ตามเวลาไทย)
+    ตารางสร้างผ่าน /dev/create-task-checkin-tables/
+    """
+    user = models.ForeignKey("User", on_delete=models.CASCADE, related_name="task_checkins")
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "task_checkin"
+        unique_together = ("user", "date")
+
+
+class TaskAssignmentTouch(models.Model):
+    """
+    ✅ เวลาที่พนักงานอัปเดตงานนี้ล่าสุด (เปลี่ยนสถานะ / เพิ่มความคืบหน้า / เช็คอิน)
+    แยกตารางไว้ ไม่เพิ่มคอลัมน์ใน task_assignment - หน้างานเดิมไม่กระทบแม้ยังไม่ได้สร้างตาราง
+    """
+    assignment = models.OneToOneField(TaskAssignment, on_delete=models.CASCADE, primary_key=True, related_name="touch")
+    last_update_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "task_assignment_touch"

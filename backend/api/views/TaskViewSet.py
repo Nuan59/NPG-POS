@@ -7,8 +7,49 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog
+from zoneinfo import ZoneInfo
+from django.db import transaction
+
+from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog, TaskCheckin, TaskAssignmentTouch
 from api.serializers.TaskSerializer import TaskPostSerializer
+
+
+def _today_bkk():
+    return timezone.localtime(timezone.now(), ZoneInfo("Asia/Bangkok")).date()
+
+
+def _touch(assignment):
+    """บันทึกเวลาอัปเดตงานล่าสุด - พังก็ไม่ให้งานหลักพัง (เช่น ยังไม่ได้สร้างตาราง)"""
+    try:
+        with transaction.atomic():
+            TaskAssignmentTouch.objects.update_or_create(
+                assignment=assignment, defaults={"last_update_at": timezone.now()}
+            )
+    except Exception:
+        pass
+
+
+def _is_reviewer_role(user):
+    return str(getattr(user, "role", "") or "").lower() in ("adm", "mon")
+
+
+def _assignment_brief(a, last_update=None):
+    now = timezone.now()
+    overdue = bool(a.due_date and a.status != "done" and a.due_date < now)
+    return {
+        "assignment_id": a.id,
+        "post_id": a.post_id,
+        "content": a.post.content,
+        "created_by": a.post.created_by,
+        "status": a.status,
+        "note": a.note,
+        "due_date": a.due_date,
+        "is_overdue": overdue,
+        "target_quantity": a.target_quantity,
+        "target_unit": a.target_unit,
+        "current_progress": a.current_progress,
+        "last_update_at": last_update,
+    }
 
 
 class TaskPostViewSet(viewsets.ModelViewSet):
@@ -131,6 +172,7 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             assignment.note = request.data.get("note") or ""
         assignment.completed_at = timezone.now() if new_status == "done" else None
         assignment.save()
+        _touch(assignment)
 
         return Response(self.get_serializer(post).data)
 
@@ -159,5 +201,119 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             assignment.status = "done"
             assignment.completed_at = timezone.now()
         assignment.save()
+        _touch(assignment)
 
         return Response(self.get_serializer(post).data)
+
+    # ================== เช็คอินงานประจำวัน ==================
+    # GET  /tasks/posts/checkin/            งานค้างของฉัน + ต้องเช็คอินวันนี้ไหม (required)
+    # POST /tasks/posts/checkin/            { items: [{ assignment_id, status, note?, add? }] }
+    #        ต้องส่งครบทุกงานที่ค้าง / ติดปัญหาต้องมีหมายเหตุ / add = ทำเพิ่มวันนี้ (งานที่มีเป้าจำนวน)
+    # GET  /tasks/posts/checkin_overview/   (adm / ผู้ตรวจสอบ) สรุปรายคน: เช็คอินแล้วไหม + งานค้าง + อัปเดตล่าสุด
+    # adm / ผู้ตรวจสอบ ไม่ต้องเช็คอิน
+
+    def _open_assignments(self, user):
+        return (
+            TaskAssignment.objects.filter(employee=user, post__post_type="assigned")
+            .exclude(status="done")
+            .select_related("post")
+            .order_by("due_date", "id")
+        )
+
+    @action(detail=False, methods=["get", "post"], url_path="checkin")
+    def checkin(self, request):
+        user = request.user
+        today = _today_bkk()
+        if request.method == "GET":
+            if _is_reviewer_role(user):
+                return Response({"required": False, "date": today, "tasks": []})
+            try:
+                checked = TaskCheckin.objects.filter(user=user, date=today).exists()
+            except Exception:
+                # ยังไม่ได้สร้างตาราง - ไม่บล็อกใคร
+                return Response({"required": False, "date": today, "tasks": [], "error": "no_table"})
+            rows = list(self._open_assignments(user))
+            touches = dict(
+                TaskAssignmentTouch.objects.filter(assignment__in=rows).values_list("assignment_id", "last_update_at")
+            )
+            tasks = [_assignment_brief(a, touches.get(a.id)) for a in rows]
+            tasks.sort(key=lambda t: (not t["is_overdue"], t["due_date"] is None, str(t["due_date"] or "")))
+            return Response({"required": bool(tasks) and not checked, "checked": checked, "date": today, "tasks": tasks})
+
+        # POST
+        items = request.data.get("items") or []
+        by_id = {}
+        for it in items:
+            try:
+                by_id[int(it.get("assignment_id"))] = it
+            except (TypeError, ValueError, AttributeError):
+                continue
+        valid = [c[0] for c in TaskAssignment.STATUS_CHOICES]
+        with transaction.atomic():
+            rows = list(self._open_assignments(user).select_for_update(of=("self",)))
+            missing = [a for a in rows if a.id not in by_id]
+            if missing:
+                return Response(
+                    {"error": f"ยังไม่ได้อัปเดตอีก {len(missing)} งาน", "missing": [a.id for a in missing]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # ตรวจครบทุกงานก่อน แล้วค่อยบันทึก (กันบันทึกไปครึ่งเดียวแล้วเจอข้อผิดพลาด)
+            for a in rows:
+                it = by_id[a.id]
+                st = it.get("status")
+                if st not in valid:
+                    return Response({"error": f"สถานะไม่ถูกต้อง: {a.post.content[:40]}"}, status=status.HTTP_400_BAD_REQUEST)
+                if st == "issue" and not str(it.get("note") or "").strip():
+                    return Response({"error": f"ติดปัญหาต้องบอกว่าติดอะไร: {a.post.content[:40]}"}, status=status.HTTP_400_BAD_REQUEST)
+            for a in rows:
+                it = by_id[a.id]
+                st = it.get("status")
+                note = str(it.get("note") or "").strip()
+                try:
+                    add = int(it.get("add") or 0)
+                except (TypeError, ValueError):
+                    add = 0
+                if add > 0 and a.target_quantity:
+                    TaskProgressLog.objects.create(assignment=a, amount=add, note="เช็คอินประจำวัน")
+                    a.current_progress += add
+                    if a.current_progress >= a.target_quantity:
+                        st = "done"
+                a.status = st
+                if note or st == "issue":
+                    a.note = note
+                a.completed_at = timezone.now() if st == "done" else None
+                a.save()
+                _touch(a)
+            try:
+                with transaction.atomic():
+                    TaskCheckin.objects.get_or_create(user=user, date=_today_bkk())
+            except Exception:
+                return Response({"error": "ยังไม่ได้สร้างตารางเช็คอิน กรุณาแจ้ง adm"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"message": "เช็คอินแล้ว", "date": _today_bkk()})
+
+    @action(detail=False, methods=["get"], url_path="checkin_overview")
+    def checkin_overview(self, request):
+        if not _is_reviewer_role(request.user):
+            return Response({"error": "เฉพาะ adm / ผู้ตรวจสอบ"}, status=status.HTTP_403_FORBIDDEN)
+        User = apps.get_model("api", "User")
+        today = _today_bkk()
+        try:
+            checked_ids = set(TaskCheckin.objects.filter(date=today).values_list("user_id", flat=True))
+        except Exception:
+            return Response({"error": "ยังไม่ได้สร้างตารางเช็คอิน (เปิด /dev/create-task-checkin-tables/)"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        open_rows = list(
+            TaskAssignment.objects.filter(post__post_type="assigned").exclude(status="done").select_related("post", "employee")
+        )
+        touches = dict(
+            TaskAssignmentTouch.objects.filter(assignment__in=open_rows).values_list("assignment_id", "last_update_at")
+        )
+        people = {}
+        for u in User.objects.filter(is_active=True).exclude(role__in=["adm", "mon"]):
+            people[u.id] = {"user_id": u.id, "name": u.name or u.username, "checked_today": u.id in checked_ids, "tasks": []}
+        for a in open_rows:
+            p = people.get(a.employee_id)
+            if p is None:
+                continue
+            p["tasks"].append(_assignment_brief(a, touches.get(a.id)))
+        result = sorted(people.values(), key=lambda p: (p["checked_today"] or not p["tasks"], -len(p["tasks"]), p["name"]))
+        return Response({"date": today, "people": result})

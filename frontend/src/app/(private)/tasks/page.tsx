@@ -9,6 +9,7 @@ import TaskBoard from "../employees/components/TaskBoard";
 import CashHandoverPanel from "./components/CashHandoverPanel";
 import TaskCalendar from "./components/TaskCalendar";
 import ExpenseRequestPanel from "./components/ExpenseRequestPanel";
+import TaskCheckinOverview from "./components/TaskCheckinOverview";
 
 const TasksPage = async () => {
   const employees = await getEmployees();
@@ -16,6 +17,8 @@ const TasksPage = async () => {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h2 className="text-2xl font-bold mb-4 text-gray-800">งานของฉัน</h2>
+      {/* ✅ adm / ผู้ตรวจสอบ: ใครเช็คอินงานแล้ว / งานค้าง / ติดปัญหา / ไม่อัปเดต (พนักงานไม่เห็นส่วนนี้) */}
+      <TaskCheckinOverview />
       {/* ✅ ปฏิทินงาน - แต่ละคนเห็นเฉพาะงานของตัวเอง + ประกาศทั่วไปที่มีกำหนดวัน */}
       <TaskCalendar />
       {/* ✅ ส่งเงินสดให้ adm - พนักงานส่ง / adm กดรับ */}
