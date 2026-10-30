@@ -33,11 +33,22 @@ interface NoteState {
 }
 
 const bkkNow = () => {
-  // เวลาไทยเสมอ ไม่ว่าเครื่องตั้ง timezone อะไรไว้
-  const s = new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok", hour12: false, weekday: "short", hour: "2-digit", minute: "2-digit" });
-  const [wd, hm] = s.split(", ");
-  const [h, m] = hm.split(":").map(Number);
-  return { sunday: wd === "Sun", minutes: (h % 24) * 60 + m };
+  // เวลาไทยเสมอ ไม่ว่าเครื่องตั้ง timezone อะไรไว้ (ใช้ formatToParts - ไม่พึ่งรูปแบบข้อความที่แต่ละเครื่องต่างกัน)
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Bangkok",
+      hour12: false,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
+    const h = Number(get("hour")) || 0;
+    const m = Number(get("minute")) || 0;
+    return { sunday: get("weekday") === "Sun", minutes: (h % 24) * 60 + m };
+  } catch {
+    return { sunday: false, minutes: 0 }; // อ่านเวลาไม่ได้ → ไม่โชว์แถบ (ไม่ให้หน้าพัง)
+  }
 };
 const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 const baht = (n: number) => Number(n || 0).toLocaleString("th-TH", { maximumFractionDigits: 2 });
