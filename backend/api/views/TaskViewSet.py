@@ -15,10 +15,6 @@ from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog, TaskC
 # ✅ Note ปิดร้าน - เช็คลิสต์ (key, ข้อความ) ต้องติ๊กครบทุกข้อ / "ส่งเงิน" ระบบเช็คให้เอง (ไม่มีเงินสดค้างส่ง)
 DAILY_NOTE_CHECKLIST = [
     ("cashflow", "💰 ลงรายรับ-รายจ่ายวันนี้ครบ"),
-    ("bikes_in", "🏍️ เก็บรถเข้าร้าน"),
-    ("power_off", "💡 ปิดไฟ / แอร์ / ปลั๊ก"),
-    ("locked", "🔒 ล็อกประตู / ม่านเหล็ก"),
-    ("tidy", "🧹 เก็บโต๊ะ / หน้าร้าน"),
 ]
 
 
