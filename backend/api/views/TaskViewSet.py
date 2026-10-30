@@ -10,7 +10,33 @@ from rest_framework.response import Response
 from zoneinfo import ZoneInfo
 from django.db import transaction
 
-from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog, TaskCheckin, TaskAssignmentTouch
+from api.models.TaskPost import TaskPost, TaskAssignment, TaskProgressLog, TaskCheckin, TaskAssignmentTouch, DailyNote
+
+# ✅ Note ปิดร้าน - เช็คลิสต์ (key, ข้อความ) ต้องติ๊กครบทุกข้อ / "ส่งเงิน" ระบบเช็คให้เอง (ไม่มีเงินสดค้างส่ง)
+DAILY_NOTE_CHECKLIST = [
+    ("cashflow", "💰 ลงรายรับ-รายจ่ายวันนี้ครบ"),
+    ("bikes_in", "🏍️ เก็บรถเข้าร้าน"),
+    ("power_off", "💡 ปิดไฟ / แอร์ / ปลั๊ก"),
+    ("locked", "🔒 ล็อกประตู / ม่านเหล็ก"),
+    ("tidy", "🧹 เก็บโต๊ะ / หน้าร้าน"),
+]
+
+
+def _unsent_cash(username):
+    """(จำนวนรายการ, ยอด) เงินสดค้างส่งของพนักงาน - เช็คไม่ได้ (เช่น ยังไม่มีตาราง) คืน (0, 0)"""
+    try:
+        from api.views.CashHandoverViewSet import _collect_unsent
+        rows = _collect_unsent(username)
+        return len(rows), float(sum(r["amount"] for r in rows))
+    except Exception:
+        return 0, 0.0
+
+
+def _note_json(n):
+    return {
+        "date": n.date, "checklist": n.checklist or {}, "today": n.today, "issue": n.issue,
+        "tomorrow": n.tomorrow, "created_at": n.created_at, "updated_at": n.updated_at,
+    }
 from api.serializers.TaskSerializer import TaskPostSerializer
 
 
@@ -290,6 +316,85 @@ class TaskPostViewSet(viewsets.ModelViewSet):
             except Exception:
                 return Response({"error": "ยังไม่ได้สร้างตารางเช็คอิน กรุณาแจ้ง adm"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({"message": "เช็คอินแล้ว", "date": _today_bkk()})
+
+    # ================== Note ปิดร้าน ==================
+    # GET  /tasks/posts/daily_note/          note วันนี้ของฉัน + เงินสดค้างส่ง + เช็คลิสต์
+    # POST /tasks/posts/daily_note/          { checklist: {key: true}, today, issue?, tomorrow? }
+    #        ต้องไม่มีเงินสดค้างส่ง + ติ๊กเช็คลิสต์ครบ + เขียน "วันนี้" - ส่งแล้วแก้ได้ในวันเดียวกัน
+    # GET  /tasks/posts/daily_note_list/?date=YYYY-MM-DD   (adm / ผู้ตรวจสอบ) note ของทุกคนวันนั้น (ย้อนหลังได้)
+
+    @action(detail=False, methods=["get", "post"], url_path="daily_note")
+    def daily_note(self, request):
+        user = request.user
+        today = _today_bkk()
+        checklist_def = [{"key": k, "label": l} for k, l in DAILY_NOTE_CHECKLIST]
+        if request.method == "GET":
+            exempt = _is_reviewer_role(user)
+            try:
+                note = DailyNote.objects.filter(user=user, date=today).first()
+            except Exception:
+                return Response({"enabled": False, "error": "no_table"})
+            n, amount = (0, 0.0) if exempt else _unsent_cash(user.username)
+            return Response({
+                "enabled": True, "exempt": exempt, "date": today, "checklist": checklist_def,
+                "unsent_count": n, "unsent_amount": amount,
+                "note": _note_json(note) if note else None,
+            })
+
+        if _is_reviewer_role(user):
+            return Response({"error": "adm / ผู้ตรวจสอบ ไม่ต้องเขียน note ปิดร้าน"}, status=status.HTTP_400_BAD_REQUEST)
+        n, amount = _unsent_cash(user.username)
+        if n:
+            return Response({"error": f"ยังมีเงินสดค้างส่ง {n} รายการ ({amount:,.0f} บาท) ส่งเงินก่อน"}, status=status.HTTP_400_BAD_REQUEST)
+        checklist = request.data.get("checklist") or {}
+        missing = [l for k, l in DAILY_NOTE_CHECKLIST if not checklist.get(k)]
+        if missing:
+            return Response({"error": "ยังไม่ได้ติ๊ก: " + ", ".join(missing)}, status=status.HTTP_400_BAD_REQUEST)
+        today_text = str(request.data.get("today") or "").strip()
+        if not today_text:
+            return Response({"error": "กรุณาเขียนว่าวันนี้เกิดอะไรขึ้น"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            note, _ = DailyNote.objects.update_or_create(
+                user=user, date=today,
+                defaults={
+                    "checklist": {k: True for k, _l in DAILY_NOTE_CHECKLIST},
+                    "today": today_text[:3000],
+                    "issue": str(request.data.get("issue") or "").strip()[:3000],
+                    "tomorrow": str(request.data.get("tomorrow") or "").strip()[:3000],
+                },
+            )
+        except Exception:
+            return Response({"error": "ยังไม่ได้สร้างตาราง note ปิดร้าน กรุณาแจ้ง adm"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"message": "ส่ง note แล้ว", "note": _note_json(note)})
+
+    @action(detail=False, methods=["get"], url_path="daily_note_list")
+    def daily_note_list(self, request):
+        if not _is_reviewer_role(request.user):
+            return Response({"error": "เฉพาะ adm / ผู้ตรวจสอบ"}, status=status.HTTP_403_FORBIDDEN)
+        from datetime import date as _date
+        raw = request.query_params.get("date")
+        try:
+            day = _date.fromisoformat(raw) if raw else _today_bkk()
+        except ValueError:
+            return Response({"error": "วันที่ไม่ถูกต้อง"}, status=status.HTTP_400_BAD_REQUEST)
+        User = apps.get_model("api", "User")
+        try:
+            notes = {n.user_id: n for n in DailyNote.objects.filter(date=day)}
+        except Exception:
+            return Response({"error": "ยังไม่ได้สร้างตาราง (เปิด /dev/create-daily-note-table/)"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        people = []
+        seen = set()
+        for u in User.objects.filter(is_active=True).exclude(role__in=["adm", "mon"]).order_by("name"):
+            n = notes.get(u.id)
+            seen.add(u.id)
+            people.append({"user_id": u.id, "name": u.name or u.username, "note": _note_json(n) if n else None})
+        for uid, n in notes.items():  # คนที่ส่ง note แล้วแต่ถูกปิดบัญชี/เปลี่ยนสิทธิ์ไปทีหลัง
+            if uid not in seen:
+                people.append({"user_id": uid, "name": n.user.name or n.user.username, "note": _note_json(n)})
+        people.sort(key=lambda p: (p["note"] is not None, p["name"]))
+        return Response({
+            "date": day, "checklist": [{"key": k, "label": l} for k, l in DAILY_NOTE_CHECKLIST], "people": people,
+        })
 
     @action(detail=False, methods=["get"], url_path="checkin_overview")
     def checkin_overview(self, request):

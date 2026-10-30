@@ -5,6 +5,7 @@ import OrderCard from "@/components/global/OrderCard";
 import OrderProvider from "@/context/OrderContext";
 import IssueLoginNotification from "@/components/global/IssueLoginNotification";
 import TaskLoginNotification from "@/components/global/TaskLoginNotification";
+import DailyCloseBar from "@/components/global/DailyCloseBar";
 import AnnouncementBar from "@/components/global/AnnouncementBar";
 const prompt = Prompt({ weight: "100", subsets: ["latin", "thai"] });
 
@@ -20,6 +21,8 @@ export default function PrivateLayout({
 				    วางไว้ที่ layout นี้เพราะครอบทุกหน้าหลัง login ไม่ว่าจะเข้าหน้าไหนก่อนก็ทำงาน */}
 				<IssueLoginNotification />
 				<TaskLoginNotification />
+				{/* ✅ แถบปิดร้าน (ส่งเงิน / รายรับ-รายจ่าย / note ปิดร้าน) - ขึ้นเฉพาะพนักงาน ช่วงก่อนปิดร้าน */}
+				<DailyCloseBar />
 				<Navbar />
 				<AnnouncementBar />
 				<main className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] text-slate-900 gap-0 mt-0">

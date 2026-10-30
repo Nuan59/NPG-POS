@@ -728,6 +728,32 @@ def add_order_sale_status_columns(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: Note ปิดร้านประจำวัน - ตาราง daily_note (เรียกซ้ำได้)
+def create_daily_note_table(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        user_table = django_apps.get_model('api', 'User')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS daily_note (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES "{user_table}"(id) ON DELETE CASCADE,
+                    date DATE NOT NULL,
+                    checklist JSONB NOT NULL DEFAULT '{{}}'::jsonb,
+                    today TEXT NOT NULL DEFAULT '',
+                    issue TEXT NOT NULL DEFAULT '',
+                    tomorrow TEXT NOT NULL DEFAULT '',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (user_id, date)
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS daily_note_date_idx ON daily_note (date);")
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง note ปิดร้านเรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เช็คอินงานประจำวัน - ตาราง task_checkin + task_assignment_touch (เรียกซ้ำได้)
 def create_task_checkin_tables(request):
     from django.db import connection
@@ -845,6 +871,7 @@ urlpatterns = [
     path('dev/add-cashflow-auto-columns/', add_cashflow_auto_columns),
     path('dev/create-bike-source-table/', create_bike_source_table),
     path('dev/create-task-checkin-tables/', create_task_checkin_tables),
+    path('dev/create-daily-note-table/', create_daily_note_table),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),

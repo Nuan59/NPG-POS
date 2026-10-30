@@ -109,3 +109,23 @@ class TaskAssignmentTouch(models.Model):
 
     class Meta:
         db_table = "task_assignment_touch"
+
+
+class DailyNote(models.Model):
+    """
+    ✅ Note ปิดร้านประจำวัน - พนักงานคนละ 1 note ต่อวัน (adm เท่านั้นที่ดูได้)
+    checklist = { key: true/false } / today = วันนี้เกิดอะไรขึ้น (บังคับ) / issue = ปัญหา / tomorrow = ฝากงานพรุ่งนี้
+    ตารางสร้างผ่าน /dev/create-daily-note-table/
+    """
+    user = models.ForeignKey("User", on_delete=models.CASCADE, related_name="daily_notes")
+    date = models.DateField()
+    checklist = models.JSONField(default=dict, blank=True)
+    today = models.TextField(blank=True, default="")
+    issue = models.TextField(blank=True, default="")
+    tomorrow = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "daily_note"
+        unique_together = ("user", "date")
