@@ -57,19 +57,19 @@ const PaymentRowButtons = ({ payment, accountId, isAdmin, onEdit, onDeleted }: P
     return payment.payment_method;
   };
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString("th-TH", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+  const formatDate = (dateString: string) => {
+    const d = new Date(dateString);
+    return !dateString || isNaN(d.getTime())
+      ? "—"
+      : d.toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+  };
 
   return (
     <>
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
-            <span className="sr-only">Open menu</span>
+            <span className="sr-only">เมนู</span>
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -87,7 +87,7 @@ const PaymentRowButtons = ({ payment, accountId, isAdmin, onEdit, onDeleted }: P
             ดู
           </DropdownMenuItem>
 
-          {/* แก้ไข - เฉพาะ adm */}
+          {/* 🔒 แก้ไข - เฉพาะ adm */}
           {isAdmin && (
             <DropdownMenuItem
               className="flex justify-between gap-2"
@@ -102,14 +102,14 @@ const PaymentRowButtons = ({ payment, accountId, isAdmin, onEdit, onDeleted }: P
           )}
 
           {/* ใบเสร็จรับเงิน */}
-          <Link href={`/npg/${accountId}/receipt?payment_id=${payment.id}`}>
-            <DropdownMenuItem className="flex justify-between gap-2">
+          <DropdownMenuItem asChild className="flex justify-between gap-2 cursor-pointer">
+            <Link href={`/npg/${accountId}/receipt?payment_id=${payment.id}`}>
               <Receipt className="opacity-60 h-4 w-4" />
               ใบเสร็จรับเงิน
-            </DropdownMenuItem>
-          </Link>
+            </Link>
+          </DropdownMenuItem>
 
-          {/* ลบการชำระเงิน - เฉพาะ adm */}
+          {/* 🔒 ลบการชำระเงิน - เฉพาะ adm */}
           {isAdmin && (
             <>
               <DropdownMenuSeparator />
@@ -133,47 +133,45 @@ const PaymentRowButtons = ({ payment, accountId, isAdmin, onEdit, onDeleted }: P
         <DialogContent>
           <DialogHeader>
             <DialogTitle>รายละเอียดการชำระเงิน งวดที่ {payment.installment_number}</DialogTitle>
-            <DialogDescription>
-              <div className="space-y-2 text-sm text-gray-700 mt-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">วันที่ชำระ</span>
-                  <span className="font-medium">{formatDate(payment.payment_date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">งวดที่</span>
-                  <span className="font-medium">{payment.installment_number}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">จำนวนเงิน</span>
-                  <span className="font-medium text-green-600">
-                    {payment.amount_paid.toLocaleString()} ฿
-                  </span>
-                </div>
-                {!!payment.late_fee && payment.late_fee > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">ค่าปรับล่าช้า</span>
-                    <span className="font-medium text-red-600">
-                      {payment.late_fee.toLocaleString()} ฿
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-500">คงเหลือหลังชำระ</span>
-                  <span className="font-medium">
-                    {payment.remaining_balance_after.toLocaleString()} ฿
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">วิธีชำระ</span>
-                  <span className="font-medium">{methodLabel()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">หมายเหตุ</span>
-                  <span className="font-medium">{payment.note || "-"}</span>
-                </div>
-              </div>
-            </DialogDescription>
+            <DialogDescription>ข้อมูลรายการที่บันทึกไว้</DialogDescription>
           </DialogHeader>
+          {/* ✅ ย้ายเนื้อหาออกจาก DialogDescription (เดิม div ซ้อนใน p ทำให้ React เตือน hydration) */}
+          <div className="divide-y divide-slate-100 text-sm tabular-nums">
+            <div className="flex justify-between py-2">
+              <span className="text-[#7A7A7A]">วันที่ชำระ</span>
+              <span className="font-medium">{formatDate(payment.payment_date)}</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-[#7A7A7A]">งวดที่</span>
+              <span className="font-medium">{payment.installment_number}</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-[#7A7A7A]">จำนวนเงิน</span>
+              <span className="font-semibold text-emerald-600">
+                {Number(payment.amount_paid || 0).toLocaleString()} ฿
+              </span>
+            </div>
+            {!!payment.late_fee && payment.late_fee > 0 && (
+              <div className="flex justify-between py-2">
+                <span className="text-[#7A7A7A]">ค่าปรับล่าช้า</span>
+                <span className="font-medium text-red-600">{payment.late_fee.toLocaleString()} ฿</span>
+              </div>
+            )}
+            <div className="flex justify-between py-2">
+              <span className="text-[#7A7A7A]">คงเหลือหลังชำระ</span>
+              <span className="font-medium">
+                {Number(payment.remaining_balance_after || 0).toLocaleString()} ฿
+              </span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="text-[#7A7A7A]">วิธีชำระ</span>
+              <span className="font-medium">{methodLabel()}</span>
+            </div>
+            <div className="flex justify-between gap-4 py-2">
+              <span className="text-[#7A7A7A] shrink-0">หมายเหตุ</span>
+              <span className="font-medium text-right break-words">{payment.note || "-"}</span>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

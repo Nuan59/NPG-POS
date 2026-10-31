@@ -82,12 +82,15 @@ export default function NPGReceiptPage() {
     };
 
     fetchReceipt();
-  }, [status, session, paymentId, router]);
+    // ✅ ผูกกับ token แทน object session - ไม่โหลดใบเสร็จ/สร้าง PDF ใหม่ทุกครั้งที่สลับแท็บกลับมา
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session?.user?.accessToken, paymentId, router]);
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <p>กำลังโหลด...</p>
+      <div className="flex flex-col items-center justify-center h-96 gap-3 text-[#7A7A7A]">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#F26B1D]" />
+        <p>กำลังโหลดใบเสร็จ...</p>
       </div>
     );
   }
@@ -95,13 +98,13 @@ export default function NPGReceiptPage() {
   if (error || !receipt) {
     return (
       <div className="container mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-xl">
           <h2 className="text-xl font-bold text-red-800 mb-2">เกิดข้อผิดพลาด</h2>
           <p className="text-red-600 mb-4">{error || "ไม่พบข้อมูลใบเสร็จ"}</p>
           <Link href={`/npg/${accountId}`}>
             <Button variant="outline">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              กลับ
+              กลับไปบัญชี
             </Button>
           </Link>
         </div>
@@ -110,17 +113,20 @@ export default function NPGReceiptPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto p-4 md:p-6">
       <div className="flex items-center gap-3 mb-4">
         <Link href={`/npg/${accountId}`}>
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" aria-label="กลับ">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-2xl font-bold">ใบเสร็จรับเงินชั่วคราว {receipt.receiptNumber}</h1>
+        <div className="min-w-0">
+          <p className="text-xs text-[#7A7A7A]">ใบเสร็จรับเงินชั่วคราว</p>
+          <h1 className="text-xl md:text-2xl font-bold text-[#1e2432] font-mono truncate">{receipt.receiptNumber}</h1>
+        </div>
       </div>
 
-      <div className="h-[80vh]">
+      <div className="h-[75vh] rounded-xl overflow-hidden border bg-slate-600">
         <ViewTempReceipt data={receipt} />
       </div>
 

@@ -1,20 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -23,11 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { 
-  Calendar, 
-  DollarSign, 
-  FileText, 
-  CheckCircle, 
+import {
+  Calendar,
+  FileText,
+  CheckCircle,
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
@@ -35,6 +27,9 @@ import {
   Plus,
   Trash2,
   ClipboardList,
+  Banknote,
+  Lock,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import PaymentRowButtons from "./PaymentRowButtons";
@@ -104,13 +99,22 @@ interface Metrics {
 }
 
 const CONTRACT_STATUS: Record<Metrics["contract_status"], { label: string; cls: string }> = {
-  normal: { label: "ปกติ", cls: "bg-green-100 text-green-800" },
-  overdue: { label: "ค้างชำระ", cls: "bg-red-100 text-red-800" },
+  normal: { label: "ปกติ", cls: "bg-emerald-50 text-emerald-700" },
+  overdue: { label: "ค้างชำระ", cls: "bg-red-100 text-red-700" },
   bad_debt: { label: "หนี้เสีย", cls: "bg-rose-700 text-white" },
-  closed: { label: "ปิดแล้ว", cls: "bg-gray-200 text-gray-700" },
+  closed: { label: "ปิดแล้ว", cls: "bg-slate-100 text-slate-600" },
 };
 
 const baht = (n: number | string | undefined) => `${Number(n || 0).toLocaleString()} ฿`;
+
+// ✅ วันที่แบบปลอดภัย - ไม่มีค่า/ค่าเพี้ยน ขึ้น "—" แทน Invalid Date
+const fmtDate = (s: string | null | undefined, opts?: Intl.DateTimeFormatOptions) => {
+  if (!s) return "—";
+  const d = new Date(s);
+  return isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleDateString("th-TH", opts || { year: "numeric", month: "long", day: "numeric" });
+};
 
 interface Payment {
   id: number;
@@ -125,9 +129,53 @@ interface Payment {
   note: string;
 }
 
+const PAY_METHODS = ["เงินสด", "เงินโอน", "เช็ค"];
+const BANKS = ["KBank", "BBL"];
+
+// ปุ่มเลือกแบบกลุ่ม (วิธีชำระ / ธนาคาร)
+const SegButtons = ({
+  options,
+  value,
+  onChange,
+  toggleable = false,
+  cols = 3,
+}: {
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  toggleable?: boolean;
+  cols?: number;
+}) => (
+  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+    {options.map((m) => (
+      <button
+        key={m}
+        type="button"
+        onClick={() => onChange(toggleable && value === m ? "" : m)}
+        className={`text-sm py-2 px-3 rounded-lg border transition-colors ${
+          value === m
+            ? "bg-[#1e2432] text-white border-[#1e2432]"
+            : "bg-white text-[#1e2432] border-slate-200 hover:bg-slate-50"
+        }`}
+      >
+        {m}
+      </button>
+    ))}
+  </div>
+);
+
+const InfoRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="flex justify-between gap-4 py-1.5">
+    <span className="text-[#7A7A7A] shrink-0">{label}</span>
+    <span className="font-medium text-right tabular-nums min-w-0 break-words">{children}</span>
+  </div>
+);
+
 const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
+  const accessToken = session?.user?.accessToken;
+
   const [account, setAccount] = useState<AccountDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<string>("");
@@ -136,8 +184,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [transferBank, setTransferBank] = useState<string>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false); // ✅ กันกดบันทึกซ้ำ
   const [isCloseAccountDialogOpen, setIsCloseAccountDialogOpen] = useState(false);
+  const [isClosingAccount, setIsClosingAccount] = useState(false); // ✅ กันกดปิดบัญชีซ้ำ
   const [closeAccountAmount, setCloseAccountAmount] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<"payments" | "fees">("payments");
+  const submitLock = useRef(false); // ✅ กันดับเบิลคลิกเร็วกว่า state อัปเดต
 
   // ✅ แก้ไขรายการชำระเงินที่บันทึกไปแล้ว (adm เท่านั้น)
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -159,27 +211,49 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [deletingFee, setDeletingFee] = useState<Fee | null>(null);
   const [isDeletingFee, setIsDeletingFee] = useState(false);
 
+  // 🔒 adm เท่านั้น (เหมือนเดิม): แก้ไข/ลบการชำระเงิน, ลบค่าธรรมเนียม, ตัวเลขกำไร/ดอกเบี้ย/หนี้เสีย
   const isAdmin = String(session?.user?.role ?? "").toLowerCase() === "adm";
 
-  useEffect(() => {
-    fetchAccountDetail();
-  }, [customerId]);
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  const fetchAccountDetail = async () => {
-    if (!session?.user?.accessToken) {
-      toast.error("ไม่พบ access token");
-      return;
-    }
+  const calculateCloseAmount = (data: AccountDetail) => {
+    const remainingInstallments = data.installment_count - data.paid_count;
+
+    // ✅ ใช้ order_npg_period ก่อนเสมอ (แม่นกว่า period_type ที่อาจบันทึกผิดในอดีต)
+    const effectivePeriod = data.order_npg_period || data.period_type;
+
+    // คำนวณจำนวนเดือนที่เหลือ - รายวัน 1/30, รายสัปดาห์ 7/30, รายเดือน 1, รายปี 12 (ตรงกับ backend)
+    const MONTHS_PER_PERIOD: Record<string, number> = { รายวัน: 1 / 30, รายสัปดาห์: 7 / 30, รายเดือน: 1, รายปี: 12 };
+    const remainingMonths = remainingInstallments * (MONTHS_PER_PERIOD[effectivePeriod] ?? 1);
+
+    // ดอกเบี้ยต่อเดือน (ปัดเศษ: < 0.5 ปัดลง, >= 0.5 ปัดขึ้น)
+    const interestPerMonthRaw = data.finance_amount * (data.interest_rate / 100);
+    const interestPerMonth = Math.round(interestPerMonthRaw);
+
+    // ส่วนลด = (ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ) ÷ 2 - ต้องตรงกับสูตรฝั่ง backend
+    // (NPGAccount.calculate_close_amount) เป๊ะ ไม่งั้นตัวเลข preview กับยอดที่บันทึกจริงจะไม่ตรงกัน
+    const discount = (interestPerMonth * remainingMonths) / 2;
+
+    // ยอดปิดบัญชี = หนี้คงเหลือ - ส่วนลด
+    return Math.round(data.remaining_balance - discount);
+  };
+
+  const fetchAccountDetail = useCallback(async () => {
+    if (!accessToken) return; // ✅ รอ session พร้อมก่อน (เดิมจะค้าง "กำลังโหลด..." ถ้าเปิดหน้าก่อน login โหลดเสร็จ)
 
     try {
-      setLoading(true);
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/`, {
         headers: {
-          Authorization: `Bearer ${session.user.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
       });
+
+      if (response.status === 401) {
+        toast.error("Session หมดอายุ", { description: "กรุณาเข้าสู่ระบบใหม่" });
+        router.push("/login");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error("ไม่สามารถโหลดข้อมูลได้");
@@ -187,7 +261,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
       const data = await response.json();
       setAccount(data);
-      
+
       // คำนวณยอดปิดบัญชี
       if (data.remaining_balance > 0) {
         const closeAmt = calculateCloseAmount(data);
@@ -199,32 +273,34 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, customerId, baseUrl, router]);
 
-  const calculateCloseAmount = (data: AccountDetail) => {
-    const remainingInstallments = data.installment_count - data.paid_count;
+  useEffect(() => {
+    if (sessionStatus === "unauthenticated") {
+      setLoading(false);
+      router.push("/login");
+      return;
+    }
+    if (sessionStatus === "authenticated") {
+      if (accessToken) fetchAccountDetail();
+      else {
+        toast.error("ไม่พบ access token");
+        setLoading(false);
+      }
+    }
+  }, [sessionStatus, accessToken, fetchAccountDetail, router]);
 
-    // ✅ ใช้ order_npg_period ก่อนเสมอ (แม่นกว่า period_type ที่อาจบันทึกผิดในอดีต)
-    const effectivePeriod = data.order_npg_period || data.period_type;
-
-    // คำนวณจำนวนเดือนที่เหลือ - รายวัน 1/30, รายสัปดาห์ 7/30, รายเดือน 1, รายปี 12 (ตรงกับ backend)
-    const MONTHS_PER_PERIOD: Record<string, number> = { รายวัน: 1 / 30, รายสัปดาห์: 7 / 30, รายเดือน: 1, รายปี: 12 };
-    const remainingMonths = remainingInstallments * (MONTHS_PER_PERIOD[effectivePeriod] ?? 1);
-    
-    // ดอกเบี้ยต่อเดือน (ปัดเศษ: < 0.5 ปัดลง, >= 0.5 ปัดขึ้น)
-    const interestPerMonthRaw = data.finance_amount * (data.interest_rate / 100);
-    const interestPerMonth = Math.round(interestPerMonthRaw);
-    
-    // ส่วนลด = (ดอกเบี้ยต่อเดือน × จำนวนเดือนที่เหลือ) ÷ 2 - ต้องตรงกับสูตรฝั่ง backend
-    // (NPGAccount.calculate_close_amount) เป๊ะ ไม่งั้นตัวเลข preview กับยอดที่บันทึกจริงจะไม่ตรงกัน
-    const discount = (interestPerMonth * remainingMonths) / 2;
-    
-    // ยอดปิดบัญชี = หนี้คงเหลือ - ส่วนลด
-    return Math.round(data.remaining_balance - discount);
+  const resetPaymentForm = () => {
+    setPaymentAmount("");
+    setPaymentNote("");
+    setPaymentMethodType("เงินสด");
+    setTransferBank("");
+    setCheckNumber("");
   };
 
   const handlePayment = async () => {
-    if (!account || !session?.user?.accessToken) return;
+    if (!account || !accessToken || submitLock.current) return;
 
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -237,12 +313,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
+    submitLock.current = true;
+    setIsSavingPayment(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/record_payment/`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.user.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -258,32 +335,32 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         const data = await response.json();
         toast.success("บันทึกการชำระเงินสำเร็จ");
         setIsPaymentDialogOpen(false);
-        setPaymentAmount("");
-        setPaymentNote("");
-        setPaymentMethodType("เงินสด");
-        setTransferBank("");
-        setCheckNumber("");
+        resetPaymentForm();
         // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
         router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
+        return; // คงปุ่มล็อกไว้ระหว่างเปลี่ยนหน้า
       } else {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         toast.error(error.error || "เกิดข้อผิดพลาด");
       }
     } catch (error) {
       console.error("Payment error:", error);
       toast.error("ไม่สามารถบันทึกการชำระเงินได้");
     }
+    submitLock.current = false;
+    setIsSavingPayment(false);
   };
 
   const handleCloseAccount = async () => {
-    if (!account || !session?.user?.accessToken) return;
+    if (!account || !accessToken || submitLock.current) return;
 
+    submitLock.current = true;
+    setIsClosingAccount(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/close_account/`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.user.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -297,14 +374,17 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         setIsCloseAccountDialogOpen(false);
         // ✅ เด้งไปหน้าใบเสร็จรับเงินชั่วคราว
         router.push(`/npg/${customerId}/receipt?payment_id=${data.payment_id}`);
+        return;
       } else {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         toast.error(error.error || "เกิดข้อผิดพลาด");
       }
     } catch (error) {
       console.error("Close account error:", error);
       toast.error("ไม่สามารถปิดบัญชีได้");
     }
+    submitLock.current = false;
+    setIsClosingAccount(false);
   };
 
   const openEditDialog = (payment: Payment) => {
@@ -319,7 +399,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingPayment || !session?.user?.accessToken) return;
+    if (!editingPayment || !accessToken || isSavingEdit) return;
 
     const amount = parseFloat(editAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -329,11 +409,10 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
     setIsSavingEdit(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/payments/${editingPayment.id}/edit/`, {
         method: "PATCH",
         headers: {
-          Authorization: `Bearer ${session.user.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -351,7 +430,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         setEditingPayment(null);
         fetchAccountDetail();
       } else {
-        const error = await response.json();
+        const error = await response.json().catch(() => ({}));
         toast.error(error.error || "เกิดข้อผิดพลาด");
       }
     } catch (error) {
@@ -370,7 +449,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   };
 
   const handleAddFee = async () => {
-    if (!session?.user?.accessToken) return;
+    if (!accessToken || isSavingFee) return;
     const amount = parseFloat(feeAmount);
     if (!feeDescription.trim()) {
       toast.error("กรุณาระบุรายการค่าธรรมเนียม");
@@ -383,11 +462,10 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
     setIsSavingFee(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/add_fee/`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.user.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -402,6 +480,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         toast.success("บันทึกค่าธรรมเนียมสำเร็จ");
         setIsFeeDialogOpen(false);
         resetFeeForm();
+        setActiveTab("fees");
         fetchAccountDetail();
       } else {
         const error = await response.json().catch(() => ({}));
@@ -416,20 +495,16 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   };
 
   const handleDeleteFee = async () => {
-    if (!deletingFee || !session?.user?.accessToken) return;
+    if (!deletingFee || !accessToken || isDeletingFee) return;
     setIsDeletingFee(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const response = await fetch(
-        `${baseUrl}/npg/accounts/${customerId}/delete_fee/${deletingFee.id}/`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${session.user.accessToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${baseUrl}/npg/accounts/${customerId}/delete_fee/${deletingFee.id}/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.ok) {
         toast.success("ลบค่าธรรมเนียมสำเร็จ");
@@ -447,23 +522,39 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     }
   };
 
-  if (loading) {
+  if (loading || sessionStatus === "loading") {
     return (
-      <div className="flex items-center justify-center h-96">
-        <p>กำลังโหลด...</p>
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-48 rounded-2xl" />
+        <div className="grid md:grid-cols-2 gap-4">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
       </div>
     );
   }
 
   if (!account) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex flex-col items-center justify-center h-96 gap-3 text-[#7A7A7A]">
         <p>ไม่พบข้อมูลบัญชี</p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push("/npg")}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            กลับหน้ารายการ
+          </Button>
+          <Button onClick={() => { setLoading(true); fetchAccountDetail(); }} className="bg-[#F26B1D] hover:bg-[#d95c14] text-white">
+            ลองอีกครั้ง
+          </Button>
+        </div>
       </div>
     );
   }
 
-  const progressPercentage = account.progress_percentage || 0;
+  const progressPercentage = Math.min(Math.max(Number(account.progress_percentage) || 0, 0), 100);
+  const period = account.order_npg_period || account.period_type;
+  const estLateFee = Number(account.estimated_late_fee || 0);
 
   // ✅ ใช้ is_overdue จาก backend ก่อนเสมอ (คำนวณสดจากวันที่จริง) มี fallback เทียบวันที่เองเผื่อ field ไม่มา
   const isOverdue =
@@ -473,219 +564,121 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       !!account.next_payment_date &&
       new Date(account.next_payment_date) < new Date());
 
+  const m = account.metrics;
+  // 🔒 หนี้เสียแสดงเฉพาะ admin - พนักงานเห็นเป็น "ค้างชำระ"
+  const contractKey = m ? (!isAdmin && m.contract_status === "bad_debt" ? "overdue" : m.contract_status) : null;
+  const contractStatus = contractKey ? CONTRACT_STATUS[contractKey] || CONTRACT_STATUS.normal : null;
+
+  const statusPill =
+    account.status === "completed"
+      ? { label: "ชำระครบ", cls: "bg-blue-100 text-blue-800" }
+      : account.status === "closed"
+      ? { label: "ปิดบัญชี", cls: "bg-white/20 text-white" }
+      : isOverdue
+      ? { label: "เกินกำหนดชำระ", cls: "bg-white text-red-700" }
+      : { label: "กำลังชำระ", cls: "bg-emerald-400/20 text-emerald-200" };
+
+  const fees = account.fees || [];
+  const payments = account.payments || [];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button onClick={() => router.push("/npg")} variant="outline" size="icon">
+      <div className="flex items-center gap-3">
+        <Button onClick={() => router.push("/npg")} variant="outline" size="icon" aria-label="กลับ">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold">
-          รายละเอียดบัญชี NPG #{account.id}
-        </h1>
-        {isOverdue && (
-          <span className="flex items-center gap-1.5 bg-red-100 text-red-700 text-sm font-semibold px-3 py-1.5 rounded-full">
-            <AlertTriangle className="h-4 w-4" />
-            เกินกำหนดชำระ
-          </span>
-        )}
-      </div>
-
-      {/* Customer Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left Card */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <FileText size={20} />
-            ข้อมูลลูกค้า
-          </h2>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">ชื่อลูกค้า:</span>
-              <span className="font-medium">{account.customer_name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">เบอร์โทร:</span>
-              <span className="font-medium">{account.customer_phone}</span>
-            </div>
-            {account.bike_info && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">ยี่ห้อ:</span>
-                  <span className="font-medium">{account.bike_info.brand}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">รุ่น:</span>
-                  <span className="font-medium">{account.bike_info.model_name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">รหัสรุ่น:</span>
-                  <span className="font-medium">{account.bike_info.model_code}</span>
-                </div>
-              </>
-            )}
-            <div className="flex justify-between">
-              <span className="text-gray-600">ประเภทการชำระ:</span>
-              {/* ✅ ใช้ order_npg_period ก่อนเสมอ - ตรงกับที่ตาราง NPGTable.tsx ใช้ */}
-              <span className="font-medium">{account.order_npg_period || account.period_type}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Card */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <DollarSign size={20} />
-            ข้อมูลการเงิน
-          </h2>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">ยอดจัด:</span>
-              <span className="font-medium">{account.finance_amount.toLocaleString()} ฿</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">ดอกเบี้ย:</span>
-              <span className="font-medium">{account.interest_rate}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">จำนวนงวด:</span>
-              <span className="font-medium">{account.installment_count} งวด</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">ค่างวด:</span>
-              <span className="font-medium">{account.installment_amount.toLocaleString()} ฿</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">วันเริ่มต้น:</span>
-              <span className="font-medium">
-                {new Date(account.start_date).toLocaleDateString("th-TH")}
-              </span>
-            </div>
-          </div>
+        <div className="min-w-0">
+          <p className="text-xs text-[#7A7A7A]">
+            บัญชี NPG #{account.id}
+            {account.order_id ? ` · ออเดอร์ #${account.order_id}` : ""}
+          </p>
+          <h1 className="text-xl md:text-2xl font-bold text-[#1e2432]">รายละเอียดบัญชี</h1>
         </div>
       </div>
 
-      {/* Payment Progress */}
-      <div
-        className={`text-white p-6 rounded-lg shadow bg-gradient-to-br ${
-          isOverdue
-            ? "from-red-500 to-red-600"
-            : "from-blue-500 to-blue-600"
+      {/* ✅ กล่องสรุปบนสุด - สีกรมท่า / แดงเมื่อเกินกำหนด */}
+      <section
+        className={`rounded-2xl p-5 md:p-6 text-white space-y-5 ${
+          isOverdue ? "bg-gradient-to-br from-red-800 to-red-600" : "bg-[#1e2432]"
         }`}
       >
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          {isOverdue && <AlertTriangle size={20} />}
-          สถานะการชำระเงิน
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          <div>
-            <p className="text-sm opacity-90">ชำระแล้ว</p>
-            <p className="text-2xl font-bold">{account.total_paid.toLocaleString()} ฿</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="h-12 w-12 shrink-0 rounded-full bg-[#F26B1D] grid place-items-center text-lg font-bold">
+              {(account.customer_name || "?").trim().charAt(0)}
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-lg md:text-xl font-bold truncate">{account.customer_name}</h2>
+              <p className="text-sm text-white/70 tabular-nums truncate">
+                {account.customer_phone}
+                {account.bike_info ? ` · ${account.bike_info.brand} ${account.bike_info.model_name}` : ""}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm opacity-90">คงเหลือ</p>
-            <p className="text-2xl font-bold">{account.remaining_balance.toLocaleString()} ฿</p>
-          </div>
-          <div>
-            <p className="text-sm opacity-90">งวดที่ชำระ</p>
-            <p className="text-2xl font-bold">
-              {account.paid_count} / {account.installment_count}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm opacity-90">
-              {isOverdue ? "วันครบกำหนด (เกินแล้ว)" : "วันชำระถัดไป"}
-            </p>
-            <p className={`text-lg font-bold ${isOverdue ? "text-yellow-200" : ""}`}>
-              {new Date(account.next_payment_date).toLocaleDateString("th-TH", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-          </div>
-        </div>
-        
-        {/* Progress Bar */}
-        <div className={`w-full rounded-full h-4 ${isOverdue ? "bg-red-400" : "bg-blue-400"}`}>
-          <div
-            className="bg-white h-4 rounded-full transition-all duration-300 flex items-center justify-end pr-2"
-            style={{ width: `${progressPercentage}%` }}
-          >
-            <span className={`text-xs font-bold ${isOverdue ? "text-red-600" : "text-blue-600"}`}>
-              {progressPercentage.toFixed(0)}%
+          <div className="flex flex-wrap gap-1.5">
+            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-semibold">{period}</span>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold flex items-center gap-1 ${statusPill.cls}`}>
+              {isOverdue && <AlertTriangle className="h-3.5 w-3.5" />}
+              {statusPill.label}
             </span>
           </div>
         </div>
-      </div>
 
-      {/* ✅ สรุปสัญญา - พนักงานเห็นแค่ สถานะสัญญา / ชำระแล้ว / ยอดคงค้าง, admin เห็นทั้งหมด */}
-      {account.metrics && (() => {
-        const m = account.metrics;
-        // ✅ หนี้เสียแสดงเฉพาะ admin - พนักงานเห็นเป็น "ค้างชำระ"
-        const statusKey = !isAdmin && m.contract_status === "bad_debt" ? "overdue" : m.contract_status;
-        const st = CONTRACT_STATUS[statusKey] || CONTRACT_STATUS.normal;
-        const rows: { label: string; value: string; adminOnly?: boolean; cls?: string }[] = [
-          { label: "สินเชื่อ (เงินต้น)", value: baht(m.credit), adminOnly: true },
-          { label: "ยอดชำระคาดการณ์", value: baht(m.expected_total), adminOnly: true },
-          { label: "ชำระแล้ว", value: baht(m.paid), cls: "text-green-600" },
-          { label: "เงินต้นชำระแล้ว", value: baht(m.principal_paid), adminOnly: true },
-          { label: "ยอดคงค้าง", value: baht(m.outstanding), cls: "text-orange-600" },
-          { label: "ดอกเบี้ยรับ", value: baht(m.interest_received), adminOnly: true },
-          {
-            label: "ค่าธรรมเนียมรับแล้ว",
-            value: `${baht(m.fees_received)} (ค่าปรับ ${baht(m.late_fees)} + อื่นๆ ${baht(m.other_fees)})`,
-            adminOnly: true,
-          },
-          { label: "กำไรรับจริง", value: baht(m.realized_profit), adminOnly: true, cls: "text-emerald-600" },
-          ...(m.bad_debt > 0
-            ? [{ label: "หนี้เสียคาดการณ์", value: baht(m.bad_debt), adminOnly: true, cls: "text-rose-700" }]
-            : []),
-        ];
-
-        return (
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <ClipboardList size={20} />
-                สรุปสัญญา
-              </h2>
-              <div className="flex items-center gap-2">
-                {m.days_overdue > 0 && (
-                  <span className="text-sm text-red-600">เกินกำหนด {m.days_overdue} วัน</span>
-                )}
-                <span className={`text-sm font-semibold px-3 py-1 rounded-full ${st.cls}`}>
-                  {st.label}
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-              {rows
-                .filter((r) => isAdmin || !r.adminOnly)
-                .map((r) => (
-                  <div key={r.label} className="flex justify-between">
-                    <span className="text-gray-600">{r.label}:</span>
-                    <span className={`font-medium ${r.cls || ""}`}>{r.value}</span>
-                  </div>
-                ))}
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 tabular-nums">
+          <div className="rounded-xl bg-white/[0.07] px-3 py-2.5">
+            <p className="text-xs text-white/65">ชำระแล้ว</p>
+            <p className="text-lg md:text-xl font-bold">{baht(account.total_paid)}</p>
           </div>
-        );
-      })()}
+          <div className="rounded-xl bg-white/[0.07] px-3 py-2.5">
+            <p className="text-xs text-white/65">คงเหลือ</p>
+            <p className="text-lg md:text-xl font-bold">{baht(account.remaining_balance)}</p>
+          </div>
+          <div className="rounded-xl bg-white/[0.07] px-3 py-2.5">
+            <p className="text-xs text-white/65">งวดที่ชำระ</p>
+            <p className="text-lg md:text-xl font-bold">
+              {account.paid_count} / {account.installment_count}
+            </p>
+          </div>
+          <div className="rounded-xl bg-white/[0.07] px-3 py-2.5">
+            <p className="text-xs text-white/65">{isOverdue ? "วันครบกำหนด (เกินแล้ว)" : "วันชำระถัดไป"}</p>
+            <p className={`text-lg md:text-xl font-bold ${isOverdue ? "text-yellow-200" : ""}`}>
+              {fmtDate(account.next_payment_date, { day: "numeric", month: "short", year: "numeric" })}
+            </p>
+            {isOverdue && (m?.days_overdue || estLateFee > 0) ? (
+              <p className="text-xs text-yellow-100">
+                {m?.days_overdue ? `เกิน ${m.days_overdue} วัน` : ""}
+                {m?.days_overdue && estLateFee > 0 ? " · " : ""}
+                {estLateFee > 0 ? `ค่าปรับ ~${baht(estLateFee)}` : ""}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div>
+          <div className="h-2.5 w-full rounded-full bg-white/20 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${isOverdue ? "bg-white" : "bg-[#F26B1D]"}`}
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+          <p className="text-xs text-white/70 mt-1 tabular-nums">ผ่อนไปแล้ว {progressPercentage.toFixed(0)}%</p>
+        </div>
+      </section>
 
       {/* Action Buttons */}
       {account.status === "active" && (
-        <div className="flex gap-4">
-          <Button 
-            className="flex-1 bg-green-600 hover:bg-green-700"
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Button
+            className="h-12 text-base bg-[#F26B1D] hover:bg-[#d95c14] text-white"
             onClick={() => setIsPaymentDialogOpen(true)}
           >
-            <DollarSign size={18} className="mr-2" />
+            <Banknote size={18} className="mr-2" />
             บันทึกการชำระเงิน
           </Button>
 
-          <Button 
-            className="flex-1 bg-orange-600 hover:bg-orange-700"
+          <Button
+            className="h-12 text-base bg-[#1e2432] hover:bg-[#2a3245] text-white"
             onClick={() => setIsCloseAccountDialogOpen(true)}
           >
             <CheckCircle size={18} className="mr-2" />
@@ -694,71 +687,296 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         </div>
       )}
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* ข้อมูลลูกค้า + ข้อมูลการเงิน (ทุกคนเห็น เหมือนเดิม) */}
+        <div className="rounded-xl border bg-white p-5">
+          <h2 className="text-base font-semibold mb-2 flex items-center gap-2 text-[#1e2432]">
+            <FileText size={18} />
+            ข้อมูลสัญญา
+          </h2>
+          <div className="divide-y divide-slate-100 text-sm">
+            <InfoRow label="ชื่อลูกค้า">{account.customer_name}</InfoRow>
+            <InfoRow label="เบอร์โทร">{account.customer_phone || "—"}</InfoRow>
+            {account.bike_info && (
+              <>
+                <InfoRow label="ยี่ห้อ / รุ่น">
+                  {account.bike_info.brand} {account.bike_info.model_name}
+                </InfoRow>
+                <InfoRow label="รหัสรุ่น">{account.bike_info.model_code || "—"}</InfoRow>
+              </>
+            )}
+            {/* ✅ ใช้ order_npg_period ก่อนเสมอ - ตรงกับที่ตาราง NPGTable.tsx ใช้ */}
+            <InfoRow label="ประเภทการชำระ">{period}</InfoRow>
+            <InfoRow label="ยอดจัด">{baht(account.finance_amount)}</InfoRow>
+            <InfoRow label="ดอกเบี้ย">{account.interest_rate}%</InfoRow>
+            <InfoRow label="ค่างวด">
+              {baht(account.installment_amount)} × {account.installment_count} งวด
+            </InfoRow>
+            <InfoRow label="วันเริ่มต้น">{fmtDate(account.start_date)}</InfoRow>
+          </div>
+        </div>
+
+        {/* ✅ สรุปสัญญา - พนักงานเห็นแค่ สถานะสัญญา / ชำระแล้ว / ยอดคงค้าง, 🔒 admin เห็นทั้งหมด */}
+        {m && contractStatus && (() => {
+          const rows: { label: string; value: string; adminOnly?: boolean; cls?: string }[] = [
+            { label: "สินเชื่อ (เงินต้น)", value: baht(m.credit), adminOnly: true },
+            { label: "ยอดชำระคาดการณ์", value: baht(m.expected_total), adminOnly: true },
+            { label: "ชำระแล้ว", value: baht(m.paid), cls: "text-emerald-600" },
+            { label: "เงินต้นชำระแล้ว", value: baht(m.principal_paid), adminOnly: true },
+            { label: "ยอดคงค้าง", value: baht(m.outstanding), cls: "text-amber-600" },
+            { label: "ดอกเบี้ยรับ", value: baht(m.interest_received), adminOnly: true },
+            {
+              label: "ค่าธรรมเนียมรับแล้ว",
+              value: `${baht(m.fees_received)} (ค่าปรับ ${baht(m.late_fees)} + อื่นๆ ${baht(m.other_fees)})`,
+              adminOnly: true,
+            },
+            { label: "กำไรรับจริง", value: baht(m.realized_profit), adminOnly: true, cls: "text-emerald-600" },
+            ...(m.bad_debt > 0
+              ? [{ label: "หนี้เสียคาดการณ์", value: baht(m.bad_debt), adminOnly: true, cls: "text-rose-700" }]
+              : []),
+          ];
+
+          return (
+            <div className="rounded-xl border bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <h2 className="text-base font-semibold flex items-center gap-2 text-[#1e2432]">
+                  <ClipboardList size={18} />
+                  สรุปสัญญา
+                </h2>
+                <div className="flex items-center gap-2">
+                  {m.days_overdue > 0 && (
+                    <span className="text-sm text-red-600">เกินกำหนด {m.days_overdue} วัน</span>
+                  )}
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${contractStatus.cls}`}>
+                    {contractStatus.label}
+                  </span>
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100 text-sm">
+                {rows
+                  .filter((r) => isAdmin || !r.adminOnly)
+                  .map((r) => (
+                    <InfoRow key={r.label} label={r.label}>
+                      <span className={r.cls || ""}>{r.value}</span>
+                    </InfoRow>
+                  ))}
+              </div>
+              {!isAdmin && (
+                <p className="mt-3 text-xs text-[#7A7A7A] flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5" />
+                  ตัวเลขดอกเบี้ย/กำไร ดูได้เฉพาะผู้ดูแลระบบ
+                </p>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ✅ แท็บ: ประวัติการชำระเงิน / ค่าธรรมเนียมอื่นๆ */}
+      <div className="rounded-xl border bg-white overflow-hidden">
+        <div className="flex items-center gap-1 border-b px-2 md:px-3">
+          {[
+            { key: "payments" as const, label: "ประวัติการชำระเงิน", icon: Calendar, count: payments.length },
+            { key: "fees" as const, label: "ค่าธรรมเนียมอื่นๆ", icon: Receipt, count: fees.length },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key)}
+              className={`flex items-center gap-1.5 px-2 md:px-3 py-3 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+                activeTab === t.key
+                  ? "border-[#F26B1D] text-[#1e2432]"
+                  : "border-transparent text-[#7A7A7A] hover:text-[#1e2432]"
+              }`}
+            >
+              <t.icon className="h-4 w-4 hidden sm:block" />
+              {t.label}
+              <span className="rounded-full bg-slate-100 px-1.5 text-[11px] text-[#7A7A7A] tabular-nums">
+                {t.count}
+              </span>
+            </button>
+          ))}
+          <div className="flex-1" />
+          {activeTab === "fees" && (
+            <Button variant="ghost" size="sm" onClick={() => setIsFeeDialogOpen(true)} className="gap-1 shrink-0">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">บันทึกค่าธรรมเนียม</span>
+              <span className="sm:hidden">เพิ่ม</span>
+            </Button>
+          )}
+        </div>
+
+        {activeTab === "payments" ? (
+          payments.length === 0 ? (
+            <div className="text-center py-10 text-[#7A7A7A]">ยังไม่มีประวัติการชำระเงิน</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[760px]">
+                <thead>
+                  <tr className="border-b text-xs text-[#7A7A7A]">
+                    <th className="text-left px-4 py-2.5 font-semibold">วันที่ชำระ</th>
+                    <th className="text-left p-2.5 font-semibold">งวดที่</th>
+                    <th className="text-right p-2.5 font-semibold">จำนวนเงิน</th>
+                    <th className="text-right p-2.5 font-semibold">ค่าปรับ</th>
+                    <th className="text-right p-2.5 font-semibold">คงเหลือหลังชำระ</th>
+                    <th className="text-left p-2.5 font-semibold">วิธีชำระ</th>
+                    <th className="text-left p-2.5 font-semibold">หมายเหตุ</th>
+                    <th className="text-center p-2.5 font-semibold">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((payment) => (
+                    <tr key={payment.id} className="border-b last:border-b-0 hover:bg-slate-50">
+                      <td className="px-4 py-2.5 tabular-nums">{fmtDate(payment.payment_date)}</td>
+                      <td className="p-2.5">
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">
+                          งวดที่ {payment.installment_number}
+                        </span>
+                      </td>
+                      <td className="p-2.5 text-right text-emerald-600 font-semibold tabular-nums">
+                        {Number(payment.amount_paid || 0).toLocaleString()} ฿
+                      </td>
+                      <td className="p-2.5 text-right tabular-nums">
+                        {payment.late_fee && payment.late_fee > 0 ? (
+                          <span className="text-red-600 font-medium">{payment.late_fee.toLocaleString()} ฿</span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-right tabular-nums">
+                        {Number(payment.remaining_balance_after || 0).toLocaleString()} ฿
+                      </td>
+                      <td className="p-2.5 text-[#7A7A7A]">
+                        {payment.payment_method || "-"}
+                        {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
+                        {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
+                      </td>
+                      <td className="p-2.5 text-[#7A7A7A]">{payment.note || "-"}</td>
+                      <td className="p-2.5 text-center">
+                        {/* 🔒 แก้ไข/ลบ เฉพาะ adm (อยู่ใน PaymentRowButtons) */}
+                        <PaymentRowButtons
+                          payment={payment}
+                          accountId={customerId}
+                          isAdmin={isAdmin}
+                          onEdit={openEditDialog}
+                          onDeleted={fetchAccountDetail}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : fees.length === 0 ? (
+          <div className="text-center py-10 text-[#7A7A7A]">ยังไม่มีค่าธรรมเนียม</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[680px]">
+              <thead>
+                <tr className="border-b text-xs text-[#7A7A7A]">
+                  <th className="text-left px-4 py-2.5 font-semibold">วันที่</th>
+                  <th className="text-left p-2.5 font-semibold">รายการ</th>
+                  <th className="text-right p-2.5 font-semibold">จำนวนเงิน</th>
+                  <th className="text-left p-2.5 font-semibold">วิธีชำระ</th>
+                  <th className="text-left p-2.5 font-semibold">หมายเหตุ</th>
+                  <th className="text-left p-2.5 font-semibold">ผู้บันทึก</th>
+                  {/* 🔒 ลบค่าธรรมเนียม เฉพาะ adm */}
+                  {isAdmin && <th className="text-center p-2.5 font-semibold">จัดการ</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {fees.map((fee) => (
+                  <tr key={fee.id} className="border-b last:border-b-0 hover:bg-slate-50">
+                    <td className="px-4 py-2.5 tabular-nums">{fmtDate(fee.fee_date)}</td>
+                    <td className="p-2.5">{fee.description}</td>
+                    <td className="p-2.5 text-right text-emerald-600 font-semibold tabular-nums">{baht(fee.amount)}</td>
+                    <td className="p-2.5 text-[#7A7A7A]">{fee.payment_method || "-"}</td>
+                    <td className="p-2.5 text-[#7A7A7A]">{fee.note || "-"}</td>
+                    <td className="p-2.5 text-[#7A7A7A]">{fee.created_by || "-"}</td>
+                    {isAdmin && (
+                      <td className="p-2.5 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600"
+                          onClick={() => setDeletingFee(fee)}
+                          aria-label="ลบค่าธรรมเนียม"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Payment Dialog */}
-      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent>
+      <Dialog
+        open={isPaymentDialogOpen}
+        onOpenChange={(o) => {
+          if (isSavingPayment) return; // ✅ ปิดไม่ได้ระหว่างกำลังบันทึก
+          setIsPaymentDialogOpen(o);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>บันทึกการชำระเงิน</DialogTitle>
             <DialogDescription>
-              บันทึกการชำระเงินงวดถัดไปของลูกค้า {account.customer_name}
+              {account.customer_name} · งวดที่ {account.paid_count + 1} จาก {account.installment_count}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>จำนวนเงิน (฿)</Label>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="npg-pay-amount">จำนวนเงิน (฿)</Label>
               <Input
+                id="npg-pay-amount"
                 type="number"
+                inputMode="decimal"
                 placeholder="0.00"
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
+                className="text-lg font-semibold h-11"
               />
-              <p className="text-sm text-gray-500 mt-1">
-                ค่างวดปกติ: {account.installment_amount.toLocaleString()} ฿
-              </p>
-            </div>
-            {!!account.estimated_late_fee && account.estimated_late_fee > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-700 flex items-center gap-2">
-                <AlertTriangle size={16} className="shrink-0" />
-                จ่ายวันนี้จะมีค่าปรับล่าช้าเพิ่ม {account.estimated_late_fee.toLocaleString()} ฿
-                (ระบบจะคิดค่าปรับให้อัตโนมัติตอนกดบันทึก)
-              </div>
-            )}
-            <div>
-              <Label>วิธีการชำระ</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setPaymentMethodType(m)}
-                    className={`text-sm py-2 px-3 rounded border transition-colors ${
-                      paymentMethodType === m
-                        ? "bg-slate-800 text-white border-slate-800"
-                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-
-              {paymentMethodType === "เงินโอน" && (
-                <div className="flex gap-2 mt-2">
-                  {["KBank", "BBL"].map((b) => (
+              {/* ✅ ปุ่มเลือกยอดเร็ว */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { label: "ค่างวด", v: account.installment_amount },
+                  { label: "2 งวด", v: account.installment_amount * 2 },
+                  { label: "ทั้งหมด", v: account.remaining_balance },
+                ]
+                  .filter((q, i, arr) => q.v > 0 && q.v <= account.remaining_balance && arr.findIndex((x) => x.v === q.v) === i)
+                  .map((q) => (
                     <button
-                      key={b}
+                      key={q.label}
                       type="button"
-                      onClick={() => setTransferBank(transferBank === b ? "" : b)}
-                      className={`flex-1 text-sm py-2 px-3 rounded border transition-colors ${
-                        transferBank === b
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
-                      }`}
+                      onClick={() => setPaymentAmount(String(q.v))}
+                      className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1 text-xs hover:border-[#F26B1D] hover:text-[#F26B1D] tabular-nums"
                     >
-                      {b}
+                      {q.label} {Number(q.v).toLocaleString()} ฿
                     </button>
                   ))}
-                </div>
+              </div>
+            </div>
+            {estLateFee > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                <span>
+                  จ่ายวันนี้จะมีค่าปรับล่าช้าเพิ่ม <b>{estLateFee.toLocaleString()} ฿</b>{" "}
+                  (ระบบจะคิดค่าปรับให้อัตโนมัติตอนกดบันทึก)
+                </span>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>วิธีการชำระ</Label>
+              <SegButtons options={PAY_METHODS} value={paymentMethodType} onChange={setPaymentMethodType} />
+
+              {paymentMethodType === "เงินโอน" && (
+                <SegButtons options={BANKS} value={transferBank} onChange={setTransferBank} toggleable cols={2} />
               )}
 
               {paymentMethodType === "เช็ค" && (
@@ -767,137 +985,140 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   placeholder="เลขที่เช็ค"
                   value={checkNumber}
                   onChange={(e) => setCheckNumber(e.target.value)}
-                  className="mt-2"
                 />
               )}
             </div>
-            <div>
-              <Label>หมายเหตุ (ถ้ามี)</Label>
+            <div className="space-y-2">
+              <Label htmlFor="npg-pay-note">หมายเหตุ (ถ้ามี)</Label>
               <Textarea
+                id="npg-pay-note"
                 placeholder="เช่น ชำระล่าช้า, ชำระล่วงหน้า"
                 value={paymentNote}
                 onChange={(e) => setPaymentNote(e.target.value)}
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)} disabled={isSavingPayment}>
               ยกเลิก
             </Button>
-            <Button onClick={handlePayment}>บันทึก</Button>
+            <Button
+              onClick={handlePayment}
+              disabled={isSavingPayment}
+              className="bg-[#F26B1D] hover:bg-[#d95c14] text-white"
+            >
+              {isSavingPayment ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  กำลังบันทึก...
+                </>
+              ) : (
+                "บันทึก"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Close Account Dialog */}
-      <Dialog open={isCloseAccountDialogOpen} onOpenChange={setIsCloseAccountDialogOpen}>
+      <Dialog
+        open={isCloseAccountDialogOpen}
+        onOpenChange={(o) => {
+          if (isClosingAccount) return;
+          setIsCloseAccountDialogOpen(o);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>ปิดบัญชี</DialogTitle>
-            <DialogDescription>
-              คำนวณยอดชำระเพื่อปิดบัญชีก่อนกำหนด
-            </DialogDescription>
+            <DialogDescription>คำนวณยอดชำระเพื่อปิดบัญชีก่อนกำหนด</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-              <p className="text-sm text-yellow-800 flex items-center gap-2">
-                <AlertCircle size={16} />
+          <div className="space-y-4 py-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-800 flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
                 การปิดบัญชีก่อนกำหนดจะได้รับส่วนลดดอกเบี้ยตามจำนวนเดือนที่เหลือ
               </p>
             </div>
-            
-            <div className="space-y-2">
+
+            <div className="space-y-2 tabular-nums">
               <div className="flex justify-between">
-                <span className="text-gray-600">หนี้คงเหลือ:</span>
+                <span className="text-[#7A7A7A]">หนี้คงเหลือ</span>
                 <span className="font-medium">{account.remaining_balance.toLocaleString()} ฿</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">ส่วนลดดอกเบี้ย:</span>
-                <span className="font-medium text-green-600">
+                <span className="text-[#7A7A7A]">ส่วนลดดอกเบี้ย</span>
+                <span className="font-medium text-emerald-600">
                   -{(account.remaining_balance - closeAccountAmount).toLocaleString()} ฿
                 </span>
               </div>
-              <hr />
-              <div className="flex justify-between text-lg font-bold">
-                <span>ยอดชำระปิดบัญชี:</span>
-                <span className="text-orange-600">{closeAccountAmount.toLocaleString()} ฿</span>
+              <div className="flex justify-between text-lg font-bold border-t border-dashed pt-2">
+                <span>ยอดชำระปิดบัญชี</span>
+                <span className="text-[#F26B1D]">{closeAccountAmount.toLocaleString()} ฿</span>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCloseAccountDialogOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsCloseAccountDialogOpen(false)} disabled={isClosingAccount}>
               ยกเลิก
             </Button>
-            <Button onClick={handleCloseAccount} className="bg-orange-600 hover:bg-orange-700">
-              ยืนยันปิดบัญชี
+            <Button
+              onClick={handleCloseAccount}
+              disabled={isClosingAccount}
+              className="bg-[#F26B1D] hover:bg-[#d95c14] text-white"
+            >
+              {isClosingAccount ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  กำลังปิดบัญชี...
+                </>
+              ) : (
+                "ยืนยันปิดบัญชี"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Payment Dialog (adm เท่านั้น) */}
-      <Dialog open={!!editingPayment} onOpenChange={(open) => !open && setEditingPayment(null)}>
-        <DialogContent>
+      {/* 🔒 Edit Payment Dialog (adm เท่านั้น) */}
+      <Dialog
+        open={!!editingPayment}
+        onOpenChange={(open) => !open && !isSavingEdit && setEditingPayment(null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>แก้ไขรายการชำระเงิน</DialogTitle>
             <DialogDescription>
               แก้ไขรายการงวดที่ {editingPayment?.installment_number} ของลูกค้า {account.customer_name}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>วันที่ชำระ</Label>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="npg-edit-date">วันที่ชำระ</Label>
               <Input
+                id="npg-edit-date"
                 type="date"
                 value={editPaymentDate}
                 onChange={(e) => setEditPaymentDate(e.target.value)}
               />
             </div>
 
-            <div>
-              <Label>จำนวนเงิน (฿)</Label>
+            <div className="space-y-2">
+              <Label htmlFor="npg-edit-amount">จำนวนเงิน (฿)</Label>
               <Input
+                id="npg-edit-amount"
                 type="number"
+                inputMode="decimal"
                 value={editAmount}
                 onChange={(e) => setEditAmount(e.target.value)}
               />
             </div>
 
-            <div>
+            <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setEditMethod(m)}
-                    className={`text-sm py-2 px-3 rounded border transition-colors ${
-                      editMethod === m
-                        ? "bg-slate-800 text-white border-slate-800"
-                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
+              <SegButtons options={PAY_METHODS} value={editMethod} onChange={setEditMethod} />
               {editMethod === "เงินโอน" && (
-                <div className="flex gap-2 mt-2">
-                  {["KBank", "BBL"].map((b) => (
-                    <button
-                      key={b}
-                      type="button"
-                      onClick={() => setEditBank(editBank === b ? "" : b)}
-                      className={`flex-1 text-sm py-2 px-3 rounded border transition-colors ${
-                        editBank === b
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
-                      }`}
-                    >
-                      {b}
-                    </button>
-                  ))}
-                </div>
+                <SegButtons options={BANKS} value={editBank} onChange={setEditBank} toggleable cols={2} />
               )}
               {editMethod === "เช็ค" && (
                 <Input
@@ -905,100 +1126,31 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   placeholder="เลขที่เช็ค"
                   value={editCheckNumber}
                   onChange={(e) => setEditCheckNumber(e.target.value)}
-                  className="mt-2"
                 />
               )}
             </div>
 
-            <div>
-              <Label>หมายเหตุ</Label>
-              <Textarea
-                value={editNote}
-                onChange={(e) => setEditNote(e.target.value)}
-              />
+            <div className="space-y-2">
+              <Label htmlFor="npg-edit-note">หมายเหตุ</Label>
+              <Textarea id="npg-edit-note" value={editNote} onChange={(e) => setEditNote(e.target.value)} />
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
               ⚠️ การแก้ไขจำนวนเงินหรือวันที่ชำระ จะคำนวณยอดคงเหลือและลำดับงวดของบัญชีทั้งหมดใหม่ทันที (เรียงตามวันที่ชำระ)
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditingPayment(null)} disabled={isSavingEdit}>
               ยกเลิก
             </Button>
-            <Button onClick={handleSaveEdit} disabled={isSavingEdit}>
+            <Button onClick={handleSaveEdit} disabled={isSavingEdit} className="bg-[#1e2432] hover:bg-[#2a3245] text-white">
               {isSavingEdit ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ✅ ค่าธรรมเนียมอื่นๆ */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b flex items-center justify-between">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Receipt size={20} />
-            ค่าธรรมเนียมอื่นๆ
-          </h2>
-          <Button variant="outline" size="sm" onClick={() => setIsFeeDialogOpen(true)} className="gap-1">
-            <Plus className="h-4 w-4" />
-            บันทึกค่าธรรมเนียม
-          </Button>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>วันที่</TableHead>
-              <TableHead>รายการ</TableHead>
-              <TableHead className="text-right">จำนวนเงิน</TableHead>
-              <TableHead>วิธีชำระ</TableHead>
-              <TableHead>หมายเหตุ</TableHead>
-              <TableHead>ผู้บันทึก</TableHead>
-              {isAdmin && <TableHead className="text-center">จัดการ</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!account.fees || account.fees.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-6 text-gray-500">
-                  ยังไม่มีค่าธรรมเนียม
-                </TableCell>
-              </TableRow>
-            ) : (
-              account.fees.map((fee) => (
-                <TableRow key={fee.id}>
-                  <TableCell>
-                    {new Date(fee.fee_date).toLocaleDateString("th-TH", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell>{fee.description}</TableCell>
-                  <TableCell className="text-right text-green-600 font-medium">{baht(fee.amount)}</TableCell>
-                  <TableCell className="text-gray-600">{fee.payment_method || "-"}</TableCell>
-                  <TableCell className="text-gray-600">{fee.note || "-"}</TableCell>
-                  <TableCell className="text-gray-600">{fee.created_by || "-"}</TableCell>
-                  {isAdmin && (
-                    <TableCell className="text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-red-600"
-                        onClick={() => setDeletingFee(fee)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Add Fee Dialog */}
+      {/* Add Fee Dialog (ทุกคนบันทึกได้ เหมือนเดิม) */}
       <Dialog
         open={isFeeDialogOpen}
         onOpenChange={(o) => {
@@ -1007,56 +1159,44 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           if (!o) resetFeeForm();
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>บันทึกค่าธรรมเนียม</DialogTitle>
             <DialogDescription>
               ค่าธรรมเนียมอื่นๆ ของลูกค้า {account.customer_name} (ไม่กระทบยอดหนี้คงเหลือ)
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>รายการ</Label>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="npg-fee-desc">รายการ</Label>
               <Input
+                id="npg-fee-desc"
                 value={feeDescription}
                 onChange={(e) => setFeeDescription(e.target.value)}
                 placeholder="เช่น ค่าทวงถาม"
               />
             </div>
-            <div>
-              <Label>จำนวนเงิน (฿)</Label>
+            <div className="space-y-2">
+              <Label htmlFor="npg-fee-amount">จำนวนเงิน (฿)</Label>
               <Input
+                id="npg-fee-amount"
                 type="number"
+                inputMode="decimal"
                 placeholder="0.00"
                 value={feeAmount}
                 onChange={(e) => setFeeAmount(e.target.value)}
               />
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {["เงินสด", "เงินโอน", "เช็ค"].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setFeeMethod(m)}
-                    className={`text-sm py-2 px-3 rounded border transition-colors ${
-                      feeMethod === m
-                        ? "bg-slate-800 text-white border-slate-800"
-                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
+              <SegButtons options={PAY_METHODS} value={feeMethod} onChange={setFeeMethod} />
             </div>
-            <div>
-              <Label>หมายเหตุ (ถ้ามี)</Label>
-              <Textarea value={feeNote} onChange={(e) => setFeeNote(e.target.value)} />
+            <div className="space-y-2">
+              <Label htmlFor="npg-fee-note">หมายเหตุ (ถ้ามี)</Label>
+              <Textarea id="npg-fee-note" value={feeNote} onChange={(e) => setFeeNote(e.target.value)} />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -1067,14 +1207,14 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             >
               ยกเลิก
             </Button>
-            <Button onClick={handleAddFee} disabled={isSavingFee}>
+            <Button onClick={handleAddFee} disabled={isSavingFee} className="bg-[#F26B1D] hover:bg-[#d95c14] text-white">
               {isSavingFee ? "กำลังบันทึก..." : "บันทึก"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Fee Dialog (adm เท่านั้น) */}
+      {/* 🔒 Delete Fee Dialog (adm เท่านั้น) */}
       <Dialog open={!!deletingFee} onOpenChange={(o) => !o && !isDeletingFee && setDeletingFee(null)}>
         <DialogContent>
           <DialogHeader>
@@ -1084,7 +1224,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
               <strong>{baht(deletingFee?.amount)}</strong> ใช่ไหม? การดำเนินการนี้ไม่สามารถย้อนกลับได้
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="secondary" onClick={() => setDeletingFee(null)} disabled={isDeletingFee}>
               ยกเลิก
             </Button>
@@ -1095,80 +1235,6 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Payment History */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Calendar size={20} />
-            ประวัติการชำระเงิน
-          </h2>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>วันที่ชำระ</TableHead>
-              <TableHead>งวดที่</TableHead>
-              <TableHead className="text-right">จำนวนเงิน</TableHead>
-              <TableHead className="text-right">ค่าปรับ</TableHead>
-              <TableHead className="text-right">คงเหลือหลังชำระ</TableHead>
-              <TableHead>วิธีชำระ</TableHead>
-              <TableHead>หมายเหตุ</TableHead>
-              <TableHead className="text-center">จัดการ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!account.payments || account.payments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                  ยังไม่มีประวัติการชำระเงิน
-                </TableCell>
-              </TableRow>
-            ) : (
-              account.payments.map((payment) => (
-                <TableRow key={payment.id}>
-                  <TableCell>
-                    {new Date(payment.payment_date).toLocaleDateString("th-TH", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell>งวดที่ {payment.installment_number}</TableCell>
-                  <TableCell className="text-right text-green-600 font-medium">
-                    {payment.amount_paid.toLocaleString()} ฿
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {payment.late_fee && payment.late_fee > 0 ? (
-                      <span className="text-red-600 font-medium">{payment.late_fee.toLocaleString()} ฿</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {payment.remaining_balance_after.toLocaleString()} ฿
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {payment.payment_method || "-"}
-                    {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
-                    {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
-                  </TableCell>
-                  <TableCell className="text-gray-600">{payment.note || "-"}</TableCell>
-                  <TableCell className="text-center">
-                    <PaymentRowButtons
-                      payment={payment}
-                      accountId={customerId}
-                      isAdmin={isAdmin}
-                      onEdit={openEditDialog}
-                      onDeleted={fetchAccountDetail}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
     </div>
   );
 };

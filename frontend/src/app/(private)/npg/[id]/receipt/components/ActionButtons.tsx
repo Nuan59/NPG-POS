@@ -3,10 +3,19 @@
 import PdfLoading from "@/components/pdf/PdfLoading";
 import TempReceiptTemplate, { TempReceiptItem } from "@/components/pdf/TempReceiptTemplate";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import React from "react";
+
+// ✅ สร้างครั้งเดียวนอก component (เดิมสร้างใหม่ทุก render ทำให้ปุ่มกระพริบ/โหลดซ้ำ)
+const PDFDownloadLink = dynamic(
+  () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
+  {
+    ssr: false,
+    loading: () => <PdfLoading />,
+  }
+);
 
 interface ReceiptData {
   receiptNumber: string;
@@ -26,18 +35,13 @@ interface ActionButtonsProps {
 }
 
 const ActionButtons = ({ data, backHref = "/npg" }: ActionButtonsProps) => {
-  const PDFDownloadLink = dynamic(
-    () => import("@react-pdf/renderer").then((mod) => mod.PDFDownloadLink),
-    {
-      ssr: false,
-      loading: () => <PdfLoading />,
-    }
-  );
-
   return (
-    <div className="flex justify-between container mt-2">
+    <div className="flex flex-wrap justify-between gap-2 mt-3">
       <Link href={backHref}>
-        <Button variant={"outline"}>Return</Button>
+        <Button variant="outline" className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          กลับไปบัญชี
+        </Button>
       </Link>
       <PDFDownloadLink
         fileName={`${data.receiptNumber}.pdf`}
@@ -55,9 +59,9 @@ const ActionButtons = ({ data, backHref = "/npg" }: ActionButtonsProps) => {
           />
         }
       >
-        <Button className="flex justify-between gap-2">
-          <Printer size={"1.2rem"} opacity={"60%"} />
-          Print
+        <Button className="gap-2 bg-[#F26B1D] hover:bg-[#d95c14] text-white">
+          <Download size={16} />
+          ดาวน์โหลด PDF
         </Button>
       </PDFDownloadLink>
     </div>

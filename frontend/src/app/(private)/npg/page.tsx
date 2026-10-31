@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import NPGSummary, { NPGPortfolioSummary } from "./components/NPGSummary";
 import NPGTable from "./components/NPGTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, Archive } from "lucide-react";
+import { ChevronDown, Archive, RefreshCw, AlertTriangle } from "lucide-react";
 
 export interface NPGAccount {
   id: number;
@@ -40,6 +40,7 @@ export interface NPGAccount {
   progress_percentage: number;
   is_overdue: boolean;
   days_until_payment: number | null;
+  estimated_late_fee?: number; // ✅ ค่าปรับโดยประมาณถ้าจ่ายวันนี้ (backend ส่งมา)
   // ✅ ตัวเลขสรุปสัญญา (คำนวณจาก backend - NPGSerializer.get_metrics)
   metrics?: NPGAccountMetrics;
 }
@@ -71,50 +72,55 @@ export interface NPGSummary {
   total_remaining: number;
 }
 
+// ✅ เกินกำหนดหรือไม่ - ใช้ is_overdue (คำนวณสดจาก backend) ก่อนเสมอ
+const isAccountOverdue = (a: NPGAccount) => a.status === "overdue" || a.is_overdue === true;
+
+// ✅ นับ "ชำระครบ" (completed) เป็นบัญชีที่จบแล้วเหมือน "ปิดบัญชี" (closed) - โชว์รวมกันในส่วน "บัญชีที่ปิดแล้ว"
+// ไม่ได้เปลี่ยนค่า status จริงในฐานข้อมูล แค่จัดกลุ่มตอนแสดงผล
+const isFinishedAccount = (account: NPGAccount) =>
+  account.status === "closed" || account.status === "completed";
+
 export default function NPGPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [accounts, setAccounts] = useState<NPGAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [showClosed, setShowClosed] = useState<boolean>(false);
+  const loadedOnce = useRef(false);
+  const inFlight = useRef(false);
+
+  const accessToken = session?.user?.accessToken;
 
   // ✅ admin เห็นป้าย/ตัวเลข "หนี้เสีย" - พนักงานไม่เห็น
   const isAdmin = ["adm", "admin", "administrator"].includes(
     String(session?.user?.role ?? "").toLowerCase()
   );
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-      return;
-    }
-    
-    if (status === "authenticated" && session) {
-      fetchData();
-    }
-  }, [status, session]);
-
-  const fetchData = async () => {
-    if (!session?.user?.accessToken) {
+  const fetchData = useCallback(async () => {
+    if (!accessToken) {
       setError("ไม่พบ access token กรุณา logout และ login ใหม่");
       setLoading(false);
       return;
     }
+    if (inFlight.current) return; // ✅ กันกดรีเฟรชซ้ำระหว่างกำลังโหลด
+    inFlight.current = true;
 
     try {
-      setLoading(true);
+      // ✅ โหลดครั้งแรกโชว์ skeleton / รีเฟรชครั้งถัดไปคงตารางเดิมไว้ แค่หมุนไอคอน
+      if (loadedOnce.current) setRefreshing(true);
+      else setLoading(true);
       setError(null);
 
-      const token = session.user.accessToken;
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
       const accountsResponse = await fetch(`${baseUrl}/npg/accounts/`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
       });
@@ -132,65 +138,91 @@ export default function NPGPage() {
 
       if (Array.isArray(accountsData)) {
         setAccounts(accountsData);
+        loadedOnce.current = true;
       } else {
         console.error("Accounts data is not an array:", accountsData);
         setAccounts([]);
       }
-
     } catch (error) {
       console.error("❌ Error fetching NPG data:", error);
       setError(error instanceof Error ? error.message : "ไม่สามารถโหลดข้อมูลได้");
       setAccounts([]);
     } finally {
+      inFlight.current = false;
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [accessToken, router]);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+      return;
+    }
+    // ✅ ผูกกับ token แทน object session - ไม่โหลดใหม่ทุกครั้งที่สลับแท็บกลับมา
+    if (status === "authenticated" && accessToken) {
+      fetchData();
+    }
+  }, [status, accessToken, fetchData, router]);
+
+  const list = Array.isArray(accounts) ? accounts : [];
 
   const matchesSearchAndPeriod = (account: NPGAccount) => {
+    const q = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      account.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.bike_info?.model_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      account.bike_info?.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+      !q ||
+      account.customer_name?.toLowerCase().includes(q) ||
+      account.customer_phone?.replace(/-/g, "").includes(q.replace(/-/g, "")) || // ✅ ค้นด้วยเบอร์โทรได้
+      account.bike_info?.model_name?.toLowerCase().includes(q) ||
+      account.bike_info?.brand?.toLowerCase().includes(q);
 
     const matchesPeriod =
       periodFilter === "all" || (account.order_npg_period || account.period_type) === periodFilter;
 
-    return matchesSearch && matchesPeriod;
+    return !!matchesSearch && matchesPeriod;
   };
 
-  // ✅ นับ "ชำระครบ" (completed) เป็นบัญชีที่จบแล้วเหมือน "ปิดบัญชี" (closed) - ย้ายไปโชว์รวมกัน
-  // ในส่วน "บัญชีที่ปิดแล้ว" ด้วย เพราะทั้งคู่คือลูกค้าที่ไม่ต้องติดตามแล้ว ต่างกันแค่จ่ายครบเองตามปกติ
-  // หรือปิดก่อนกำหนด (ได้ส่วนลดดอกเบี้ย) - ไม่ได้เปลี่ยนค่า status จริงในฐานข้อมูล แค่จัดกลุ่มตอนแสดงผล
-  const isFinishedAccount = (account: NPGAccount) =>
-    account.status === "closed" || account.status === "completed";
+  const matchesStatus = (account: NPGAccount, filter: string) =>
+    filter === "all" ||
+    (filter === "overdue" ? isAccountOverdue(account) : account.status === filter);
 
-  const filteredAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
-    if (isFinishedAccount(account)) return false;
+  // บัญชีที่ยังผ่อนอยู่ (ไม่รวมปิดแล้ว/ชำระครบ) ที่ผ่านช่องค้นหา + ประเภทงวด
+  const liveMatched = list.filter((a) => !isFinishedAccount(a) && matchesSearchAndPeriod(a));
 
-    const isOverdue = account.status === "overdue" || account.is_overdue === true;
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "overdue" ? isOverdue : account.status === statusFilter);
+  const statusCounts = {
+    all: liveMatched.length,
+    active: liveMatched.filter((a) => matchesStatus(a, "active")).length,
+    overdue: liveMatched.filter((a) => matchesStatus(a, "overdue")).length,
+  };
 
-    return matchesSearchAndPeriod(account) && matchesStatus;
-  }) : [];
+  // ✅ เรียงให้ลูกค้าที่เกินกำหนดขึ้นก่อน (เกินนานสุดอยู่บนสุด) ที่เหลือคงลำดับเดิมจาก backend
+  const filteredAccounts = liveMatched
+    .filter((a) => matchesStatus(a, statusFilter))
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => {
+      const ox = isAccountOverdue(x.a) ? 1 : 0;
+      const oy = isAccountOverdue(y.a) ? 1 : 0;
+      if (ox !== oy) return oy - ox;
+      if (ox && oy) {
+        const dx = Number(x.a.metrics?.days_overdue || 0);
+        const dy = Number(y.a.metrics?.days_overdue || 0);
+        if (dx !== dy) return dy - dx;
+      }
+      return x.i - y.i;
+    })
+    .map((x) => x.a);
 
-  const closedAccounts = Array.isArray(accounts) ? accounts.filter((account) => {
-    return isFinishedAccount(account) && matchesSearchAndPeriod(account);
-  }) : [];
+  const closedAccounts = list.filter((account) => isFinishedAccount(account) && matchesSearchAndPeriod(account));
 
   // ✅ สรุปภาพรวมทุกบัญชี (รวมบัญชีที่ปิดแล้ว) - คำนวณฝั่ง client จาก metrics ของแต่ละบัญชี
   const portfolioSummary: NPGPortfolioSummary = useMemo(() => {
-    const list = Array.isArray(accounts) ? accounts : [];
     const sum = (key: keyof NPGAccountMetrics) =>
       list.reduce((total, a) => total + Number((a.metrics as any)?.[key] || 0), 0);
 
     return {
       total_accounts: list.length,
       active_accounts: list.filter((a) => !isFinishedAccount(a)).length,
-      overdue_accounts: list.filter(
-        (a) => !isFinishedAccount(a) && (a.status === "overdue" || a.is_overdue === true)
-      ).length,
+      overdue_accounts: list.filter((a) => !isFinishedAccount(a) && isAccountOverdue(a)).length,
       bad_debt_accounts: list.filter((a) => a.metrics?.contract_status === "bad_debt").length,
       credit: sum("credit"),
       expected_total: sum("expected_total"),
@@ -205,28 +237,49 @@ export default function NPGPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts]);
 
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-bold text-[#1e2432]">ระบบจัดการ NPG</h1>
+        <p className="text-sm text-[#7A7A7A]">ติดตามการผ่อนชำระของลูกค้า NPG</p>
+      </div>
+      <Button
+        variant="outline"
+        onClick={fetchData}
+        disabled={loading || refreshing}
+        className="gap-2"
+      >
+        <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+        {refreshing ? "กำลังโหลด..." : "รีเฟรช"}
+      </Button>
+    </div>
+  );
+
   if (status === "loading" || loading) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <h1 className="text-3xl font-bold">ระบบจัดการ NPG</h1>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="container mx-auto p-4 md:p-6 space-y-6">
+        <h1 className="text-2xl md:text-3xl font-bold text-[#1e2432]">ระบบจัดการ NPG</h1>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
-        <Skeleton className="h-96" />
+        <Skeleton className="h-96 rounded-xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-xl font-bold text-red-800 mb-2">เกิดข้อผิดพลาด</h2>
+      <div className="container mx-auto p-4 md:p-6">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-xl">
+          <h2 className="text-lg font-bold text-red-800 mb-2 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            เกิดข้อผิดพลาด
+          </h2>
           <p className="text-red-600 mb-4">{error}</p>
           <div className="flex gap-3">
-            <Button onClick={fetchData} variant="default">
+            <Button onClick={fetchData} className="bg-[#F26B1D] hover:bg-[#d95c14] text-white">
               ลองอีกครั้ง
             </Button>
             <Button onClick={() => router.push("/login")} variant="outline">
@@ -239,15 +292,15 @@ export default function NPGPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">ระบบจัดการ NPG</h1>
-          <p className="text-gray-600">จัดการการชำระเงินผ่านระบบไฟแนนซ์ NPG</p>
-        </div>
-      </div>
+    <div className="container mx-auto p-4 md:p-6 space-y-5">
+      {header}
 
-      <NPGSummary summary={portfolioSummary} userRole={session?.user?.role} />
+      <NPGSummary
+        summary={portfolioSummary}
+        userRole={session?.user?.role}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+      />
 
       <NPGTable
         isAdmin={isAdmin}
@@ -259,29 +312,30 @@ export default function NPGPage() {
         periodFilter={periodFilter}
         onPeriodFilterChange={setPeriodFilter}
         onRefresh={fetchData}
+        refreshing={refreshing}
+        statusCounts={statusCounts}
       />
 
       {closedAccounts.length > 0 && (
-        <div className="border rounded-lg">
+        <div className="rounded-xl border bg-white">
           <button
+            type="button"
             onClick={() => setShowClosed((v) => !v)}
-            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors rounded-xl"
           >
-            <div className="flex items-center gap-2 text-gray-700 font-medium">
+            <span className="flex items-center gap-2 text-[#7A7A7A] font-semibold">
               <Archive className="h-4 w-4" />
               บัญชีที่ปิดแล้ว ({closedAccounts.length})
-            </div>
-            {showClosed ? (
-              <ChevronUp className="h-4 w-4 text-gray-500" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-gray-500" />
-            )}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 text-[#7A7A7A] transition-transform ${showClosed ? "rotate-180" : ""}`}
+            />
           </button>
 
           {showClosed && (
-            <div className="p-4 pt-0">
+            <div className="border-t">
               <NPGTable
-        isAdmin={isAdmin}
+                isAdmin={isAdmin}
                 accounts={closedAccounts}
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -290,7 +344,10 @@ export default function NPGPage() {
                 periodFilter={periodFilter}
                 onPeriodFilterChange={setPeriodFilter}
                 onRefresh={fetchData}
+                refreshing={refreshing}
                 hideStatusFilter
+                hideToolbar
+                embedded
                 title="บัญชีที่ปิดแล้ว"
               />
             </div>
