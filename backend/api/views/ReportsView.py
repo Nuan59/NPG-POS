@@ -600,3 +600,307 @@ def _financial_overview_impl(request):
             "average_profit_per_order": round(net_profit / total_orders, 2) if total_orders > 0 else 0,
         }
     })
+
+# =========================
+# รายงานพนักงาน (adm เท่านั้น)
+# =========================
+# GET /reports/employees/?start=YYYY-MM-DD&end=YYYY-MM-DD
+# รวมทุกอย่างที่เกี่ยวกับการทำงานของพนักงานแต่ละคนในช่วงวันที่ (ตามเวลาไทย)
+# ขาย / บริการ / งานที่มอบหมาย / เช็คอิน / note ปิดร้าน / เข้า-ออกระบบ / ส่งเงินสด / ปัญหา / เบิกค่าใช้จ่าย
+# แต่ละส่วนครอบ try ไว้ - ตารางไหนยังไม่ได้สร้าง ส่วนนั้นว่าง แต่รายงานส่วนอื่นยังใช้ได้ (แจ้งใน warnings)
+def _bkk_range(start, end):
+    from datetime import datetime, time, timedelta
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Asia/Bangkok")
+    return (
+        datetime.combine(start, time.min, tzinfo=tz),
+        datetime.combine(end + timedelta(days=1), time.min, tzinfo=tz),
+    )
+
+
+def _bkk(dt):
+    from zoneinfo import ZoneInfo
+    return dt.astimezone(ZoneInfo("Asia/Bangkok")) if dt else None
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def employee_report(request):
+    from datetime import date as _date
+    from collections import defaultdict
+    from django.utils import timezone
+    from api.models import User, ServiceRecord, Issue
+    from api.models.WorkHours import LoginLog
+    from api.models.TaskPost import TaskAssignment, TaskCheckin, DailyNote
+    from api.models.CashHandover import CashHandover
+    from api.models.ExpenseRequest import ExpenseRequest
+
+    if str(getattr(request.user, "role", "") or "").lower() != "adm":
+        return Response({"error": "เฉพาะ adm"}, status=403)
+
+    try:
+        start = _date.fromisoformat(request.query_params.get("start", ""))
+        end = _date.fromisoformat(request.query_params.get("end", ""))
+    except ValueError:
+        return Response({"error": "ต้องส่ง start และ end เป็น YYYY-MM-DD"}, status=400)
+    if end < start:
+        start, end = end, start
+    dt_start, dt_end = _bkk_range(start, end)
+    now = timezone.now()
+
+    warnings = []
+    users = {u.id: u for u in User.objects.all()}
+    by_username = {u.username: u.id for u in users.values()}
+    active_ids = set()  # คนที่มีความเคลื่อนไหวในช่วงนี้ (นอกจากพนักงาน emp ที่ยังใช้งานอยู่)
+
+    def blank():
+        return {
+            "sales": {"orders": 0, "bikes": 0, "amount": 0.0, "pending": 0, "checklist_incomplete": 0},
+            "services": {"count": 0, "amount": 0.0, "by_type": {}},
+            "tasks": {"total": 0, "done": 0, "on_time": 0, "late_done": 0, "overdue_open": 0,
+                      "in_progress": 0, "issue": 0, "pending": 0, "progress_avg_pct": None},
+            "open_tasks": [],
+            "checkin_days": 0,
+            "notes": [], "note_days": 0, "note_complete_days": 0,
+            "login": {"days": 0, "sessions": 0, "no_logout": 0, "avg_first_login": None},
+            "login_days": [],
+            "cash": {"handovers": 0, "sent_total": 0.0, "received": 0, "mismatch": 0, "pending": 0,
+                     "diff_total": 0.0, "unsent_count": 0, "unsent_amount": 0.0},
+            "issues": {"reported": 0, "assigned": 0, "resolved": 0, "open_assigned": 0, "avg_resolve_hours": None},
+            "expenses": {"count": 0, "approved": 0, "approved_amount": 0.0, "rejected": 0, "pending": 0},
+        }
+
+    data = defaultdict(blank)
+
+    # ---------- 1) ขาย ----------
+    try:
+        from api.views.OrderViewSet import CHECKLIST_KEYS
+        from django.db import connection
+        checklist_counts = {}
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT order_id, COUNT(*) FILTER (WHERE item_key = ANY(%s)) FROM sale_checklist GROUP BY order_id",
+                    [list(CHECKLIST_KEYS)],
+                )
+                checklist_counts = {r[0]: r[1] for r in cursor.fetchall()}
+        except Exception:
+            pass
+
+        sold = (_sold_orders().filter(transaction_type="ขาย", sale_date__gte=start, sale_date__lte=end, seller__isnull=False)
+                .annotate(bike_count=Count("bikes")))
+        for o in sold:
+            s = data[o.seller_id]["sales"]
+            s["orders"] += 1
+            s["bikes"] += o.bike_count
+            s["amount"] += float(o.sale_price or 0)
+            if o.id in checklist_counts and len(CHECKLIST_KEYS) - checklist_counts[o.id] > 0:
+                s["checklist_incomplete"] += 1
+            active_ids.add(o.seller_id)
+
+        pending = Order.objects.filter(transaction_type="ขาย", seller__isnull=False, created_at__gte=dt_start,
+                                       created_at__lt=dt_end).exclude(sale_status="completed")
+        for o in pending.only("id", "seller_id"):
+            data[o.seller_id]["sales"]["pending"] += 1
+            active_ids.add(o.seller_id)
+    except Exception as e:
+        warnings.append(f"ขาย: {e}")
+
+    # ---------- 2) งานบริการ (ผูกด้วย username ใน created_by) ----------
+    try:
+        for r in ServiceRecord.objects.filter(service_date__gte=start, service_date__lte=end).only(
+                "created_by", "total", "transaction_type"):
+            uid = by_username.get(r.created_by)
+            if not uid:
+                continue
+            s = data[uid]["services"]
+            s["count"] += 1
+            s["amount"] += float(r.total or 0)
+            s["by_type"][r.transaction_type] = s["by_type"].get(r.transaction_type, 0) + 1
+            active_ids.add(uid)
+    except Exception as e:
+        warnings.append(f"งานบริการ: {e}")
+
+    # ---------- 3) งานที่มอบหมาย ----------
+    # นับงานที่ "อยู่ในมือ" ช่วงนี้: โพสต์ก่อนสิ้นช่วง และ (ยังไม่เสร็จ หรือ เสร็จในช่วงนี้)
+    try:
+        progress = defaultdict(list)
+        qs = (TaskAssignment.objects.select_related("post")
+              .filter(post__post_type="assigned", post__created_at__lt=dt_end)
+              .filter(~Q(status="done") | Q(completed_at__gte=dt_start)))
+        for a in qs:
+            t = data[a.employee_id]["tasks"]
+            t["total"] += 1
+            is_done = a.status == "done"
+            overdue = bool(a.due_date and not is_done and a.due_date < now)
+            if is_done:
+                t["done"] += 1
+                if a.due_date and a.completed_at and a.completed_at > a.due_date:
+                    t["late_done"] += 1
+                else:
+                    t["on_time"] += 1
+            else:
+                t[a.status if a.status in ("in_progress", "issue", "pending") else "pending"] += 1
+                if overdue:
+                    t["overdue_open"] += 1
+                data[a.employee_id]["open_tasks"].append({
+                    "content": (a.post.content or "")[:200],
+                    "status": a.status,
+                    "due_date": a.due_date,
+                    "overdue": overdue,
+                    "target_quantity": a.target_quantity,
+                    "current_progress": a.current_progress,
+                    "target_unit": a.target_unit,
+                    "note": a.note,
+                })
+            if a.target_quantity:
+                progress[a.employee_id].append(min(a.current_progress / a.target_quantity, 1))
+            active_ids.add(a.employee_id)
+        for uid, vals in progress.items():
+            data[uid]["tasks"]["progress_avg_pct"] = round(sum(vals) / len(vals) * 100)
+        for d in data.values():
+            d["open_tasks"].sort(key=lambda x: (not x["overdue"], x["due_date"] is None, x["due_date"] or now))
+    except Exception as e:
+        warnings.append(f"งานที่มอบหมาย: {e}")
+
+    # ---------- 4) เช็คอิน + note ปิดร้าน ----------
+    try:
+        for c in TaskCheckin.objects.filter(date__gte=start, date__lte=end).only("user_id"):
+            data[c.user_id]["checkin_days"] += 1
+            active_ids.add(c.user_id)
+    except Exception as e:
+        warnings.append(f"เช็คอิน: {e}")
+    try:
+        from api.views.TaskViewSet import DAILY_NOTE_CHECKLIST
+        keys = [k for k, _ in DAILY_NOTE_CHECKLIST]
+        for n in DailyNote.objects.filter(date__gte=start, date__lte=end).order_by("-date"):
+            d = data[n.user_id]
+            ok = all((n.checklist or {}).get(k) for k in keys)
+            d["note_days"] += 1
+            d["note_complete_days"] += 1 if ok else 0
+            d["notes"].append({"date": n.date, "today": n.today, "issue": n.issue,
+                               "tomorrow": n.tomorrow, "checklist_ok": ok})
+            active_ids.add(n.user_id)
+    except Exception as e:
+        warnings.append(f"note ปิดร้าน: {e}")
+
+    # ---------- 5) เข้า-ออกระบบ ----------
+    try:
+        days = defaultdict(dict)  # uid -> {date: {...}}
+        for log in LoginLog.objects.filter(login_at__gte=dt_start, login_at__lt=dt_end).order_by("login_at"):
+            li, lo = _bkk(log.login_at), _bkk(log.logout_at)
+            day = days[log.user_id].setdefault(li.date(), {"first_in": li, "last_out": None, "sessions": 0, "no_logout": 0})
+            day["sessions"] += 1
+            if lo:
+                if not day["last_out"] or lo > day["last_out"]:
+                    day["last_out"] = lo
+            else:
+                day["no_logout"] += 1
+            # ไม่นับเป็นความเคลื่อนไหว - adm ล็อกอินเฉยๆ ไม่ต้องโผล่ในรายงาน
+        for uid, per_day in days.items():
+            lg = data[uid]["login"]
+            lg["days"] = len(per_day)
+            lg["sessions"] = sum(v["sessions"] for v in per_day.values())
+            lg["no_logout"] = sum(v["no_logout"] for v in per_day.values())
+            mins = [v["first_in"].hour * 60 + v["first_in"].minute for v in per_day.values()]
+            avg = round(sum(mins) / len(mins))
+            lg["avg_first_login"] = f"{avg // 60:02d}:{avg % 60:02d}"
+            data[uid]["login_days"] = [
+                {"date": dte, "first_in": v["first_in"].strftime("%H:%M"),
+                 "last_out": v["last_out"].strftime("%H:%M") if v["last_out"] else None,
+                 "sessions": v["sessions"], "no_logout": v["no_logout"]}
+                for dte, v in sorted(per_day.items(), reverse=True)
+            ]
+    except Exception:
+        warnings.append("เข้า-ออกระบบ: ยังไม่ได้สร้างตาราง (เปิด /dev/create-login-log-table/)")
+
+    # ---------- 6) ส่งเงินสด ----------
+    try:
+        for h in CashHandover.objects.filter(created_at__gte=dt_start, created_at__lt=dt_end):
+            uid = by_username.get(h.created_by_username)
+            if not uid:
+                continue
+            c = data[uid]["cash"]
+            c["handovers"] += 1
+            c["sent_total"] += float(h.total or 0)
+            if h.status == "pending":
+                c["pending"] += 1
+            else:
+                c["received"] += 1
+            if h.status == "mismatch":
+                c["mismatch"] += 1
+                c["diff_total"] += float((h.received_amount or 0) - (h.total or 0))
+            active_ids.add(uid)
+        # เงินค้างส่ง = สถานะ ณ ตอนนี้ (ไม่ขึ้นกับช่วงวันที่)
+        from api.views.CashHandoverViewSet import _collect_unsent
+        for r in _collect_unsent(None):
+            uid = by_username.get(r["username"])
+            if not uid:
+                continue
+            c = data[uid]["cash"]
+            c["unsent_count"] += 1
+            c["unsent_amount"] += float(r["amount"])
+            active_ids.add(uid)
+    except Exception as e:
+        warnings.append(f"ส่งเงินสด: {e}")
+
+    # ---------- 7) ปัญหา (Issue) ----------
+    try:
+        in_range = Issue.objects.filter(created_at__gte=dt_start, created_at__lt=dt_end)
+        for i in in_range.only("created_by_id", "assigned_to_id"):
+            if i.created_by_id:
+                data[i.created_by_id]["issues"]["reported"] += 1
+                active_ids.add(i.created_by_id)
+            if i.assigned_to_id:
+                data[i.assigned_to_id]["issues"]["assigned"] += 1
+                active_ids.add(i.assigned_to_id)
+        hours = defaultdict(list)
+        for i in Issue.objects.filter(resolved_by__isnull=False, resolved_at__gte=dt_start, resolved_at__lt=dt_end):
+            data[i.resolved_by_id]["issues"]["resolved"] += 1
+            if i.created_at and i.resolved_at:
+                hours[i.resolved_by_id].append((i.resolved_at - i.created_at).total_seconds() / 3600)
+            active_ids.add(i.resolved_by_id)
+        for uid, hs in hours.items():
+            data[uid]["issues"]["avg_resolve_hours"] = round(sum(hs) / len(hs), 1)
+        # งานปัญหาที่ค้างอยู่ในมือตอนนี้
+        for i in Issue.objects.filter(assigned_to__isnull=False, status__in=["open", "in_progress"]).only("assigned_to_id"):
+            data[i.assigned_to_id]["issues"]["open_assigned"] += 1
+    except Exception as e:
+        warnings.append(f"ปัญหา: {e}")
+
+    # ---------- 8) เบิกค่าใช้จ่าย ----------
+    try:
+        for x in ExpenseRequest.objects.filter(created_at__gte=dt_start, created_at__lt=dt_end).only(
+                "created_by_username", "status", "amount"):
+            uid = by_username.get(x.created_by_username)
+            if not uid:
+                continue
+            e_ = data[uid]["expenses"]
+            e_["count"] += 1
+            if x.status == "approved":
+                e_["approved"] += 1
+                e_["approved_amount"] += float(x.amount or 0)
+            elif x.status == "rejected":
+                e_["rejected"] += 1
+            else:
+                e_["pending"] += 1
+            active_ids.add(uid)
+    except Exception as e:
+        warnings.append(f"เบิกค่าใช้จ่าย: {e}")
+
+    # ---------- รวมผล: พนักงาน emp ที่ใช้งานอยู่ทุกคน + คนอื่นที่มีความเคลื่อนไหว ----------
+    ids = {u.id for u in users.values() if u.role == "emp" and u.is_active} | (active_ids & set(users))
+    employees = []
+    for uid in ids:
+        u = users[uid]
+        employees.append({
+            "user_id": uid, "name": u.name or u.username, "username": u.username,
+            "role": u.role, "is_active": u.is_active, **data[uid],
+        })
+    employees.sort(key=lambda e: (e["role"] != "emp", -e["sales"]["amount"], e["name"]))
+
+    return Response({
+        "start": start, "end": end,
+        "employees": employees,
+        "warnings": warnings,
+    })

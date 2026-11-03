@@ -19,7 +19,7 @@ SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 ALLOWED_WRITES = [
     re.compile(r"^/cash-handover/\d+/receive/?$"),
     re.compile(r"^/expense-requests/\d+/(approve|reject)/?$"),
-    re.compile(r"^/(login|auth/token|auth/token/refresh)/?$"),
+    re.compile(r"^/(login|auth/token|auth/token/refresh|auth/logout)/?$"),
 ]
 
 

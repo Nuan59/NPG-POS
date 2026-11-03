@@ -11,6 +11,6 @@ from .NPGAccount import NPGAccount
 from .NPGPayment import NPGPayment
 from .Registration import RegistrationLog
 from .Issue import Issue, IssueUpdate
-from .WorkHours import WorkHours
+from .WorkHours import WorkHours, LoginLog
 from .Cashflow import CashflowEntry, CashflowDayMeta
 from .ServiceRecord import ServiceRecord

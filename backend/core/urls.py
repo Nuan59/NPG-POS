@@ -28,7 +28,7 @@ from api.views.AnnouncementViewSet import AnnouncementViewSet
 from api.views.AnnouncementSettingsView import AnnouncementSettingsView
 from api.views.RegistrationView import registration_list, update_status, status_history, activity_feed
 from rest_framework_simplejwt.views import TokenRefreshView
-from api.views.CustomTokenView import CustomTokenObtainPairView
+from api.views.CustomTokenView import CustomTokenObtainPairView, logout_view
 from api.views.WorkHoursView import WorkHoursView
 
 # ✅ Temp: รัน migration ผ่าน browser
@@ -754,6 +754,26 @@ def create_daily_note_table(request):
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
 
+# ✅ Temp: ประวัติเข้า-ออกระบบ (รายงานพนักงาน) - ตาราง login_log (เรียกซ้ำได้)
+def create_login_log_table(request):
+    from django.db import connection
+    from django.apps import apps as django_apps
+    try:
+        user_table = django_apps.get_model('api', 'User')._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS login_log (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES "{user_table}"(id) ON DELETE CASCADE,
+                    login_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    logout_at TIMESTAMPTZ NULL
+                );
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS login_log_user_login_idx ON login_log (user_id, login_at);")
+        return JsonResponse({'status': 'ok', 'message': 'สร้างตาราง login_log เรียบร้อยแล้ว'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
 # ✅ Temp: เช็คอินงานประจำวัน - ตาราง task_checkin + task_assignment_touch (เรียกซ้ำได้)
 def create_task_checkin_tables(request):
     from django.db import connection
@@ -872,6 +892,7 @@ urlpatterns = [
     path('dev/create-bike-source-table/', create_bike_source_table),
     path('dev/create-task-checkin-tables/', create_task_checkin_tables),
     path('dev/create-daily-note-table/', create_daily_note_table),
+    path('dev/create-login-log-table/', create_login_log_table),
 
     path('customers/map/', CustomerMapView.as_view(), name='customer-map'),
     path('postal-code/', PostalCodeLookupView.as_view(), name='postal-code-lookup'),
@@ -902,10 +923,12 @@ urlpatterns = [
     path("reports/inventory/brands/", ReportsView.inventory_brands),
     path("reports/inventory/models/", ReportsView.inventory_models),
     path("reports/inventory/storages/", ReportsView.inventory_storages),
+    path("reports/employees/", ReportsView.employee_report),
 
     path("login/", CustomTokenObtainPairView.as_view(), name="login"),
     path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/logout/", logout_view, name="logout"),
     path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
 
     path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),

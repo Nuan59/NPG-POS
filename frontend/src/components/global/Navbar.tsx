@@ -64,6 +64,21 @@ const ACTIVE_STYLE: React.CSSProperties = {
 export const Navbar = () => {
   const { data: session } = useSession();
   const userInfo = session?.user as any;
+
+  // ✅ บันทึกเวลาออกระบบไว้ทำรายงานพนักงานก่อน แล้วค่อย signOut (บันทึกไม่ได้ก็ยังออกระบบได้ตามปกติ)
+  const handleLogout = async () => {
+    try {
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      if (userInfo?.accessToken) {
+        await fetch(`${base}/auth/logout/`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${userInfo.accessToken}` },
+          keepalive: true,
+        });
+      }
+    } catch {}
+    signOut();
+  };
   const pathname = usePathname() || "";
   const [menuOpen, setMenuOpen] = useState(false);
   const { loaded, canAccess } = useEmployeePermissions();
@@ -167,7 +182,7 @@ export const Navbar = () => {
                 {displayName}
               </span>
               <button
-                onClick={() => signOut()}
+                onClick={handleLogout}
                 title="ออกจากระบบ"
                 aria-label="ออกจากระบบ"
                 className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-[#8E97A6] hover:text-white hover:bg-white/10 transition-colors"
@@ -178,7 +193,7 @@ export const Navbar = () => {
 
             {/* ออกจากระบบ (มือถือ) */}
             <button
-              onClick={() => signOut()}
+              onClick={handleLogout}
               title="ออกจากระบบ"
               aria-label="ออกจากระบบ"
               className="flex sm:hidden nav-icon-btn"
