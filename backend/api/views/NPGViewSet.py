@@ -56,6 +56,19 @@ def _calculate_late_fee(due_date, payment_date):
     return days_late * 50, days_late
 
 
+def _parse_late_fee(raw):
+    """ค่าปรับที่พนักงานกรอกเอง: None = ไม่ได้ส่งมา (ใช้ค่าที่ระบบคำนวณ) / ตัวเลข >= 0 / 'invalid' = ผิดรูปแบบ"""
+    if raw is None or raw == "":
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return "invalid"
+    if v < 0:
+        return "invalid"
+    return round(v, 2)
+
+
 def _build_receipt(payment, account, items, total):
     """
     สร้างข้อมูลใบเสร็จรับเงินชั่วคราว สำหรับส่งกลับให้ frontend ไปเรนเดอร์เป็น PDF
@@ -240,6 +253,13 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         due_date = account.next_payment_date
         payment_date = timezone.now().date()
         late_fee, days_late = _calculate_late_fee(due_date, payment_date)
+        # ✅ ค่าปรับที่รับจริง - พนักงานแก้/ยกเว้นได้ (เช่น ลูกค้าจ่ายแค่ค่างวด ไม่ได้จ่ายค่าปรับ = 0)
+        #    ไม่ส่งมา = ใช้ค่าที่ระบบคำนวณ (เหมือนเดิม)
+        custom_fee = _parse_late_fee(request.data.get('late_fee'))
+        if custom_fee == "invalid":
+            return Response({'error': 'ค่าปรับไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
+        if custom_fee is not None:
+            late_fee = custom_fee
 
         # ✅ แบ่งจ่าย - ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดที่รับทั้งหมด (ค่างวด + ค่าปรับ)
         cash_amount = None
@@ -284,7 +304,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         receipt_total = amount_paid
         if late_fee:
             receipt_items.append({
-                "description": f"ค่าปรับจ่ายล่าช้า ({days_late} วัน)",
+                "description": f"ค่าปรับจ่ายล่าช้า ({days_late} วัน)" if days_late > 3 else "ค่าปรับจ่ายล่าช้า",
                 "amount": late_fee,
             })
             receipt_total += late_fee
@@ -484,12 +504,13 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             description = f"ชำระค่างวดที่ {payment.installment_number}/{account.installment_count}{bike_desc}"
 
-        receipt = _build_receipt(
-            payment=payment,
-            account=account,
-            items=[{"description": description, "amount": float(payment.amount_paid)}],
-            total=float(payment.amount_paid),
-        )
+        items = [{"description": description, "amount": float(payment.amount_paid)}]
+        total = float(payment.amount_paid)
+        if float(payment.late_fee or 0) > 0:
+            items.append({"description": "ค่าปรับจ่ายล่าช้า", "amount": float(payment.late_fee)})
+            total += float(payment.late_fee)
+
+        receipt = _build_receipt(payment=payment, account=account, items=items, total=total)
         return Response(receipt)
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated])
@@ -497,7 +518,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         """
         แก้ไขรายการชำระเงินที่บันทึกไปแล้ว (เฉพาะ role adm เท่านั้น)
         PATCH /npg/payments/{id}/edit/
-        Body: { amount_paid?, note?, payment_method?, transfer_bank?, check_number?, payment_date? }
+        Body: { amount_paid?, late_fee?, note?, payment_method?, transfer_bank?, check_number?, payment_date? }
         """
         if not _is_admin(request):
             return Response({'error': 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขรายการชำระเงินได้'}, status=status.HTTP_403_FORBIDDEN)
@@ -505,17 +526,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         payment = self.get_object()
         account = payment.account
 
-        # ✅ ส่งเงินไปแล้ว ห้ามเปลี่ยนยอด / วิธีชำระ (แก้หมายเหตุ / วันที่ได้ตามปกติ)
-        blocked = handover_block('npg_payment', payment.id)
-        if blocked:
-            try:
-                amount_changed = 'amount_paid' in request.data and float(request.data.get('amount_paid')) != float(payment.amount_paid)
-            except (TypeError, ValueError):
-                amount_changed = True
-            method_changed = 'payment_method' in request.data and (request.data.get('payment_method') or '') != (payment.payment_method or '')
-            if amount_changed or method_changed:
-                return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
-
+        # ✅ adm แก้ได้เสมอ แม้รายการจะส่งเงินไปแล้ว - ยอดที่ส่ง / แถว "ส่งเงิน" ถูกปรับตามยอดใหม่ให้เอง (ด้านล่าง)
         if 'amount_paid' in request.data:
             try:
                 new_amount = float(request.data.get('amount_paid'))
@@ -524,6 +535,12 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
             if new_amount <= 0:
                 return Response({'error': 'จำนวนเงินต้องมากกว่า 0'}, status=status.HTTP_400_BAD_REQUEST)
             payment.amount_paid = new_amount
+
+        if 'late_fee' in request.data:
+            new_fee = _parse_late_fee(request.data.get('late_fee'))
+            if new_fee == "invalid":
+                return Response({'error': 'ค่าปรับไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
+            payment.late_fee = new_fee or 0
 
         if 'note' in request.data:
             payment.note = request.data.get('note') or ''
@@ -548,6 +565,13 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         # only_if_exists: ค่างวดที่รับก่อนมีระบบนี้ (พนักงานพิมพ์รายรับเอง) ไม่ลงใหม่ซ้ำ
         _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None,
                              only_if_exists=True)
+        # ✅ รายการที่ส่งเงินไปแล้ว: ยอดใหม่น้อยลง (เช่น เอาค่าปรับที่ไม่ได้รับออก) → ยอดส่งเงินลดตาม ลิ้นชักไม่เพี้ยน
+        try:
+            from api.views.CashHandoverViewSet import fit_handover_to_source
+            fit_handover_to_source('npg_payment', payment.id)
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
         return Response({
             'message': 'แก้ไขรายการชำระเงินสำเร็จ',

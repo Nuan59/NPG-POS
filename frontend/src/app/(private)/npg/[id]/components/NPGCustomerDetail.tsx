@@ -183,6 +183,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [paymentMethodType, setPaymentMethodType] = useState<string>("เงินสด");
   const [transferBank, setTransferBank] = useState<string>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
+  // ✅ ค่าปรับที่รับจริง - ตั้งต้นตามที่ระบบคำนวณ แก้/ยกเว้นได้ (ลูกค้าจ่ายแค่ค่างวด = 0)
+  const [paymentLateFee, setPaymentLateFee] = useState<string>("0");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isSavingPayment, setIsSavingPayment] = useState(false); // ✅ กันกดบันทึกซ้ำ
   const [isCloseAccountDialogOpen, setIsCloseAccountDialogOpen] = useState(false);
@@ -199,6 +201,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [editBank, setEditBank] = useState<string>("");
   const [editCheckNumber, setEditCheckNumber] = useState<string>("");
   const [editPaymentDate, setEditPaymentDate] = useState<string>("");
+  const [editLateFee, setEditLateFee] = useState<string>("0");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // ✅ ค่าธรรมเนียมอื่นๆ
@@ -297,6 +300,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setPaymentMethodType("เงินสด");
     setTransferBank("");
     setCheckNumber("");
+    setPaymentLateFee("0");
   };
 
   const handlePayment = async () => {
@@ -313,6 +317,16 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
+    if (paymentLateFee.trim() === "" && Number(account.estimated_late_fee || 0) > 0) {
+      toast.error("กรุณาเลือกว่าลูกค้าจ่ายค่าปรับด้วยหรือไม่");
+      return;
+    }
+    const lateFee = paymentLateFee.trim() === "" ? 0 : parseFloat(paymentLateFee);
+    if (isNaN(lateFee) || lateFee < 0) {
+      toast.error("กรุณากรอกค่าปรับให้ถูกต้อง (ไม่เก็บค่าปรับ = 0)");
+      return;
+    }
+
     submitLock.current = true;
     setIsSavingPayment(true);
     try {
@@ -324,6 +338,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         },
         body: JSON.stringify({
           amount_paid: amount,
+          late_fee: lateFee,
           note: paymentNote,
           payment_method: paymentMethodType,
           transfer_bank: paymentMethodType === "เงินโอน" ? transferBank : "",
@@ -396,6 +411,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setEditCheckNumber(payment.check_number || "");
     // ✅ แปลงเป็น yyyy-mm-dd สำหรับ input type="date"
     setEditPaymentDate(payment.payment_date ? payment.payment_date.slice(0, 10) : "");
+    setEditLateFee(String(Number(payment.late_fee || 0)));
   };
 
   const handleSaveEdit = async () => {
@@ -404,6 +420,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     const amount = parseFloat(editAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("กรุณากรอกจำนวนเงินที่ถูกต้อง");
+      return;
+    }
+
+    const lateFee = editLateFee.trim() === "" ? 0 : parseFloat(editLateFee);
+    if (isNaN(lateFee) || lateFee < 0) {
+      toast.error("กรุณากรอกค่าปรับให้ถูกต้อง (ไม่เก็บค่าปรับ = 0)");
       return;
     }
 
@@ -417,6 +439,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         },
         body: JSON.stringify({
           amount_paid: amount,
+          late_fee: lateFee,
           note: editNote,
           payment_method: editMethod,
           transfer_bank: editMethod === "เงินโอน" ? editBank : "",
@@ -671,7 +694,11 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Button
             className="h-12 text-base bg-[#F26B1D] hover:bg-[#d95c14] text-white"
-            onClick={() => setIsPaymentDialogOpen(true)}
+            onClick={() => {
+              // ✅ มีค่าปรับ → ยังไม่เลือก (ต้องกดเลือกเองว่ารับค่าปรับด้วยหรือไม่) กันลงรายรับเกินเงินที่ได้จริง
+              setPaymentLateFee(estLateFee > 0 ? "" : "0");
+              setIsPaymentDialogOpen(true);
+            }}
           >
             <Banknote size={18} className="mr-2" />
             บันทึกการชำระเงิน
@@ -962,15 +989,56 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   ))}
               </div>
             </div>
-            {estLateFee > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                <span>
-                  จ่ายวันนี้จะมีค่าปรับล่าช้าเพิ่ม <b>{estLateFee.toLocaleString()} ฿</b>{" "}
-                  (ระบบจะคิดค่าปรับให้อัตโนมัติตอนกดบันทึก)
-                </span>
+            {estLateFee > 0 ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2.5">
+                <p className="text-sm text-red-700 flex items-start gap-2">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>
+                    มีค่าปรับล่าช้า <b>{estLateFee.toLocaleString()} ฿</b> ลูกค้าจ่ายค่าปรับด้วยไหม?
+                  </span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "จ่ายแค่ค่างวด", sub: "ไม่รับค่าปรับ", v: "0" },
+                    { label: "จ่ายค่าปรับด้วย", sub: `+${estLateFee.toLocaleString()} ฿`, v: String(estLateFee) },
+                  ].map((o) => {
+                    const active = paymentLateFee === o.v;
+                    return (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => setPaymentLateFee(o.v)}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                          active ? "border-[#F26B1D] bg-[#F26B1D] text-white" : "border-slate-200 bg-white text-[#1e2432] hover:border-[#F26B1D]"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{o.label}</span>
+                        <span className={`block text-xs tabular-nums ${active ? "text-white/80" : "text-[#7A7A7A]"}`}>{o.sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="npg-pay-late-fee" className="text-xs text-[#7A7A7A] shrink-0">หรือรับบางส่วน</Label>
+                  <Input
+                    id="npg-pay-late-fee"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    placeholder="ระบุค่าปรับที่รับจริง"
+                    value={paymentLateFee}
+                    onChange={(e) => setPaymentLateFee(e.target.value)}
+                    className="h-9 bg-white"
+                  />
+                </div>
               </div>
-            )}
+            ) : null}
+            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-sm tabular-nums">
+              <span className="text-[#7A7A7A]">ลงรายรับ (อัตโนมัติ)</span>
+              <b className="text-[#1e2432]">
+                {((parseFloat(paymentAmount) || 0) + (parseFloat(paymentLateFee) || 0)).toLocaleString()} ฿
+              </b>
+            </div>
             <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
               <SegButtons options={PAY_METHODS} value={paymentMethodType} onChange={setPaymentMethodType} />
@@ -1112,6 +1180,19 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                 value={editAmount}
                 onChange={(e) => setEditAmount(e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="npg-edit-late-fee">ค่าปรับล่าช้าที่รับจริง (฿)</Label>
+              <Input
+                id="npg-edit-late-fee"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={editLateFee}
+                onChange={(e) => setEditLateFee(e.target.value)}
+              />
+              <p className="text-xs text-[#7A7A7A]">ลูกค้าไม่ได้จ่ายค่าปรับ ใส่ 0 - รายรับอัตโนมัติจะแก้ยอดตามให้เอง</p>
             </div>
 
             <div className="space-y-2">

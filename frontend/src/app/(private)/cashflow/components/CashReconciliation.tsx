@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Calculator } from "lucide-react";
 import { CashflowCountInfo, recordCashCount } from "@/services/CashflowService";
 import { fmt } from "../util/cashflowUtil";
 
@@ -52,25 +53,25 @@ const CashReconciliation = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-5">
-      <h3 className="text-base font-bold mb-3 text-gray-800">🧮 ตรวจนับเงินสดปลายวัน</h3>
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <h3 className="text-base font-bold mb-3 text-[#1e2432] flex items-center gap-2"><Calculator size={17} className="text-[#F26B1D]" /> ตรวจนับเงินสดปลายวัน</h3>
 
       {readOnly ? (
-        cashCount?.countedAmount == null && <p className="text-sm text-gray-400">ยังไม่มีการนับเงินของวันนี้</p>
+        cashCount?.countedAmount == null && <p className="text-sm text-slate-400">ยังไม่มีการนับเงินของวันนี้</p>
       ) : alreadyRecordedByNonAdmin ? (
         <p className="text-sm text-emerald-600 font-medium">✓ บันทึกรายการนับเงินของวันนี้แล้ว</p>
       ) : (
         <>
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-sm text-gray-600 shrink-0">นับเงินสดในลิ้นชักได้จริง</label>
+            <label className="text-sm text-[#7A7A7A] shrink-0">นับเงินสดในลิ้นชักได้จริง</label>
             <input
               type="number"
               value={countedCash}
               onChange={(e) => setCountedCash(e.target.value)}
               placeholder="กรอกยอดที่นับได้"
-              className="w-40 text-right text-sm border rounded-md px-2 py-1.5 border-gray-300 outline-none focus:border-orange-400"
+              className="w-40 text-right text-sm border rounded-md px-2 py-1.5 border-slate-200 outline-none focus:border-[#F26B1D] focus:ring-2 focus:ring-[#F26B1D]/20"
             />
-            <span className="text-xs text-gray-400">บาท</span>
+            <span className="text-xs text-slate-400">บาท</span>
 
             {/* ✅ ผลเทียบยอดสด (ก่อนกดบันทึก) โชว์ให้เฉพาะ admin - พนักงานทั่วไปไม่เห็นว่าต่างเท่าไหร่ */}
             {isAdmin && diff !== null && (
@@ -88,7 +89,7 @@ const CashReconciliation = ({
             <button
               onClick={handleRecord}
               disabled={recording || counted === null}
-              className="ml-auto bg-orange-600 hover:bg-orange-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-1.5 rounded-lg"
+              className="ml-auto bg-[#F26B1D] hover:bg-[#d95c14] disabled:bg-slate-300 text-white text-sm font-semibold px-4 py-2 rounded-lg"
             >
               {recording ? "กำลังบันทึก..." : "บันทึกรายการนับเงิน"}
             </button>
@@ -98,9 +99,9 @@ const CashReconciliation = ({
 
       {/* ✅ ประวัติการนับล่าสุด - โชว์ให้เฉพาะ admin เท่านั้น */}
       {isAdmin && cashCount?.countedAmount != null && (
-        <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 flex items-center gap-3 flex-wrap">
+        <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-[#7A7A7A] flex items-center gap-3 flex-wrap">
           <span>
-            บันทึกล่าสุด: นับได้ <span className="font-semibold text-gray-700">{fmt(cashCount.countedAmount)}</span> บาท
+            บันทึกล่าสุด: นับได้ <span className="font-semibold text-[#1e2432]">{fmt(cashCount.countedAmount)}</span> บาท
           </span>
           {cashCount.countedBy && <span>โดย {cashCount.countedBy}</span>}
           {cashCount.countedAt && (
@@ -117,7 +118,7 @@ const CashReconciliation = ({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 
