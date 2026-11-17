@@ -16,6 +16,9 @@ export interface CashflowRow {
   cashIn: number;
   createdBy?: string;   // ชื่อพนักงานที่บันทึกรายการนี้
   balance?: number;
+  auto?: boolean;          // ✅ รายรับที่ระบบลงให้เอง
+  autoLocked?: string | null; // ✅ แถวอัตโนมัติที่ส่งเงินไปแล้ว (เหตุผลที่แก้ไม่ได้)
+  autoEdited?: boolean;    // ✅ adm แก้แถวอัตโนมัติในหน้านี้ (ส่งไปบอก backend ให้บันทึกแถวนี้)
 }
 
 export interface CashflowTotals {

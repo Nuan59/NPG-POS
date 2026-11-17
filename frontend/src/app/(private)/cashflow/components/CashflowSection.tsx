@@ -41,7 +41,9 @@ const CashflowSection = ({
 
   const updateRow = (idx: number, patch: Partial<UIRow>) => {
     const next = [...rows];
-    next[idx] = { ...next[idx], ...patch };
+    // ✅ แถวอัตโนมัติที่ adm แก้ - ติดธงไว้ให้ backend รู้ว่าแถวนี้ "ตั้งใจแก้" (แถวอื่นไม่แตะ)
+    const autoEdited = (next[idx] as any).auto && !(next[idx] as any).handover ? { autoEdited: true } : {};
+    next[idx] = { ...next[idx], ...patch, ...autoEdited };
     setRows(next);
   };
   const removeRow = (idx: number) => {
@@ -55,7 +57,7 @@ const CashflowSection = ({
   // - admin: แก้ไข/ลบได้ทุกแถว ไม่ว่าจะบันทึกไปแล้วหรือยัง
   // - พนักงานทั่วไป: แก้ไข/ลบได้เฉพาะแถวที่ "ยังไม่บันทึก" (ไม่มี id) เท่านั้น
   //   พอ auto-save ไปแล้ว (ได้ id จาก server) จะแก้ไข/ลบไม่ได้อีกต่อไป
-  // - แถว "อัตโนมัติ": ทุกคน (รวม admin) แก้/ลบในหน้านี้ไม่ได้ ต้องแก้ที่รายการต้นทาง (ขาย / งานซ่อม / NPG)
+  // - แถว "อัตโนมัติ": adm แก้/ลบได้ (ยกเว้นรายการที่ส่งเงินไปแล้ว) / พนักงานทั่วไปแก้ไม่ได้ ต้องแก้ที่รายการต้นทาง
   // - แถว "ส่งเงิน" รายรายการ (ส่งจากรายการค้างส่ง): แก้ได้เฉพาะ adm - แก้ยอด (ไม่เกินยอดเต็ม) / ลบ = ยกเลิกการส่งรายการนั้น
   //   ชื่อรายการ / ประเภท แก้ไม่ได้
   const getPermission = (row: UIRow) => {
@@ -63,7 +65,11 @@ const CashflowSection = ({
       const adm = !readOnly && isAdmin;
       return { canEdit: false, canEditAmount: adm, canDelete: adm };
     }
-    const editable = !readOnly && !(row as any).auto && (isAdmin || !row.id);
+    if ((row as any).auto) {
+      const adm = !readOnly && isAdmin && !(row as any).autoLocked;
+      return { canEdit: adm, canEditAmount: adm, canDelete: adm };
+    }
+    const editable = !readOnly && (isAdmin || !row.id);
     return { canEdit: editable, canEditAmount: editable, canDelete: editable };
   };
 
@@ -127,7 +133,13 @@ const CashflowSection = ({
                   )}
                   {(row as any).auto && !(row as any).handover && (
                     <span
-                      title="ระบบลงให้เอง แก้หรือลบที่รายการต้นทาง (ขาย / งานซ่อม / NPG)"
+                      title={
+                        (row as any).autoLocked
+                          ? (row as any).autoLocked
+                          : isAdmin
+                            ? "ระบบลงให้เอง - adm แก้/ลบในหน้านี้ได้ (ถ้าแก้ที่รายการต้นทางทีหลัง ยอดจะถูกแก้ตามต้นทาง)"
+                            : "ระบบลงให้เอง แก้หรือลบที่รายการต้นทาง (ขาย / งานซ่อม / NPG) หรือให้ adm แก้"
+                      }
                       className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"
                     >
                       อัตโนมัติ

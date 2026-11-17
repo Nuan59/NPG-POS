@@ -55,6 +55,7 @@ export const toApiRow = (row: UIRow): CashflowRow => {
     description: row.description,
     income: 0, sent: 0, expense: 0, change: 0, depositReturn: 0, cashIn: 0,
     createdBy: row.createdBy,
+    ...(row.autoEdited ? { autoEdited: true } : {}),
   };
   base[row.type] = Number(row.amount) || 0;
   return base;
