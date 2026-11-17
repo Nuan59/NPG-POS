@@ -526,19 +526,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         payment = self.get_object()
         account = payment.account
 
-        # ✅ ส่งเงินไปแล้ว ห้ามเปลี่ยนยอด / วิธีชำระ (แก้หมายเหตุ / วันที่ได้ตามปกติ)
-        blocked = handover_block('npg_payment', payment.id)
-        if blocked:
-            try:
-                amount_changed = 'amount_paid' in request.data and float(request.data.get('amount_paid')) != float(payment.amount_paid)
-            except (TypeError, ValueError):
-                amount_changed = True
-            method_changed = 'payment_method' in request.data and (request.data.get('payment_method') or '') != (payment.payment_method or '')
-            fee_in = _parse_late_fee(request.data.get('late_fee'))
-            fee_changed = fee_in is not None and (fee_in == "invalid" or fee_in != float(payment.late_fee or 0))
-            if amount_changed or method_changed or fee_changed:
-                return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
-
+        # ✅ adm แก้ได้เสมอ แม้รายการจะส่งเงินไปแล้ว - ยอดที่ส่ง / แถว "ส่งเงิน" ถูกปรับตามยอดใหม่ให้เอง (ด้านล่าง)
         if 'amount_paid' in request.data:
             try:
                 new_amount = float(request.data.get('amount_paid'))
@@ -577,6 +565,13 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         # only_if_exists: ค่างวดที่รับก่อนมีระบบนี้ (พนักงานพิมพ์รายรับเอง) ไม่ลงใหม่ซ้ำ
         _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None,
                              only_if_exists=True)
+        # ✅ รายการที่ส่งเงินไปแล้ว: ยอดใหม่น้อยลง (เช่น เอาค่าปรับที่ไม่ได้รับออก) → ยอดส่งเงินลดตาม ลิ้นชักไม่เพี้ยน
+        try:
+            from api.views.CashHandoverViewSet import fit_handover_to_source
+            fit_handover_to_source('npg_payment', payment.id)
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
         return Response({
             'message': 'แก้ไขรายการชำระเงินสำเร็จ',

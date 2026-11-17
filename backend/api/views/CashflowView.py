@@ -216,7 +216,7 @@ def _calc_section(entries, opening: Decimal):
             "createdBy": e.created_by,
             # ✅ รายรับที่ระบบลงให้เอง (ใช้ติดป้าย "อัตโนมัติ" ในหน้าเว็บ)
             "auto": bool(getattr(e, "auto_source", "")),
-            # ✅ แถวอัตโนมัติที่ส่งเงินไปแล้ว - ล็อก ห้ามแก้ (โชว์เหตุผลในหน้าเว็บ)
+            # ✅ แถวอัตโนมัติที่ส่งเงินไปแล้ว - adm แก้ได้ แต่หน้าเว็บโชว์คำเตือน
             "autoLocked": _auto_locked(e),
             # ✅ แถว "ส่งเงิน" รายรายการ - adm แก้ยอด (ไม่เกิน maxAmount) / ลบ (ยกเลิกการส่งรายการนั้น) ได้
             "handover": getattr(e, "auto_source", "") == "handover",
@@ -334,7 +334,7 @@ class CashflowViewSet(viewsets.ViewSet):
                 current_user_name = getattr(request.user, "name", None) or getattr(request.user, "username", "") or ""
             except Exception:
                 current_user_name = ""
-            is_admin = str(getattr(request.user, "role", "") or "").lower() == "adm"
+            is_admin = str(getattr(request.user, "role", "") or "").lower() in ("adm", "admin", "administrator")
             from api.views.CashHandoverViewSet import edit_sent_row, cancel_sent_row
 
             # ✅ เดิมใช้วิธี "ลบทั้งวันแล้วสร้างใหม่ทั้งหมดจากสิ่งที่ browser ส่งมา" ซึ่งถ้ามีหลายคน
@@ -355,12 +355,11 @@ class CashflowViewSet(viewsets.ViewSet):
                     if e is not None and is_admin and getattr(e, "auto_source", "") == "handover":
                         cancel_sent_row(e)
                         existing.pop(i, None)
-                # ✅ adm ลบแถวอัตโนมัติได้ (ยกเว้นรายการที่ส่งเงินไปแล้ว) - พนักงานทั่วไปยังลบไม่ได้
+                # ✅ adm ลบแถวอัตโนมัติได้ - พนักงานทั่วไปยังลบไม่ได้
                 ids_to_delete = [
                     i for i in (deleted_ids or []) if i in existing and (
                         not getattr(existing[i], "auto_source", "")
-                        or (is_admin and getattr(existing[i], "auto_source", "") != "handover"
-                            and not _auto_locked(existing[i]))
+                        or (is_admin and getattr(existing[i], "auto_source", "") != "handover")
                     )
                 ]
                 if ids_to_delete:
@@ -390,8 +389,8 @@ class CashflowViewSet(viewsets.ViewSet):
                         if getattr(entry, "auto_source", ""):
                             # ✅ adm แก้แถวอัตโนมัติได้ - เฉพาะแถวที่ "แก้จริง" ในหน้านี้ (autoEdited)
                             #    แถวอื่นที่หน้าเว็บส่งมาด้วยไม่แตะ (กันหน้าที่เปิดค้างไว้เขียนทับยอดใหม่จากต้นทาง)
-                            #    รายการที่ส่งเงินไปแล้วแก้ไม่ได้ (ไม่งั้นลิ้นชักเพี้ยน)
-                            if is_admin and row.get("autoEdited") and not _auto_locked(entry):
+                            #    (รายการที่ส่งเงินไปแล้ว หน้าเว็บเตือน adm ให้เช็กแถว "ส่งเงิน" ด้วย)
+                            if is_admin and row.get("autoEdited"):
                                 for k, v in fields.items():
                                     if k != "created_by":
                                         setattr(entry, k, v)

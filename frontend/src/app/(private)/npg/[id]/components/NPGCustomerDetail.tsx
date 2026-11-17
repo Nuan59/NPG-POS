@@ -317,6 +317,10 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
+    if (paymentLateFee.trim() === "" && Number(account.estimated_late_fee || 0) > 0) {
+      toast.error("กรุณาเลือกว่าลูกค้าจ่ายค่าปรับด้วยหรือไม่");
+      return;
+    }
     const lateFee = paymentLateFee.trim() === "" ? 0 : parseFloat(paymentLateFee);
     if (isNaN(lateFee) || lateFee < 0) {
       toast.error("กรุณากรอกค่าปรับให้ถูกต้อง (ไม่เก็บค่าปรับ = 0)");
@@ -691,7 +695,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           <Button
             className="h-12 text-base bg-[#F26B1D] hover:bg-[#d95c14] text-white"
             onClick={() => {
-              setPaymentLateFee(String(estLateFee));
+              // ✅ มีค่าปรับ → ยังไม่เลือก (ต้องกดเลือกเองว่ารับค่าปรับด้วยหรือไม่) กันลงรายรับเกินเงินที่ได้จริง
+              setPaymentLateFee(estLateFee > 0 ? "" : "0");
               setIsPaymentDialogOpen(true);
             }}
           >
@@ -984,51 +989,55 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   ))}
               </div>
             </div>
-            {estLateFee > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-start gap-2">
-                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                <span>
-                  จ่ายวันนี้มีค่าปรับล่าช้า <b>{estLateFee.toLocaleString()} ฿</b> ถ้าลูกค้าไม่ได้จ่ายค่าปรับ
-                  ให้กด &quot;ไม่เก็บค่าปรับ&quot; (รายรับจะลงเฉพาะค่างวด)
-                </span>
+            {estLateFee > 0 ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2.5">
+                <p className="text-sm text-red-700 flex items-start gap-2">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>
+                    มีค่าปรับล่าช้า <b>{estLateFee.toLocaleString()} ฿</b> ลูกค้าจ่ายค่าปรับด้วยไหม?
+                  </span>
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "จ่ายแค่ค่างวด", sub: "ไม่รับค่าปรับ", v: "0" },
+                    { label: "จ่ายค่าปรับด้วย", sub: `+${estLateFee.toLocaleString()} ฿`, v: String(estLateFee) },
+                  ].map((o) => {
+                    const active = paymentLateFee === o.v;
+                    return (
+                      <button
+                        key={o.v}
+                        type="button"
+                        onClick={() => setPaymentLateFee(o.v)}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                          active ? "border-[#F26B1D] bg-[#F26B1D] text-white" : "border-slate-200 bg-white text-[#1e2432] hover:border-[#F26B1D]"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{o.label}</span>
+                        <span className={`block text-xs tabular-nums ${active ? "text-white/80" : "text-[#7A7A7A]"}`}>{o.sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="npg-pay-late-fee" className="text-xs text-[#7A7A7A] shrink-0">หรือรับบางส่วน</Label>
+                  <Input
+                    id="npg-pay-late-fee"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    placeholder="ระบุค่าปรับที่รับจริง"
+                    value={paymentLateFee}
+                    onChange={(e) => setPaymentLateFee(e.target.value)}
+                    className="h-9 bg-white"
+                  />
+                </div>
               </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="npg-pay-late-fee">ค่าปรับที่รับจริง (฿)</Label>
-              <Input
-                id="npg-pay-late-fee"
-                type="number"
-                inputMode="decimal"
-                min={0}
-                placeholder="0"
-                value={paymentLateFee}
-                onChange={(e) => setPaymentLateFee(e.target.value)}
-              />
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPaymentLateFee("0")}
-                  className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1 text-xs hover:border-[#F26B1D] hover:text-[#F26B1D]"
-                >
-                  ไม่เก็บค่าปรับ
-                </button>
-                {estLateFee > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPaymentLateFee(String(estLateFee))}
-                    className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1 text-xs hover:border-[#F26B1D] hover:text-[#F26B1D] tabular-nums"
-                  >
-                    ตามระบบ {estLateFee.toLocaleString()} ฿
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-[#7A7A7A] tabular-nums">
-                รวมรับเงินทั้งหมด{" "}
-                <b className="text-[#1e2432]">
-                  {((parseFloat(paymentAmount) || 0) + (parseFloat(paymentLateFee) || 0)).toLocaleString()} ฿
-                </b>{" "}
-                (ลงรายรับ-รายจ่ายให้อัตโนมัติ)
-              </p>
+            ) : null}
+            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-sm tabular-nums">
+              <span className="text-[#7A7A7A]">ลงรายรับ (อัตโนมัติ)</span>
+              <b className="text-[#1e2432]">
+                {((parseFloat(paymentAmount) || 0) + (parseFloat(paymentLateFee) || 0)).toLocaleString()} ฿
+              </b>
             </div>
             <div className="space-y-2">
               <Label>วิธีการชำระ</Label>

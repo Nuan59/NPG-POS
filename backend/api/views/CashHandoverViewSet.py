@@ -31,6 +31,7 @@
   POST   /cash-handover/<id>/cancel-send/     (adm) ยกเลิกการส่งในคลิกเดียว → ลบแถว "ส่งเงิน" (เงินกลับเข้าลิ้นชัก)
                                               + รายการทั้งหมดกลับไปเป็นค้างส่งของพนักงานคนนั้น
 """
+import traceback
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
@@ -446,6 +447,52 @@ def cancel_sent_row(entry):
         h.delete()
     else:
         _sync_handover_totals(h)
+
+
+def fit_handover_to_source(source, source_id):
+    """
+    ✅ (adm) แก้ยอดรายการต้นทางที่ส่งเงินไปแล้ว (เช่น เอาค่าปรับ NPG ที่ไม่ได้รับจริงออก)
+    → ยอดที่ส่งของรายการนั้นลดลงตามยอดเต็มใหม่ (ถ้าเกิน) + แถว "ส่งเงิน" / ยอดรับของใบแก้ตามให้ลิ้นชักตรง
+    """
+    try:
+        with transaction.atomic():
+            item = CashHandoverItem.objects.select_related('handover').filter(source=source, source_id=source_id).first()
+            if not item:
+                return
+            h = item.handover
+            full = _item_full(source, source_id)
+            if full is None or item.amount <= full:
+                return
+            row = CashflowEntry.objects.filter(auto_source=ITEM_ROW, auto_source_id=item.id).first()
+            if row is not None:  # ส่งแบบรายรายการ
+                if full <= 0:
+                    cancel_sent_row(row)
+                    return
+                item.amount = full
+                item.save(update_fields=['amount'])
+                row.sent = full
+                row.description = _item_row_desc(item, full)
+                row.save(update_fields=['sent', 'description'])
+                _sync_handover_totals(h)
+                return
+            diff = item.amount - max(full, Decimal('0'))
+            if full <= 0:
+                item.delete()
+            else:
+                item.amount = full
+                item.save(update_fields=['amount'])
+            if not h.items.exists():
+                _sync_cashflow(h, None, '')
+                h.delete()
+                return
+            _recalc_total(h)
+            if h.status in ('received', 'mismatch') and h.received_amount is not None:
+                h.received_amount = max(h.received_amount - diff, Decimal('0'))
+                _sync_cashflow(h, h.received_amount, '')
+                h.status = 'received' if h.received_amount == h.total else 'mismatch'
+            h.save()
+    except Exception:
+        traceback.print_exc()
 
 
 SOURCE_MODEL = {'sale': Order, 'service': ServiceRecord, 'npg_payment': NPGPayment}

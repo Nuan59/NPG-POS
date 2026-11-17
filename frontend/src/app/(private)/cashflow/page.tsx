@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
-import { Wallet, ChevronLeft, ChevronRight, CalendarRange, FileSpreadsheet, FileText } from "lucide-react";
+import { Wallet, ChevronLeft, ChevronRight, CalendarRange, FileSpreadsheet, FileText, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCashflowDay, saveCashflowDay, getCashflowMonth, CashflowMonthData, CashflowCountInfo } from "@/services/CashflowService";
@@ -28,9 +28,10 @@ export default function CashflowPage() {
   const { data: session } = useSession();
   const userInfo = session?.user as { name?: string; username?: string; role?: string } | undefined;
   const currentUserName = userInfo?.name ?? userInfo?.username ?? "";
-  const isAdmin = userInfo?.role === "adm";
+  const role = String(userInfo?.role ?? "").toLowerCase();
+  const isAdmin = role === "adm" || role === "admin" || role === "administrator";
   // ✅ ผู้ตรวจสอบ (mon): เห็นทุกอย่างเหมือน adm (สรุปเดือน / Export / ผลนับเงิน) แต่เพิ่ม/แก้/ลบรายการไม่ได้
-  const isMonitor = userInfo?.role === "mon";
+  const isMonitor = role === "mon";
   const isReviewer = isAdmin || isMonitor;
 
   const [date, setDate] = useState(todayStr());
@@ -261,92 +262,80 @@ export default function CashflowPage() {
   const cashClosing = netOf(cashRows, cashOpening);
   const transferClosing = netOf(transferRows, transferOpening);
 
+  const isToday = date === todayStr();
+  const dateLabel = new Date(date + "T00:00:00").toLocaleDateString("th-TH", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+  const btnOutline =
+    "text-sm border border-slate-200 bg-white text-[#1e2432] rounded-lg px-3 py-2 flex items-center gap-1.5 hover:bg-slate-50 disabled:opacity-50";
+
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto p-6 space-y-5">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-5">
         {/* Header */}
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl shadow-xl p-5 sm:p-6 text-white flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-3 rounded-xl"><Wallet size={28} /></div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black">รายรับ-รายจ่าย</h1>
-              <p className="text-sm text-white/80">บันทึกรายวัน แยกเงินสด / โอน</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="h-11 w-11 shrink-0 rounded-xl bg-[#F26B1D] text-white grid place-items-center">
+              <Wallet size={22} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-[#7A7A7A]">บันทึกรายวัน แยกเงินสด / โอน</p>
+              <h1 className="text-xl md:text-2xl font-bold text-[#1e2432]">รายรับ-รายจ่าย</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setDate(shiftDate(date, -1))} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg"><ChevronLeft size={18} /></button>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-white/90 text-gray-800 rounded-lg px-3 py-2 text-sm font-medium" />
-            <button onClick={() => setDate(shiftDate(date, 1))} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg"><ChevronRight size={18} /></button>
+            {saving ? (
+              <span className="text-xs text-[#F26B1D] flex items-center gap-1"><Loader2 size={13} className="animate-spin" /> กำลังบันทึก</span>
+            ) : lastSavedAt ? (
+              <span className="text-xs text-emerald-600">✓ บันทึกแล้ว {lastSavedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
+            ) : null}
             {isReviewer && (
-              <button onClick={openMonth} className="bg-white/20 hover:bg-white/30 p-2 rounded-lg flex items-center gap-1 text-sm px-3">
+              <button onClick={openMonth} className={btnOutline}>
                 <CalendarRange size={16} /> สรุปเดือน
               </button>
             )}
           </div>
         </div>
 
-        {/* ✅ Export ช่วงวันที่ - เลือกจาก-ถึง รวมหลายวันในรายงานเดียว (เฉพาะ admin) */}
-        {isReviewer && (
-        <div className="bg-white rounded-xl shadow-md p-4 flex flex-wrap items-end gap-3">
-          <div className="text-sm font-semibold text-gray-700 w-full sm:w-auto">
-            📅 Export รายงานช่วงวันที่
+        {/* ✅ แถบเลือกวัน + สรุปยอด (กล่องสีกรมท่าเหมือนหน้า NPG) */}
+        <section className="rounded-2xl bg-[#1e2432] text-white p-4 sm:p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => setDate(shiftDate(date, -1))} aria-label="วันก่อนหน้า" className="bg-white/10 hover:bg-white/20 p-2 rounded-lg"><ChevronLeft size={18} /></button>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+                className="bg-white/10 text-white rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-[#F26B1D] [color-scheme:dark]"
+              />
+              <button onClick={() => setDate(shiftDate(date, 1))} aria-label="วันถัดไป" className="bg-white/10 hover:bg-white/20 p-2 rounded-lg"><ChevronRight size={18} /></button>
+              {!isToday && (
+                <button onClick={() => setDate(todayStr())} className="ml-1 text-xs font-semibold rounded-lg bg-[#F26B1D] hover:bg-[#d95c14] px-3 py-2">
+                  วันนี้
+                </button>
+              )}
+            </div>
+            <p className="text-sm text-white/70">{dateLabel}</p>
           </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">จากวันที่</label>
-            <input
-              type="date"
-              value={rangeFrom}
-              onChange={(e) => setRangeFrom(e.target.value)}
-              className="border rounded-lg px-2 py-1.5 text-sm border-gray-300 outline-none focus:border-orange-400"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">ถึงวันที่</label>
-            <input
-              type="date"
-              value={rangeTo}
-              onChange={(e) => setRangeTo(e.target.value)}
-              className="border rounded-lg px-2 py-1.5 text-sm border-gray-300 outline-none focus:border-orange-400"
-            />
-          </div>
-          <button
-            onClick={handleExportRangeExcel}
-            disabled={!!rangeLoading}
-            className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <FileSpreadsheet size={15} /> {rangeLoading === "excel" ? "กำลังโหลด..." : "Export Excel"}
-          </button>
-          <button
-            onClick={handleExportRangePdf}
-            disabled={!!rangeLoading}
-            className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <FileText size={15} /> {rangeLoading === "pdf" ? "กำลังโหลด..." : "Export PDF"}
-          </button>
-          <span className="text-xs text-gray-400 w-full">
-            เลือกได้สูงสุด {MAX_RANGE_DAYS} วันต่อรายงาน
-          </span>
-        </div>
-        )}
+          <CashflowSummaryCards cashClosing={cashClosing} transferClosing={transferClosing} />
+        </section>
 
         {loading ? (
-          <div className="text-center text-gray-400 py-10">กำลังโหลด...</div>
+          <div className="flex items-center justify-center gap-2 text-[#7A7A7A] py-16">
+            <Loader2 size={18} className="animate-spin" /> กำลังโหลด...
+          </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <CashflowSection title="💵 เงินสด" accent="emerald" rows={cashRows} setRows={updateCashRows}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+              <CashflowSection title="เงินสด" accent="emerald" rows={cashRows} setRows={updateCashRows}
                 opening={cashOpening} currentUserName={currentUserName} isAdmin={isAdmin} readOnly={isMonitor}
                 onRowDeleted={(row) => deleteRowNow(row, "cash")} onHandoverDone={afterHandover} />
-              <CashflowSection title="🏦 โอน" accent="sky" rows={transferRows} setRows={updateTransferRows}
+              <CashflowSection title="โอน" accent="sky" rows={transferRows} setRows={updateTransferRows}
                 opening={transferOpening} currentUserName={currentUserName} isAdmin={isAdmin} readOnly={isMonitor}
                 onRowDeleted={(row) => deleteRowNow(row, "transfer")} />
             </div>
 
-            {/* ✅ การ์ดสรุปยอด - โชว์ให้ทุกคนเห็นเหมือนกันแล้ว (พนักงานเห็นเหมือน admin) */}
-            <CashflowSummaryCards cashClosing={cashClosing} transferClosing={transferClosing} />
-
-            {/* ✅ ตรวจนับเงินสด - พนักงานบันทึกได้เหมือนกัน แต่ตัวเลข/ประวัติหลังบันทึกเห็นได้เฉพาะ admin
-                (ส่ง isAdmin เข้าไปให้ component จัดการเงื่อนไขล็อก/ซ่อนเอง) */}
+            {/* ✅ ตรวจนับเงินสด - พนักงานบันทึกได้เหมือนกัน แต่ตัวเลข/ประวัติหลังบันทึกเห็นได้เฉพาะ admin */}
             <CashReconciliation
               date={date}
               countedCash={countedCash}
@@ -358,33 +347,67 @@ export default function CashflowPage() {
               readOnly={isMonitor}
             />
 
+            {/* ✅ Export (เฉพาะ adm / ผู้ตรวจสอบ) - รายวัน + ช่วงวันที่ */}
             {isReviewer && (
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() =>
-                  exportDailyExcel({
-                    date, cashRows, cashOpening, cashClosing,
-                    transferRows, transferOpening, transferClosing,
-                  })
-                }
-                className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50"
-              >
-                <FileSpreadsheet size={15} /> Export Excel
-              </button>
-              <PDFDownloadLink
-                document={
-                  <DailyReportPdf
-                    date={date} cashRows={cashRows} cashOpening={cashOpening} cashClosing={cashClosing}
-                    transferRows={transferRows} transferOpening={transferOpening} transferClosing={transferClosing}
-                  />
-                }
-                fileName={`รายรับรายจ่าย-${date}.pdf`}
-              >
-                <button className="text-sm border border-gray-300 text-gray-700 rounded-lg px-3 py-1.5 flex items-center gap-1.5 hover:bg-gray-50">
-                  <FileText size={15} /> Export PDF
-                </button>
-              </PDFDownloadLink>
-            </div>
+              <section className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                <h3 className="text-base font-bold text-[#1e2432] flex items-center gap-2">
+                  <Download size={17} className="text-[#F26B1D]" /> Export รายงาน
+                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-[#7A7A7A] w-full sm:w-auto sm:mr-2">วันที่เลือก</span>
+                  <button
+                    onClick={() =>
+                      exportDailyExcel({
+                        date, cashRows, cashOpening, cashClosing,
+                        transferRows, transferOpening, transferClosing,
+                      })
+                    }
+                    className={btnOutline}
+                  >
+                    <FileSpreadsheet size={15} /> Excel
+                  </button>
+                  <PDFDownloadLink
+                    document={
+                      <DailyReportPdf
+                        date={date} cashRows={cashRows} cashOpening={cashOpening} cashClosing={cashClosing}
+                        transferRows={transferRows} transferOpening={transferOpening} transferClosing={transferClosing}
+                      />
+                    }
+                    fileName={`รายรับรายจ่าย-${date}.pdf`}
+                  >
+                    <button className={btnOutline}>
+                      <FileText size={15} /> PDF
+                    </button>
+                  </PDFDownloadLink>
+                </div>
+                <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
+                  <span className="text-sm text-[#7A7A7A] w-full">ช่วงวันที่ (สูงสุด {MAX_RANGE_DAYS} วัน)</span>
+                  <div>
+                    <label className="text-xs text-[#7A7A7A] block mb-1">จากวันที่</label>
+                    <input
+                      type="date"
+                      value={rangeFrom}
+                      onChange={(e) => setRangeFrom(e.target.value)}
+                      className="border rounded-lg px-2 py-1.5 text-sm border-slate-200 outline-none focus:border-[#F26B1D]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-[#7A7A7A] block mb-1">ถึงวันที่</label>
+                    <input
+                      type="date"
+                      value={rangeTo}
+                      onChange={(e) => setRangeTo(e.target.value)}
+                      className="border rounded-lg px-2 py-1.5 text-sm border-slate-200 outline-none focus:border-[#F26B1D]"
+                    />
+                  </div>
+                  <button onClick={handleExportRangeExcel} disabled={!!rangeLoading} className={btnOutline}>
+                    <FileSpreadsheet size={15} /> {rangeLoading === "excel" ? "กำลังโหลด..." : "Excel"}
+                  </button>
+                  <button onClick={handleExportRangePdf} disabled={!!rangeLoading} className={btnOutline}>
+                    <FileText size={15} /> {rangeLoading === "pdf" ? "กำลังโหลด..." : "PDF"}
+                  </button>
+                </div>
+              </section>
             )}
 
             <CashflowSaveStatus
