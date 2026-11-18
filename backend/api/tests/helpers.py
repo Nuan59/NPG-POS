@@ -73,7 +73,7 @@ class BaseTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         _create_missing_tables()
-        cls._geo = mock.patch("api.models.Customer.Customer.geocode_address", return_value=None)
+        cls._geo = mock.patch.object(Customer, "geocode_address", return_value=None)
         cls._geo.start()
         super().setUpClass()
 
