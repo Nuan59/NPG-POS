@@ -933,3 +933,6 @@ urlpatterns = [
 
     path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),
 ]
+# ✅ หน้า /dev/... ทั้งหมดใช้ได้เฉพาะ adm (token) หรือคนที่มี DEV_TOOLS_KEY เท่านั้น - คนนอกเห็นเป็น 404
+from api.security.dev_guard import guard_dev_urls  # noqa: E402
+guard_dev_urls(urlpatterns)

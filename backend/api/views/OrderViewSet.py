@@ -633,7 +633,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
 
     # ✅ เพิ่ม endpoint ดึง Order ที่ทะเบียนกำลังหมดอายุ
-    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def registration_expiring(self, request):
         """
         ดึง Order ที่ทะเบียนกำลังหมดอายุ

@@ -12,10 +12,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
     serializer_class = CustomerSerializer
     permission_classes = [IsAuthenticated]
     
-    def get_permissions(self):
-        if self.action == 'list':
-            return [AllowAny()]
-        return super().get_permissions()
 
     @action(detail=False, methods=['post'], url_path='import')
     def import_customers(self, request):

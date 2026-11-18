@@ -13,6 +13,7 @@ import { Plus, Download, Upload } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { CustomerColumns } from "../components/CustomerColumns";
 import Link from "next/link";
+import { getSession } from "next-auth/react";
 import { CSVLink } from "react-csv";
 import { handleFilter } from "@/app/hooks/useFilter";
 import TableLoading from "@/components/global/TableLoading";
@@ -32,8 +33,11 @@ const CustomersView = ({ isAdmin }: CustomersViewProps) => {
 			const apiBase = process.env.NEXT_PUBLIC_API_URL;
 			console.log("API Base:", apiBase);
 			try {
+				// ✅ แนบ token - backend ไม่เปิดรายชื่อลูกค้าให้คนที่ไม่ได้ล็อกอินแล้ว
+				const session = await getSession();
+				const token = (session as any)?.user?.accessToken;
 				const res = await fetch(`${apiBase}/customers`, {
-					credentials: "include",
+					headers: token ? { Authorization: `Bearer ${token}` } : {},
 				});
 				console.log("Response status:", res.status);
 				if (res.ok) {

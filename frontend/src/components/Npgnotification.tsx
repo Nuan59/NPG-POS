@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Clock, AlertCircle, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
+import { getSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 interface NPGAccount {
@@ -44,8 +45,15 @@ export default function NPGNotification() {
       }
 
       // ✅ ดึงข้อมูลจาก backend โดยตรง
+      // ✅ แนบ token ของผู้ใช้ (backend ไม่เปิดข้อมูลลูกค้าให้คนที่ไม่ได้ล็อกอินแล้ว)
+      const session = await getSession();
+      const token = (session as any)?.user?.accessToken;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       const response = await fetch(`${apiBase}/npg/accounts/?status=active`, {
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {

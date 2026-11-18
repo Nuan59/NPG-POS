@@ -163,10 +163,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
     """ViewSet สำหรับจัดการบัญชี NPG"""
     serializer_class = NPGAccountSerializer
     
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'summary']:
-            return [AllowAny()]
-        return [IsAuthenticated()]
+    # ✅ ต้องล็อกอินทุก action (เดิมเปิด list/retrieve ให้ทุกคนดูได้ - ข้อมูลลูกค้า/ยอดหนี้หลุดออกนอกร้านได้)
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         queryset = NPGAccount.objects.select_related(
@@ -465,8 +463,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
     """ViewSet สำหรับดูประวัติการชำระเงิน + แก้ไขรายการ (adm เท่านั้น) + ดูใบเสร็จ"""
     serializer_class = NPGPaymentSerializer
     
-    def get_permissions(self):
-        return [AllowAny()]
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         queryset = NPGPayment.objects.select_related(
