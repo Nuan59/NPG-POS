@@ -48,9 +48,9 @@ export const createEmployee = async (payload: IEmployee) => {
 
   if (response?.status === 200) {
     revalidateTag("employees");
-    return { status: "success", data: response.json() };
+    return { status: "success", data: await response?.json().catch(() => null) };
   } else {
-    return { status: "error", data: response?.json() };
+    return { status: "error", data: await response?.json().catch(() => null) };
   }
 };
 
@@ -84,9 +84,9 @@ export const editEmployee = async (employee_id: number, payload: IEmployee & { p
 
   if (response?.status == 200) {
     revalidateTag("getEmployee");
-    return { status: "success", data: response.json() };
+    return { status: "success", data: await response?.json().catch(() => null) };
   } else {
-    return { status: "error", data: response?.json() };
+    return { status: "error", data: await response?.json().catch(() => null) };
   }
 };
 

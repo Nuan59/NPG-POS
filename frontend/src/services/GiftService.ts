@@ -68,7 +68,7 @@ export const createGift = async (payload: Gift) => {
     status = "success";
   }
 
-  return { status, data: response?.json() };
+  return { status, data: await response?.json().catch(() => null) };
 };
 
 export const addGiftsToStock = async (giftId: number, amount: number) => {

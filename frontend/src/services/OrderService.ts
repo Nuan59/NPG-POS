@@ -33,7 +33,7 @@ export const createOrder = async (payload: IOrder) => {
 		status = "success";
 	}
 
-	return { status, data: response?.json() };
+	return { status, data: await response?.json().catch(() => null) };
 };
 
 export const getOrder = async (order_id: number) => {
@@ -93,7 +93,7 @@ export const editOrder = async (
 		status = "success";
 	}
 
-	return { status, data: response?.json() };
+	return { status, data: await response?.json().catch(() => null) };
 };
 
 export const deleteOrder = async (order_id: number) => {

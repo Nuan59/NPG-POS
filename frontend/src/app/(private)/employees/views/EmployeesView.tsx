@@ -10,7 +10,7 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@/components/ui/tooltip";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, History } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { EmployeeColumns } from "../components/EmployeeColumns";
 import Link from "next/link";
@@ -44,6 +44,13 @@ const EmployeesView = ({ employees }: EmployeesViewProps) => {
 				<div className="flex flex-col gap-2">
 					<SearchBar value={searchTerm} onChange={setSearchTerm} />
 					<div className="flex justify-end gap-1">
+						{/* ✅ บันทึกการทำงานของพนักงาน (adm / ผู้ตรวจสอบ) */}
+						<Link
+							href="/employees/activity"
+							className="border rounded-sm shadow-sm px-2 py-1 hover:bg-slate-100 flex items-center gap-1 text-sm"
+						>
+							<History size={18} /> บันทึกการทำงาน
+						</Link>
 						<TooltipProvider>
 							<Tooltip>
 								<Link href={`/employees/new`}>

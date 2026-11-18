@@ -30,6 +30,7 @@ from api.views.RegistrationView import registration_list, update_status, status_
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView, logout_view
 from api.views.WorkHoursView import WorkHoursView
+from api.views.ActivityLogView import activity_logs, activity_log_users
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -930,6 +931,8 @@ urlpatterns = [
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/logout/", logout_view, name="logout"),
     path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
+    path("activity-logs/", activity_logs, name="activity-logs"),
+    path("activity-logs/users/", activity_log_users, name="activity-log-users"),
 
     path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),
 ]

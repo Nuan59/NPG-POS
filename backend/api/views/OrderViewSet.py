@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from api.serializers import OrderSerializer, CustomerSerializer
 from api.models import Order, Customer, Bike, AdditionalFee, Gift, OrderGift, NPGAccount
 from api.util import convert_number
+from api import activity
 from django.utils.timezone import datetime
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
@@ -595,6 +596,14 @@ class OrderViewSet(viewsets.ModelViewSet):
                 'message': f'เกิดข้อผิดพลาด: {str(e)}'
             }, status=400)
 
+        try:
+            _b = order_to_delete.bikes.first()
+            activity.note(request, f"รายการขาย #{order_to_delete.id} {order_to_delete.customer.name if order_to_delete.customer else '-'}"
+                                   f"{' · ' + _b.model_name if _b else ''} · ยอด {float(order_to_delete.total or 0):,.0f} ฿"
+                                   f" · คืนสต็อก: {request.query_params.get('restore_stock', 'false')}")
+        except Exception:
+            pass
+
         # ✅ ส่งเงินไปแล้ว ห้ามลบ (ไม่งั้นรายรับหาย แต่แถวส่งเงินยังอยู่ ลิ้นชักติดลบ)
         from api.views.CashflowView import handover_block, remove_auto_income
         blocked = handover_block('sale', order_to_delete.id)
@@ -802,6 +811,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         _sync_checklist_note(order, payload['missing'])
         # ✅ ตัดขายสำเร็จ แต่มีปัญหาที่ต้องบอก (เช่น สร้างบัญชีผ่อนดาวน์ไม่ได้) → หน้าเว็บโชว์เตือน
         payload['warnings'] = list(getattr(order, '_finalize_warnings', []) or [])
+        bike = order.bikes.first()
+        activity.note(request, f"รายการขาย #{order.id} {order.customer.name if order.customer else '-'}"
+                               f"{' · ' + bike.model_name if bike else ''} · ยอด {float(order.total or 0):,.0f} ฿"
+                               + (f" · ⚠️ {'; '.join(payload['warnings'])}" if payload['warnings'] else ""))
         return Response(payload)
 
     @action(methods=['GET', 'POST'], detail=True, url_path='down_payment')

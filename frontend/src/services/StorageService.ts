@@ -32,7 +32,7 @@ export const createStorage = async (payload: IStorage) => {
 		status = "success";
 	}
 
-	return { status, data: response?.json() };
+	return { status, data: await response?.json().catch(() => null) };
 };
 
 export const getStorage = async (storage_id: number) => {
@@ -70,7 +70,7 @@ export const editStorage = async (storage_id: number, payload: IStorage) => {
 		status = "success";
 	}
 
-	return { status, data: response?.json() };
+	return { status, data: await response?.json().catch(() => null) };
 };
 
 export const deleteStorage = async (storage_id: number) => {
@@ -111,9 +111,9 @@ export const transferProducts = async (payload: TransferStorageDataType) => {
 
 	if (response?.status == 200) {
 		revalidateTag("transferHistory");
-		return { status: "success", data: response.json() };
+		return { status: "success", data: await response?.json().catch(() => null) };
 	} else {
-		return { status: "error", data: response?.json() };
+		return { status: "error", data: await response?.json().catch(() => null) };
 	}
 };
 

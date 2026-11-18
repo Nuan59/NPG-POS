@@ -10,6 +10,7 @@ from django.utils import timezone
 from api.models import NPGAccount, NPGPayment
 from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income, handover_block
 from api.models.NPGPayment import NPGFee
+from api import activity
 from api.serializers.NPGSerializer import (
     NPGAccountSerializer,
     NPGPaymentSerializer,
@@ -103,6 +104,11 @@ def _build_receipt(payment, account, items, total):
 def _customer_name(account):
     order = account.order if account else None
     return order.customer.name if order and order.customer else '-'
+
+
+def _b(x):
+    x = float(x or 0)
+    return f"{x:,.0f}" if x == int(x) else f"{x:,.2f}"
 
 
 def _user_name(request):
@@ -292,6 +298,12 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         account.update_next_payment_date()
         payment.refresh_from_db()
         _post_payment_income(payment, account)
+        activity.note(request, (
+            f"NPG #{account.id} {_customer_name(account)} งวดที่ {payment.installment_number}: "
+            f"ค่างวด {_b(amount_paid)} ฿ + ค่าปรับ {_b(late_fee)} ฿"
+            + (f" (ระบบคิด {_b(_calculate_late_fee(due_date, payment_date)[0])} ฿)" if custom_fee is not None else "")
+            + f" · {payment_method or '-'}"
+        ))
 
         bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
         bike_desc = f" ({bike.model_name})" if bike else ""
@@ -365,6 +377,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         )
         
         _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}")
+        activity.note(request, f"ปิดบัญชี NPG #{account.id} {_customer_name(account)}: รับ {_b(close_amount)} ฿ "
+                               f"(ส่วนลด {_b(close_calculation['discount'])} ฿) · {payment_method or '-'}")
 
         account.status = 'closed'
         account.close_date = timezone.now().date()
@@ -433,6 +447,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '',
         )
 
+        activity.note(request, f"NPG #{account.id} {_customer_name(account)}: {description} {_b(amount)} ฿ · {fee.payment_method or '-'}")
         return Response({
             'message': 'บันทึกค่าธรรมเนียมสำเร็จ',
             'fee': NPGFeeSerializer(fee).data,
@@ -451,6 +466,9 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         blocked = handover_block('npg_fee', int(fee_id))
         if blocked:
             return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
+        fee_obj = NPGFee.objects.filter(id=fee_id, account=account).first()
+        if fee_obj:
+            activity.note(request, f"NPG #{account.id} {_customer_name(account)}: ลบ {fee_obj.description} {_b(fee_obj.amount)} ฿")
         deleted, _ = NPGFee.objects.filter(id=fee_id, account=account).delete()
         if not deleted:
             return Response({'error': 'ไม่พบรายการค่าธรรมเนียม'}, status=status.HTTP_404_NOT_FOUND)
@@ -522,6 +540,10 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
         payment = self.get_object()
         account = payment.account
+        before = {
+            'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': payment.payment_method or '-',
+            'วันที่': str(payment.payment_date), 'หมายเหตุ': payment.note or '',
+        }
 
         # ✅ adm แก้ได้เสมอ แม้รายการจะส่งเงินไปแล้ว - ยอดที่ส่ง / แถว "ส่งเงิน" ถูกปรับตามยอดใหม่ให้เอง (ด้านล่าง)
         if 'amount_paid' in request.data:
@@ -570,6 +592,14 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
             import traceback
             traceback.print_exc()
 
+        after = {
+            'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': payment.payment_method or '-',
+            'วันที่': str(payment.payment_date), 'หมายเหตุ': payment.note or '',
+        }
+        changes = [f"{k} {before[k] or '-'} → {after[k] or '-'}" for k in before if str(before[k]) != str(after[k])]
+        activity.note(request, f"NPG #{account.id} {_customer_name(account)} งวดที่ {payment.installment_number}: "
+                               + (", ".join(changes) if changes else "ไม่มีการเปลี่ยนแปลง"))
+
         return Response({
             'message': 'แก้ไขรายการชำระเงินสำเร็จ',
             'payment': NPGPaymentSerializer(payment).data,
@@ -591,6 +621,8 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         blocked = handover_block('npg_payment', payment_id)
         if blocked:
             return Response({'error': blocked}, status=status.HTTP_400_BAD_REQUEST)
+        activity.note(request, f"NPG #{account.id} {_customer_name(account)}: ลบงวดที่ {payment.installment_number} "
+                               f"ยอด {_b(payment.amount_paid)} ฿ ค่าปรับ {_b(payment.late_fee)} ฿ ({payment.payment_date})")
         payment.delete()
         remove_auto_income('npg_payment', payment_id, _user_name(request))
 

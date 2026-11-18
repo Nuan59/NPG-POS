@@ -11,6 +11,7 @@ from django.db.models import Sum, F, Max
 from django.utils import timezone
 
 from api.models.Cashflow import CashflowEntry, CashflowDayMeta
+from api import activity
 
 
 def _net_expr():
@@ -148,6 +149,23 @@ def _auto_locked(e):
     if not src or src in ("handover", "void", "void_src") or not e.auto_source_id:
         return None
     return handover_block(src, e.auto_source_id)
+
+
+_AMOUNT_FIELDS = [("income", "รายรับ"), ("sent", "ส่งเงิน"), ("expense", "รายจ่าย"), ("change", "ทอนเงิน"),
+                  ("deposit_return", "คืนมัดจำ"), ("cash_in", "เปิดบิล")]
+
+
+def _row_text(e):
+    """แถวรายรับ-รายจ่ายเป็นข้อความสั้นๆ สำหรับบันทึกการทำงาน เช่น "ค่าน้ำมัน รายจ่าย 300" """
+    parts = []
+    for f, label in _AMOUNT_FIELDS:
+        try:
+            v = Decimal(str(getattr(e, f, 0) or 0))
+        except InvalidOperation:
+            continue
+        if v:
+            parts.append(f"{label} {v:,.2f}".rstrip("0").rstrip("."))
+    return f"{(e.description or '-')[:60]} {' '.join(parts) or '0'}"
 
 
 def _section_opening(section: str, date_str: str) -> Decimal:
@@ -342,7 +360,11 @@ class CashflowViewSet(viewsets.ViewSet):
             # อีกฝั่งเพิ่งเพิ่มไปทิ้งหมด เพราะไม่รู้ว่ามีรายการใหม่เกิดขึ้นระหว่างนั้น
             # เปลี่ยนเป็น: อัปเดตรายการที่มี id อยู่แล้ว / สร้างใหม่เฉพาะที่ไม่มี id / ลบเฉพาะ id ที่
             # frontend "สั่งลบจริง" (กดกากบาทลบแถว) เท่านั้น - รายการของฝั่งอื่นที่เรายังไม่รู้จักจะไม่ถูกแตะ
+            section_label = {"cash": "เงินสด", "transfer": "โอน"}
+            changes = []
+
             def sync_section(rows_data, section, deleted_ids):
+                sec = section_label.get(section, section)
                 existing = {
                     e.id: e for e in CashflowEntry.objects.filter(date=date_str, section=section)
                 }
@@ -363,6 +385,9 @@ class CashflowViewSet(viewsets.ViewSet):
                     )
                 ]
                 if ids_to_delete:
+                    for i in ids_to_delete:
+                        changes.append(f"[{sec}] ลบ: {_row_text(existing[i])}"
+                                       + (" (แถวอัตโนมัติ)" if getattr(existing[i], "auto_source", "") else ""))
                     CashflowEntry.objects.filter(id__in=ids_to_delete).delete()
                     for i in ids_to_delete:
                         existing.pop(i, None)
@@ -391,22 +416,37 @@ class CashflowViewSet(viewsets.ViewSet):
                             #    แถวอื่นที่หน้าเว็บส่งมาด้วยไม่แตะ (กันหน้าที่เปิดค้างไว้เขียนทับยอดใหม่จากต้นทาง)
                             #    (รายการที่ส่งเงินไปแล้ว หน้าเว็บเตือน adm ให้เช็กแถว "ส่งเงิน" ด้วย)
                             if is_admin and row.get("autoEdited"):
+                                old = _row_text(entry)
                                 for k, v in fields.items():
                                     if k != "created_by":
                                         setattr(entry, k, v)
                                 entry.save()
+                                entry.refresh_from_db()
+                                if _row_text(entry) != old:
+                                    changes.append(f"[{sec}] แก้แถวอัตโนมัติ: {old} → {_row_text(entry)}")
                             continue
+                        old = _row_text(entry)
                         for k, v in fields.items():
                             setattr(entry, k, v)
                         entry.save()
+                        entry.refresh_from_db()
+                        if _row_text(entry) != old:
+                            changes.append(f"[{sec}] แก้: {old} → {_row_text(entry)}")
                     elif row_id:
                         continue  # แถวที่ถูกลบไปแล้ว (เช่น รายรับอัตโนมัติที่ต้นทางลบ) ไม่สร้างกลับมา
                     else:
-                        CashflowEntry.objects.create(date=date_str, section=section, seq=next_seq, **fields)
+                        new_entry = CashflowEntry.objects.create(date=date_str, section=section, seq=next_seq, **fields)
+                        changes.append(f"[{sec}] เพิ่ม: {_row_text(new_entry)}")
                         next_seq += 1
 
             sync_section(data.get("cashRows", []) or [], "cash", data.get("deletedCashIds"))
             sync_section(data.get("transferRows", []) or [], "transfer", data.get("deletedTransferIds"))
+
+            # ✅ บันทึกการทำงาน: วันที่ + แถวที่ เพิ่ม/แก้/ลบ จริงในรอบนี้ (auto-save ที่ไม่มีอะไรเปลี่ยน = ว่าง)
+            if changes:
+                activity.note(request, f"วันที่ {date_str}: " + " | ".join(changes))
+            else:
+                activity.skip(request)
 
             cash_override = data.get("cashOpeningOverride")
             transfer_override = data.get("transferOpeningOverride")
