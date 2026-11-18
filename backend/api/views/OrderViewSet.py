@@ -1,3 +1,5 @@
+import traceback
+
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from api.serializers import OrderSerializer, CustomerSerializer
@@ -97,6 +99,75 @@ def _post_sale_income(order, only_if_exists=False):
     sync_auto_income('sale', order.id, cash, transfer, desc, seller, only_if_exists=only_if_exists)
 
 
+def create_down_payment_account(order, overrides=None):
+    """
+    ✅ สร้างบัญชีผ่อนดาวน์ของออเดอร์ (ใช้ตอนจบรายการ + ปุ่มสร้างย้อนหลังของ adm)
+    ข้อมูลมาจาก checkout_extra ที่บันทึกไว้ตอนทำรายการ / overrides = ค่าที่ adm กรอกทับ
+    คืน (account, None) ถ้าสำเร็จ / (None, "เหตุผล") ถ้าสร้างไม่ได้ - ไม่ throw
+    """
+    extra = dict(order.checkout_extra or {})
+    extra.update({k: v for k, v in (overrides or {}).items() if v not in (None, '')})
+
+    if (order.finance_provider or '') == 'NPG':
+        return None, 'ไฟแนนซ์ NPG ผ่อนดาวน์แยกไม่ได้ (1 รายการขายมีบัญชี NPG ได้บัญชีเดียว)'
+    existing = NPGAccount.objects.filter(order=order).first()
+    if existing:
+        return None, f'รายการขายนี้มีบัญชี NPG #{existing.id} อยู่แล้ว'
+
+    try:
+        balance = float(extra.get('down_payment_remaining_balance') or 0)
+        count = int(float(extra.get('down_payment_installment_count') or 0))
+        rate = float(extra.get('down_payment_interest_rate') or 0)
+        per = float(extra.get('down_payment_per_remaining_installment') or 0)
+    except (TypeError, ValueError):
+        return None, 'ข้อมูลผ่อนดาวน์ไม่ใช่ตัวเลข'
+
+    missing = []
+    if count <= 0:
+        missing.append('จำนวนงวด')
+    if balance <= 0:
+        missing.append('ยอดคงเหลือหลังงวดแรก')
+    if per <= 0:
+        missing.append('ค่างวด')
+    if missing:
+        return None, 'สร้างบัญชีผ่อนดาวน์ไม่ได้ ข้อมูลไม่ครบ: ' + ', '.join(missing)
+
+    next_str = extra.get('down_payment_next_payment_date') or ''
+    try:
+        next_date = datetime.strptime(str(next_str)[:10], '%Y-%m-%d').date() if next_str else datetime.today().date() + timedelta(days=30)
+    except ValueError:
+        return None, f'วันครบกำหนดงวดถัดไปไม่ถูกต้อง ({next_str})'
+
+    try:
+        with transaction.atomic():
+            acc = NPGAccount.objects.create(
+                order=order,
+                status='active',
+                account_type='down_payment',
+                finance_amount=balance,
+                interest_rate=rate,
+                installment_count=count,
+                installment_amount=per,
+                period_type='รายเดือน',
+                paid_count=0,
+                total_paid=0,
+                remaining_balance=per * count,
+                start_date=datetime.today().date(),
+                next_payment_date=next_date,
+            )
+    except Exception as e:
+        traceback.print_exc()
+        return None, f'สร้างบัญชีผ่อนดาวน์ไม่สำเร็จ: {e}'
+
+    # เก็บค่าที่ใช้จริงไว้กับออเดอร์ (เผื่อ adm กรอกทับ) - ระบบส่งเงินใช้ยอดนี้หักเงินดาวน์วันนี้
+    if overrides:
+        extra['down_payment_installment'] = True
+        order.checkout_extra = extra
+        order.save(update_fields=['checkout_extra'])
+    print(f"✅ สร้างบัญชีผ่อนดาวน์ #{acc.id} สำหรับ Order #{order.id}")
+    return acc, None
+
+
 def _finalize_sale(order):
     """
     ✅ ตัดขายจริง (เรียกตอนกด "จบรายการ") - ต้องเรียกภายใน transaction.atomic()
@@ -129,6 +200,9 @@ def _finalize_sale(order):
     installment_amount = float(order.installment_amount or 0)
     npg_period = order.npg_period or 'รายเดือน'
     down_payment_installment = extra.get('down_payment_installment', False)
+    # ✅ ปัญหาที่ไม่ทำให้การตัดขายพัง แต่ต้องบอกพนักงาน (เช่น สร้างบัญชีผ่อนดาวน์ไม่สำเร็จ) - เดิมเงียบหาย
+    warnings = []
+    order._finalize_warnings = warnings
 
     # สร้าง NPG Account ถ้าเป็นไฟแนนซ์ NPG
     if finance_provider == 'NPG' and finance_amount > 0:
@@ -167,50 +241,15 @@ def _finalize_sale(order):
             print(f"✅ สร้าง NPG Account สำหรับ Order #{order.id} (period={npg_period}, remaining={remaining_balance_final}, raw={total_with_interest_raw})")
         except Exception as e:
             print(f"❌ ไม่สามารถสร้าง NPG Account: {str(e)}")
+            warnings.append(f"สร้างบัญชี NPG ไม่สำเร็จ: {e}")
 
     # ✅ สร้างบัญชีผ่อนดาวน์ (account_type='down_payment') - เฉพาะกรณีไฟแนนซ์รถกับเจ้าอื่น
     # ที่ไม่ใช่ NPG เท่านั้น เพราะ NPGAccount ผูกกับ Order แบบ OneToOneField (1 order = 1 บัญชี)
-    # ถ้า finance_provider เป็น NPG อยู่แล้ว จะชนกับบัญชีไฟแนนซ์หลักด้านบนทันที (unique constraint)
     # ⚠️ ห้ามลบเงื่อนไข finance_provider != 'NPG' ออก ไม่งั้นจะพังเหมือนที่เคยเกิดมาก่อน
     if down_payment_installment and finance_provider != 'NPG':
-        try:
-            dp_remaining_balance = float(extra.get('down_payment_remaining_balance', 0))
-            dp_installment_count = int(extra.get('down_payment_installment_count', 0))
-            dp_interest_rate = float(extra.get('down_payment_interest_rate', 0))
-            dp_per_installment = float(extra.get('down_payment_per_remaining_installment', 0))
-            # ✅ วันครบกำหนดงวดถัดไป - รับจาก frontend ตรงๆ (แก้เองได้แล้ว ไม่ใช่ +30 วันตายตัว
-            # เพราะลูกค้าบางคนนัดจ่ายวันอื่น เช่น 15 วันหลังซื้อ) มี fallback +30 วันถ้าไม่ได้ส่งมา
-            dp_next_payment_date_str = extra.get('down_payment_next_payment_date', '')
-            if dp_next_payment_date_str:
-                dp_next_payment_date = datetime.strptime(dp_next_payment_date_str, '%Y-%m-%d').date()
-            else:
-                dp_next_payment_date = datetime.today().date() + timedelta(days=30)
-
-            if dp_installment_count > 0 and dp_remaining_balance > 0 and dp_per_installment > 0:
-                dp_remaining_balance_final = dp_per_installment * dp_installment_count
-
-                # savepoint - ถ้าสร้างบัญชีพัง ไม่ให้ทั้ง transaction ของการตัดขายเสีย
-                with transaction.atomic():
-                    NPGAccount.objects.create(
-                        order=order,
-                        status='active',
-                        account_type='down_payment',
-                        finance_amount=dp_remaining_balance,
-                        interest_rate=dp_interest_rate,
-                        installment_count=dp_installment_count,
-                        installment_amount=dp_per_installment,
-                        period_type='รายเดือน',
-                        paid_count=0,
-                        total_paid=0,
-                        remaining_balance=dp_remaining_balance_final,
-                        start_date=datetime.today().date(),
-                        next_payment_date=dp_next_payment_date,
-                    )
-                print(f"✅ สร้างบัญชีผ่อนดาวน์สำหรับ Order #{order.id} (remaining={dp_remaining_balance_final}, next_payment={dp_next_payment_date})")
-            else:
-                print(f"⚠️ ข้ามสร้างบัญชีผ่อนดาวน์ Order #{order.id}: ข้อมูลไม่ครบ (count={dp_installment_count}, balance={dp_remaining_balance})")
-        except Exception as e:
-            print(f"❌ ไม่สามารถสร้างบัญชีผ่อนดาวน์: {str(e)}")
+        _acc, msg = create_down_payment_account(order)
+        if msg:
+            warnings.append(msg)
 
     order.sale_status = 'completed'
     order.save(update_fields=['sale_status'])
@@ -761,7 +800,54 @@ class OrderViewSet(viewsets.ModelViewSet):
                     print(f"⚠️ แก้ยอดรายรับอัตโนมัติไม่สำเร็จ Order #{order.id}: {e}")
         payload = _checklist_payload(order)
         _sync_checklist_note(order, payload['missing'])
+        # ✅ ตัดขายสำเร็จ แต่มีปัญหาที่ต้องบอก (เช่น สร้างบัญชีผ่อนดาวน์ไม่ได้) → หน้าเว็บโชว์เตือน
+        payload['warnings'] = list(getattr(order, '_finalize_warnings', []) or [])
         return Response(payload)
+
+    @action(methods=['GET', 'POST'], detail=True, url_path='down_payment')
+    def down_payment_account(self, request, *args, **kwargs):
+        """
+        ✅ สถานะบัญชีผ่อนดาวน์ของรายการขาย
+        GET  /order/{id}/down_payment/   → ขอผ่อนดาวน์ไหม / มีบัญชีแล้วหรือยัง / ข้อมูลที่บันทึกไว้
+        POST /order/{id}/down_payment/   (adm) สร้างบัญชีผ่อนดาวน์ย้อนหลัง - ใช้ข้อมูลเดิม หรือกรอกทับได้:
+             { remaining_balance?, installment_count?, interest_rate?, per_installment?, next_payment_date? }
+        """
+        order = self.get_object()
+        if request.method == 'POST':
+            role = str(getattr(request.user, 'role', '') or '').lower()
+            if role not in ('adm', 'admin', 'administrator'):
+                return Response({'error': 'เฉพาะผู้ดูแลระบบ'}, status=403)
+            if order.sale_status != 'completed':
+                return Response({'error': 'รายการยังไม่จบ - กด "จบรายการ" ก่อน ระบบจะสร้างบัญชีผ่อนดาวน์ให้เอง'}, status=400)
+            d = request.data
+            overrides = {
+                'down_payment_remaining_balance': d.get('remaining_balance'),
+                'down_payment_installment_count': d.get('installment_count'),
+                'down_payment_interest_rate': d.get('interest_rate'),
+                'down_payment_per_remaining_installment': d.get('per_installment'),
+                'down_payment_next_payment_date': d.get('next_payment_date'),
+            }
+            acc, msg = create_down_payment_account(order, overrides)
+            if msg:
+                return Response({'error': msg}, status=400)
+            return Response({'message': 'สร้างบัญชีผ่อนดาวน์แล้ว', 'account_id': acc.id})
+
+        extra = order.checkout_extra or {}
+        acc = NPGAccount.objects.filter(order=order).first()
+        return Response({
+            'requested': bool(extra.get('down_payment_installment')),
+            'sale_status': order.sale_status,
+            'finance_provider': order.finance_provider or '',
+            'account_id': acc.id if acc else None,
+            'account_type': acc.account_type if acc else None,
+            'data': {
+                'remaining_balance': extra.get('down_payment_remaining_balance') or 0,
+                'installment_count': extra.get('down_payment_installment_count') or 0,
+                'interest_rate': extra.get('down_payment_interest_rate') or 0,
+                'per_installment': extra.get('down_payment_per_remaining_installment') or 0,
+                'next_payment_date': extra.get('down_payment_next_payment_date') or '',
+            },
+        })
 
     @action(methods=['GET'], detail=True)
     def receipt(self, request, *args, **kwargs):

@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Lock, X } from "lucide-react";
+import { DOWN_PAYMENT_REFRESH_EVENT } from "./DownPaymentPanel";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -29,6 +30,7 @@ interface ChecklistData {
   missing: string[];
   finished: { checked_by: string; checked_at: string } | null;
   sale_status?: "pending" | "completed";
+  warnings?: string[];
 }
 
 const timeTH = (iso?: string | null) =>
@@ -97,6 +99,12 @@ export default function SaleChecklist({ orderId }: { orderId: number }) {
       toast.success(
         d.missing.length ? "จบรายการแล้ว ตัดขายเรียบร้อย (ข้อที่ขาดอยู่ในหมายเหตุ)" : "จบรายการแล้ว ตัดขายเรียบร้อย"
       );
+      // ✅ ตัดขายแล้วแต่มีปัญหา (เช่น สร้างบัญชีผ่อนดาวน์ไม่ได้) → เตือนค้างไว้ + อยู่หน้านี้ต่อให้แก้ได้ทันที
+      if (d.warnings?.length) {
+        d.warnings.forEach((w) => toast.error(w, { duration: 20000 }));
+        window.dispatchEvent(new Event(DOWN_PAYMENT_REFRESH_EVENT));
+        return d;
+      }
       router.push("/sales");
       router.refresh();
       return d;
