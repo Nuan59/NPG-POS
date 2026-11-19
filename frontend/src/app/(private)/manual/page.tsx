@@ -1,18 +1,26 @@
 "use client";
 
-import { Fragment, ReactNode, useMemo, useState } from "react";
+import { Fragment, ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Prompt } from "next/font/google";
 import {
-  AlertTriangle, ArrowRight, BookOpen, Check, ClipboardList, Landmark, Lightbulb, LifeBuoy, Printer,
-  Rocket, Search, ShieldCheck, ShoppingCart, Sparkles, Users, Wallet, Wrench, X,
+  AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, ChevronDown, ClipboardList, Eye,
+  Landmark, Lightbulb, LifeBuoy, Moon, Printer, Receipt, Rocket, Search, Send, ShieldCheck, ShoppingCart,
+  Sparkles, Users, Wallet, Wrench, X,
 } from "lucide-react";
 import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
-import { MANUAL_UPDATED_AT, ManualBlock, ManualIcon, ManualSection, SECTIONS, UPDATES } from "./manualContent";
+import {
+  GLOSSARY, MANUAL_UPDATED_AT, ManualBlock, ManualIcon, ManualSection, QUICK_GUIDES, QuickGuide, SECTIONS, UPDATES,
+} from "./manualContent";
 import { CashflowDiagram, SaleDiagram } from "./ManualDiagrams";
+
+// ✅ คู่มือใช้ตัวหนังสือหนาปกติ (ทั้งแอปใช้ weight 100 บางมาก อ่านยากสำหรับบางคน)
+const readable = Prompt({ weight: ["400", "500", "600", "700"], subsets: ["latin", "thai"], display: "swap" });
 
 const ICONS: Record<ManualIcon, typeof BookOpen> = {
   start: Rocket, sale: ShoppingCart, customer: Users, npg: Landmark, cash: Wallet,
   service: Wrench, task: ClipboardList, admin: ShieldCheck, help: LifeBuoy,
+  finish: CheckCircle2, send: Send, expense: Receipt, close: Moon,
 };
 
 const thaiDate = (iso: string) =>
@@ -28,7 +36,7 @@ const highlight = (text: string, q: string): ReactNode => {
   let at = lower.indexOf(q);
   while (at !== -1) {
     if (at > i) out.push(text.slice(i, at));
-    out.push(<mark key={at} className="bg-orange-200/80 text-inherit rounded px-0.5">{text.slice(at, at + q.length)}</mark>);
+    out.push(<mark key={at} className="bg-orange-200 text-inherit rounded px-0.5">{text.slice(at, at + q.length)}</mark>);
     i = at + q.length;
     at = lower.indexOf(q, i);
   }
@@ -40,7 +48,9 @@ const Rich = ({ text, q }: { text: string; q: string }) => (
   <>
     {text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
       part.startsWith("**") && part.endsWith("**") ? (
-        <strong key={i} className="font-semibold text-[#1e2432]">{highlight(part.slice(2, -2), q)}</strong>
+        <strong key={i} className="mx-0.5 inline-block whitespace-nowrap rounded-md border border-orange-200 bg-orange-50 px-1.5 leading-7 font-semibold text-[#c2410c]">
+          {highlight(part.slice(2, -2), q)}
+        </strong>
       ) : (
         <Fragment key={i}>{highlight(part, q)}</Fragment>
       )
@@ -54,32 +64,37 @@ const blockText = (b: ManualBlock): string => {
     case "sub": return b.title;
     case "steps": case "list": case "checklist": return b.items.join(" ");
     case "table": return [...b.head, ...b.rows.flat()].join(" ");
+    case "admin": return b.blocks.map(blockText).join(" ");
     case "diagram": return "";
   }
 };
+const guideText = (g: QuickGuide) =>
+  [g.title, g.when, g.done, g.warn ?? "", ...g.steps.flatMap((s) => [s.text, s.look ?? ""])].join(" ").toLowerCase();
 
 // ---------------------------------------------------------------- บล็อกเนื้อหา
 
-const Block = ({ b, q }: { b: ManualBlock; q: string }) => {
+const BODY = "text-base leading-8 text-slate-700";
+
+const Block = ({ b, q, showAdmin }: { b: ManualBlock; q: string; showAdmin: boolean }) => {
   switch (b.kind) {
     case "p":
-      return <p className="text-[15px] leading-7 text-slate-700"><Rich text={b.text} q={q} /></p>;
+      return <p className={BODY}><Rich text={b.text} q={q} /></p>;
     case "sub":
       return (
-        <h3 className="flex items-center gap-2 pt-3 text-base font-bold text-[#1e2432]">
-          <span className="h-4 w-1 rounded-full bg-[#F26B1D]" />
+        <h3 className="flex items-center gap-2 pt-3 text-lg font-bold text-[#1e2432]">
+          <span className="h-5 w-1.5 rounded-full bg-[#F26B1D]" />
           <Rich text={b.title} q={q} />
         </h3>
       );
     case "steps":
       return (
-        <ol className="space-y-2.5">
+        <ol className="space-y-3">
           {b.items.map((t, i) => (
             <li key={i} className="flex gap-3">
-              <span className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-[#1e2432] text-white text-xs font-bold grid place-items-center tabular-nums">
+              <span className="mt-1 h-7 w-7 shrink-0 rounded-full bg-[#1e2432] text-white text-sm font-bold grid place-items-center tabular-nums">
                 {i + 1}
               </span>
-              <span className="text-[15px] leading-7 text-slate-700"><Rich text={t} q={q} /></span>
+              <span className={BODY}><Rich text={t} q={q} /></span>
             </li>
           ))}
         </ol>
@@ -88,8 +103,8 @@ const Block = ({ b, q }: { b: ManualBlock; q: string }) => {
       return (
         <ul className="space-y-2">
           {b.items.map((t, i) => (
-            <li key={i} className="flex gap-3 text-[15px] leading-7 text-slate-700">
-              <span className="mt-[11px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#F26B1D]" />
+            <li key={i} className={`flex gap-3 ${BODY}`}>
+              <span className="mt-[13px] h-2 w-2 shrink-0 rounded-full bg-[#F26B1D]" />
               <span><Rich text={t} q={q} /></span>
             </li>
           ))}
@@ -99,8 +114,8 @@ const Block = ({ b, q }: { b: ManualBlock; q: string }) => {
       return (
         <ul className="grid gap-2 sm:grid-cols-2">
           {b.items.map((t, i) => (
-            <li key={i} className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              <span className="h-5 w-5 shrink-0 rounded-md bg-emerald-500 text-white grid place-items-center"><Check size={13} strokeWidth={3} /></span>
+            <li key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-base text-slate-700">
+              <span className="h-6 w-6 shrink-0 rounded-md bg-emerald-500 text-white grid place-items-center"><Check size={15} strokeWidth={3} /></span>
               <Rich text={t} q={q} />
             </li>
           ))}
@@ -109,17 +124,17 @@ const Block = ({ b, q }: { b: ManualBlock; q: string }) => {
     case "table":
       return (
         <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-sm">
+          <table className="w-full text-[15px]">
             <thead>
               <tr className="bg-[#1e2432] text-white">
-                {b.head.map((h) => <th key={h} className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">{h}</th>)}
+                {b.head.map((h) => <th key={h} className="px-4 py-3 text-left font-semibold whitespace-nowrap">{h}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {b.rows.map((r, i) => (
-                <tr key={i} className={i % 2 ? "bg-slate-50/60" : "bg-white"}>
+                <tr key={i} className={i % 2 ? "bg-slate-50/70" : "bg-white"}>
                   {r.map((c, j) => (
-                    <td key={j} className={`px-3 py-2.5 align-top leading-6 ${j === 0 ? "font-semibold text-[#1e2432] min-w-[120px]" : "text-slate-700"}`}>
+                    <td key={j} className={`px-4 py-3 align-top leading-7 ${j === 0 ? "font-semibold text-[#1e2432] min-w-[130px]" : "text-slate-700"}`}>
                       <Rich text={c} q={q} />
                     </td>
                   ))}
@@ -131,15 +146,15 @@ const Block = ({ b, q }: { b: ManualBlock; q: string }) => {
       );
     case "tip":
       return (
-        <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[15px] leading-7 text-emerald-900">
-          <Lightbulb size={18} className="mt-1 shrink-0 text-emerald-600" />
+        <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-base leading-8 text-emerald-900">
+          <Lightbulb size={20} className="mt-1.5 shrink-0 text-emerald-600" />
           <span><Rich text={b.text} q={q} /></span>
         </div>
       );
     case "warn":
       return (
-        <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[15px] leading-7 text-amber-900">
-          <AlertTriangle size={18} className="mt-1 shrink-0 text-amber-600" />
+        <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base leading-8 text-amber-900">
+          <AlertTriangle size={20} className="mt-1.5 shrink-0 text-amber-600" />
           <span><Rich text={b.text} q={q} /></span>
         </div>
       );
@@ -149,30 +164,136 @@ const Block = ({ b, q }: { b: ManualBlock; q: string }) => {
           {b.name === "cashflow" ? <CashflowDiagram /> : <SaleDiagram />}
         </div>
       );
+    case "admin":
+      if (!showAdmin) return null;
+      return (
+        <details className="group rounded-xl border border-slate-300 bg-slate-50" open={!!q}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-[15px] font-semibold text-[#1e2432]">
+            <ShieldCheck size={18} className="text-[#F26B1D]" /> สำหรับ adm
+            <ChevronDown size={16} className="ml-auto text-slate-400 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-3 border-t border-slate-200 px-4 py-4">
+            {b.blocks.map((x, i) => <Block key={i} b={x} q={q} showAdmin={showAdmin} />)}
+          </div>
+        </details>
+      );
   }
+};
+
+// ---------------------------------------------------------------- วิธีทำทีละขั้น
+
+const GuideView = ({ g, onBack }: { g: QuickGuide; onBack: () => void }) => {
+  const Icon = ICONS[g.icon];
+  return (
+    <section className="overflow-hidden rounded-2xl border-2 border-[#F26B1D]/40 bg-white">
+      <header className="flex items-center gap-3 bg-[#1e2432] px-5 py-4 text-white">
+        <button
+          onClick={onBack}
+          className="no-print flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-base font-semibold hover:bg-white/20"
+        >
+          <ArrowLeft size={18} /> กลับ
+        </button>
+        <span className="h-11 w-11 shrink-0 rounded-xl bg-[#F26B1D] grid place-items-center"><Icon size={24} /></span>
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-bold">{g.title}</h2>
+          <p className="text-sm text-white/70">ใช้ตอน: {g.when}</p>
+        </div>
+      </header>
+
+      <ol className="divide-y divide-slate-100">
+        {g.steps.map((s, i) => (
+          <li key={i} className="flex gap-4 px-5 py-4 sm:px-6">
+            <span className="h-10 w-10 shrink-0 rounded-full bg-[#F26B1D] text-white text-lg font-bold grid place-items-center tabular-nums shadow-sm">
+              {i + 1}
+            </span>
+            <div className="min-w-0 pt-1">
+              <p className="text-lg leading-8 text-slate-800"><Rich text={s.text} q="" /></p>
+              {s.look && (
+                <p className="mt-1 flex items-start gap-1.5 text-[15px] leading-7 text-slate-500">
+                  <Eye size={16} className="mt-1.5 shrink-0" /> {s.look}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <div className="space-y-3 border-t border-slate-100 bg-slate-50/60 px-5 py-5 sm:px-6">
+        <div className="flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-base leading-8 text-emerald-900">
+          <CheckCircle2 size={22} className="mt-1 shrink-0 text-emerald-600" />
+          <span><strong className="font-bold">เสร็จแล้ว:</strong> {g.done}</span>
+        </div>
+        {g.warn && (
+          <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base leading-8 text-amber-900">
+            <AlertTriangle size={22} className="mt-1 shrink-0 text-amber-600" />
+            <span><strong className="font-bold">ระวัง:</strong> {g.warn}</span>
+          </div>
+        )}
+        <div className="no-print flex flex-wrap gap-2 pt-1">
+          {g.go && (
+            <Link
+              href={g.go.href}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#F26B1D] px-5 py-3 text-base font-bold text-white shadow-sm hover:bg-[#d95c14]"
+            >
+              {g.go.label} <ArrowRight size={18} />
+            </Link>
+          )}
+          <button onClick={onBack} className="rounded-xl border border-slate-300 bg-white px-5 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50">
+            ดูเรื่องอื่น
+          </button>
+        </div>
+      </div>
+    </section>
+  );
 };
 
 // ---------------------------------------------------------------- หน้า
 
 export default function ManualPage() {
-  const { isAdmin, loaded, canAccess } = useEmployeePermissions();
+  const { isAdmin, isMonitor, loaded, canAccess } = useEmployeePermissions();
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [openGuide, setOpenGuide] = useState<string | null>(null);
   const q = query.trim().toLowerCase();
+  const showAdmin = isAdmin || isMonitor;
 
-  const relevant = (s: ManualSection) => (s.adminOnly ? isAdmin : canAccess(s.permission ?? null));
+  // ✅ ลิงก์ #guide-xxx (เช่น จาก "มีอะไรใหม่") เปิดวิธีทำนั้นให้เลย
+  useEffect(() => {
+    const open = () => {
+      const id = window.location.hash.slice(1);
+      if (QUICK_GUIDES.some((g) => g.id === id)) {
+        setOpenGuide(id);
+        setQuery("");
+        window.scrollTo({ top: 0 });
+      }
+    };
+    open();
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
+  }, []);
+
+  const relevant = (s: { adminOnly?: boolean; permission?: string }) =>
+    s.adminOnly ? isAdmin : canAccess(s.permission ?? null);
+  const visible = <T extends { adminOnly?: boolean; permission?: string }>(x: T) => showAll || !loaded || relevant(x);
+
+  const guides = useMemo(
+    () => QUICK_GUIDES.filter(visible).filter((g) => !q || guideText(g).includes(q)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [q, showAll, loaded, isAdmin]
+  );
+  const glossary = GLOSSARY.filter((w) => !q || `${w.word} ${w.meaning}`.toLowerCase().includes(q));
 
   const sections = useMemo(() => {
-    const base = SECTIONS.filter((s) => showAll || !loaded || relevant(s));
+    const base = SECTIONS.filter(visible);
     if (!q) return base.map((s) => ({ s, blocks: s.blocks }));
     return base
-      .map((s) => {
+      .map((s: ManualSection) => {
         const hitTitle = `${s.title} ${s.summary}`.toLowerCase().includes(q);
-        // ค้นเจอในบล็อกไหน → แสดงบล็อกนั้น + หัวข้อย่อยที่มันอยู่ใต้
         const blocks: ManualBlock[] = [];
         let lastSub: ManualBlock | null = null;
         for (const b of s.blocks) {
           if (b.kind === "sub") { lastSub = b; continue; }
+          if (b.kind === "admin" && !showAdmin) continue;
           if (blockText(b).toLowerCase().includes(q)) {
             if (lastSub && !blocks.includes(lastSub)) blocks.push(lastSub);
             blocks.push(b);
@@ -182,12 +303,19 @@ export default function ManualPage() {
       })
       .filter((x) => x.hit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, showAll, loaded, isAdmin]);
+  }, [q, showAll, loaded, isAdmin, showAdmin]);
 
-  const hidden = loaded ? SECTIONS.filter((s) => !relevant(s)).length : 0;
+  const hidden = loaded ? SECTIONS.filter((s) => !relevant(s)).length + QUICK_GUIDES.filter((g) => !relevant(g)).length : 0;
+  const guide = openGuide ? QUICK_GUIDES.find((g) => g.id === openGuide) : null;
+  const nothing = q && guides.length === 0 && glossary.length === 0 && sections.length === 0;
+
+  const pick = (id: string) => {
+    setOpenGuide(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   return (
-    <div className="manual-page space-y-6">
+    <div className={`manual-page mx-auto max-w-5xl space-y-6 font-normal ${readable.className}`}>
       {/* ✅ หัวคู่มือ */}
       <section className="relative overflow-hidden rounded-2xl bg-[#1e2432] text-white px-5 py-6 sm:px-8 sm:py-8">
         <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#F26B1D]/25 blur-3xl" />
@@ -202,73 +330,89 @@ export default function ManualPage() {
               <h1 className="text-2xl sm:text-3xl font-bold">คู่มือการใช้งาน</h1>
             </div>
           </div>
-          <p className="text-sm sm:text-base text-white/75">ทุกขั้นตอนที่ใช้ในร้าน ตั้งแต่ขาย รับชำระ NPG จนถึงปิดร้าน ค้นหาคำที่ต้องการได้เลย</p>
+          <p className="text-base text-white/80">กดปุ่มเรื่องที่อยากทำ แล้วทำตามทีละข้อ</p>
           <div className="no-print relative">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="ค้นหาในคู่มือ เช่น ค่าปรับ ส่งเงิน ผ่อนดาวน์"
-              className="w-full rounded-xl bg-white pl-10 pr-10 py-3 text-[15px] text-slate-900 outline-none ring-2 ring-transparent focus:ring-[#F26B1D] placeholder:text-slate-400"
+              onChange={(e) => { setQuery(e.target.value); setOpenGuide(null); }}
+              placeholder="หรือพิมพ์คำที่อยากรู้ เช่น ค่าปรับ"
+              className="w-full rounded-xl bg-white pl-12 pr-12 py-3.5 text-lg text-slate-900 outline-none ring-2 ring-transparent focus:ring-[#F26B1D] placeholder:text-slate-400"
             />
             {query && (
-              <button onClick={() => setQuery("")} aria-label="ล้างคำค้น" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100">
-                <X size={16} />
+              <button onClick={() => setQuery("")} aria-label="ล้างคำค้น" className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+                <X size={18} />
               </button>
             )}
           </div>
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
-        {/* ✅ สารบัญ */}
-        <aside className="no-print min-w-0 lg:sticky lg:top-4 lg:self-start">
-          <nav className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:overflow-visible lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white lg:p-2">
-            <p className="hidden px-3 pt-2 pb-1 text-xs font-semibold text-slate-400 lg:block">สารบัญ</p>
-            {sections.map(({ s }) => {
-              const Icon = ICONS[s.icon];
-              return (
-                <a
-                  key={s.id}
-                  href={`#${s.id}`}
-                  className="flex shrink-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-[#F26B1D] hover:text-[#F26B1D] lg:border-transparent lg:bg-transparent lg:hover:bg-orange-50"
-                >
-                  <Icon size={16} className="shrink-0" />
-                  <span className="whitespace-nowrap">{s.title}</span>
-                </a>
-              );
-            })}
-            <div className="hidden lg:block border-t border-slate-100 mt-1 pt-2 space-y-1">
-              {hidden > 0 && (
-                <button onClick={() => setShowAll(!showAll)} className="w-full rounded-xl px-3 py-2 text-left text-xs text-slate-500 hover:bg-slate-50">
-                  {showAll ? "แสดงเฉพาะที่ฉันใช้ได้" : `แสดงทุกหมวด (+${hidden})`}
-                </button>
-              )}
-              <button onClick={() => window.print()} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-50">
-                <Printer size={15} /> พิมพ์คู่มือ
-              </button>
-            </div>
-          </nav>
-        </aside>
+      {guide ? (
+        <GuideView g={guide} onBack={() => { setOpenGuide(null); window.history.replaceState(null, "", "/manual"); }} />
+      ) : (
+        <>
+          {/* ✅ อยากทำอะไร? */}
+          {guides.length > 0 && (
+            <section className="no-print space-y-3">
+              <h2 className="text-xl font-bold text-[#1e2432]">{q ? "วิธีทำที่ตรงกับคำค้น" : "อยากทำอะไร?"}</h2>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {guides.map((g) => {
+                  const Icon = ICONS[g.icon];
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => pick(g.id)}
+                      className="group flex flex-col items-start gap-3 rounded-2xl border-2 border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#F26B1D] hover:shadow-md"
+                    >
+                      <span className="h-12 w-12 rounded-xl bg-orange-50 text-[#F26B1D] grid place-items-center group-hover:bg-[#F26B1D] group-hover:text-white">
+                        <Icon size={26} />
+                      </span>
+                      <span>
+                        <span className="block text-lg font-bold leading-6 text-[#1e2432]">{g.title}</span>
+                        <span className="mt-1 block text-sm leading-5 text-slate-500">{g.when}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
-        <div className="min-w-0 space-y-6">
+          {/* ✅ คำที่ควรรู้ */}
+          {glossary.length > 0 && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-[#1e2432]">
+                <BookOpen size={20} className="text-[#F26B1D]" /> คำที่ควรรู้
+              </h2>
+              <dl className="grid gap-3 sm:grid-cols-2">
+                {glossary.map((w) => (
+                  <div key={w.word} className="rounded-xl bg-slate-50 px-4 py-3">
+                    <dt className="text-base font-bold text-[#1e2432]">{highlight(w.word, q)}</dt>
+                    <dd className="text-[15px] leading-7 text-slate-600">{highlight(w.meaning, q)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
+
           {/* ✅ มีอะไรใหม่ */}
           {!q && (
             <section className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 to-white p-5">
-              <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-[#1e2432]">
-                <Sparkles size={18} className="text-[#F26B1D]" /> มีอะไรใหม่
+              <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-[#1e2432]">
+                <Sparkles size={20} className="text-[#F26B1D]" /> มีอะไรใหม่
               </h2>
-              <ul className="space-y-2.5">
-                {UPDATES.slice(0, 5).map((u) => (
+              <ul className="space-y-3">
+                {UPDATES.slice(0, 4).map((u) => (
                   <li key={u.date + u.title} className="flex flex-col gap-1 sm:flex-row sm:gap-3">
-                    <span className="mt-0.5 self-start shrink-0 rounded-full bg-white border border-orange-200 px-2 py-0.5 text-[11px] font-semibold text-[#F26B1D] tabular-nums whitespace-nowrap">
+                    <span className="self-start shrink-0 whitespace-nowrap rounded-full border border-orange-200 bg-white px-2.5 py-0.5 text-xs font-semibold text-[#F26B1D] tabular-nums">
                       {thaiDate(u.date)}
                     </span>
-                    <span className="text-sm leading-6 text-slate-700">
+                    <span className="text-base leading-7 text-slate-700">
                       {u.section ? (
-                        <a href={`#${u.section}`} className="font-semibold text-[#1e2432] hover:text-[#F26B1D]">{u.title}</a>
+                        <a href={`#${u.section}`} className="font-bold text-[#1e2432] underline decoration-orange-300 underline-offset-4 hover:text-[#F26B1D]">{u.title}</a>
                       ) : (
-                        <span className="font-semibold text-[#1e2432]">{u.title}</span>
+                        <span className="font-bold text-[#1e2432]">{u.title}</span>
                       )}
                       {" — "}{u.detail}
                     </span>
@@ -278,63 +422,101 @@ export default function ManualPage() {
             </section>
           )}
 
-          {q && sections.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-14 text-center text-slate-500">
-              ไม่พบ &quot;{query}&quot; ในคู่มือ ลองคำอื่น เช่น ขาย NPG เงินสด
+          {nothing && (
+            <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white py-14 text-center text-lg text-slate-500">
+              ไม่เจอคำว่า &quot;{query}&quot; ลองพิมพ์คำอื่น หรือกดปุ่มเรื่องที่อยากทำด้านบน
             </div>
           )}
 
-          {sections.map(({ s, blocks }) => {
-            const Icon = ICONS[s.icon];
-            return (
-              <section key={s.id} id={s.id} className="manual-section scroll-mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
-                  <div className="flex items-center gap-3">
-                    <span className="h-11 w-11 shrink-0 rounded-xl bg-orange-50 text-[#F26B1D] grid place-items-center">
-                      <Icon size={22} />
-                    </span>
-                    <div>
-                      <h2 className="text-lg sm:text-xl font-bold text-[#1e2432]">{highlight(s.title, q)}</h2>
-                      <p className="text-sm text-slate-500">{s.summary}</p>
-                    </div>
-                  </div>
-                  {s.adminOnly && (
-                    <span className="rounded-full bg-[#1e2432] px-2.5 py-1 text-[11px] font-semibold text-white">เฉพาะ adm</span>
+          {/* ✅ รายละเอียดทั้งหมด */}
+          {sections.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-2 pt-2">
+                <h2 className="text-xl font-bold text-[#1e2432]">{q ? "ในรายละเอียด" : "รายละเอียดแต่ละเรื่อง"}</h2>
+                <div className="no-print flex gap-2">
+                  {hidden > 0 && (
+                    <button onClick={() => setShowAll(!showAll)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                      {showAll ? "แสดงเฉพาะเรื่องของฉัน" : "แสดงทุกเรื่อง"}
+                    </button>
                   )}
-                </header>
-                <div className="space-y-4 px-5 py-5 sm:px-6">
-                  {blocks.map((b, i) => <Block key={i} b={b} q={q} />)}
-                  {s.links && s.links.length > 0 && (
-                    <div className="no-print flex flex-wrap gap-2 pt-2">
-                      {s.links.map((l) => (
-                        <Link
-                          key={l.href}
-                          href={l.href}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-[#1e2432] hover:border-[#F26B1D] hover:bg-orange-50 hover:text-[#F26B1D]"
-                        >
-                          {l.label} <ArrowRight size={14} />
-                        </Link>
-                      ))}
-                    </div>
-                  )}
+                  <button onClick={() => window.print()} className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                    <Printer size={15} /> พิมพ์
+                  </button>
                 </div>
-              </section>
-            );
-          })}
+              </div>
 
-          <p className="no-print pb-4 text-center text-xs text-slate-400">
-            ไม่เจอสิ่งที่หา หรือคู่มือไม่ตรงกับหน้าจอจริง แจ้ง adm หรือตั้งกระทู้ได้เลย
+              {/* สารบัญ: ปุ่มเรื่อง */}
+              {!q && (
+                <nav className="no-print flex flex-wrap gap-2">
+                  {sections.map(({ s }) => {
+                    const Icon = ICONS[s.icon];
+                    return (
+                      <a
+                        key={s.id}
+                        href={`#${s.id}`}
+                        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[15px] font-medium text-slate-700 hover:border-[#F26B1D] hover:text-[#F26B1D]"
+                      >
+                        <Icon size={16} /> {s.title}
+                      </a>
+                    );
+                  })}
+                </nav>
+              )}
+
+              {sections.map(({ s, blocks }) => {
+                const Icon = ICONS[s.icon];
+                return (
+                  <section key={s.id} id={s.id} className="manual-section scroll-mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                      <div className="flex items-center gap-3">
+                        <span className="h-12 w-12 shrink-0 rounded-xl bg-orange-50 text-[#F26B1D] grid place-items-center">
+                          <Icon size={24} />
+                        </span>
+                        <div>
+                          <h2 className="text-xl font-bold text-[#1e2432]">{highlight(s.title, q)}</h2>
+                          <p className="text-[15px] text-slate-500">{s.summary}</p>
+                        </div>
+                      </div>
+                      {s.adminOnly && (
+                        <span className="rounded-full bg-[#1e2432] px-3 py-1 text-xs font-semibold text-white">เฉพาะ adm</span>
+                      )}
+                    </header>
+                    <div className="space-y-4 px-5 py-5 sm:px-6">
+                      {blocks.map((b, i) => <Block key={i} b={b} q={q} showAdmin={showAdmin} />)}
+                      {s.links && s.links.length > 0 && (
+                        <div className="no-print flex flex-wrap gap-2 pt-2">
+                          {s.links.map((l) => (
+                            <Link
+                              key={l.href}
+                              href={l.href}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 px-4 py-2 text-[15px] font-semibold text-[#1e2432] hover:border-[#F26B1D] hover:bg-orange-50 hover:text-[#F26B1D]"
+                            >
+                              {l.label} <ArrowRight size={15} />
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+
+          <p className="no-print pb-4 text-center text-[15px] text-slate-500">
+            ยังไม่เข้าใจ หรือหน้าจอไม่เหมือนในคู่มือ ถาม adm ได้เลย
           </p>
-        </div>
-      </div>
+        </>
+      )}
 
-      {/* ✅ พิมพ์: ซ่อนเมนู/แผงขาย/สารบัญ ให้เหลือแต่เนื้อหา */}
+      {/* ✅ พิมพ์: ซ่อนเมนู/แผงขาย/ปุ่ม ให้เหลือแต่เนื้อหา */}
       <style jsx global>{`
         @media print {
           nav, aside, .no-print { display: none !important; }
           body, main, section { background: #fff !important; }
           main > section { margin: 0 !important; padding: 0 !important; max-height: none !important; overflow: visible !important; }
           .manual-section { break-inside: avoid-page; border-color: #cbd5e1 !important; }
+          .manual-page details { display: none; }
           .manual-page { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       `}</style>
