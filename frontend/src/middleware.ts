@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 // หน้าที่เข้าได้เฉพาะ adm (และผู้ตรวจสอบ)
 const ADMIN_ROUTES = ["/employees", "/reports"];
 // ✅ ผู้ตรวจสอบ (role = mon) เข้าได้แค่หน้าเหล่านี้ (ดูภาพรวม ไม่ดูรายการขาย/สินค้า)
-const MONITOR_PATHS = ["/dashboard", "/employees", "/cashflow", "/reports", "/tasks"];
+const MONITOR_PATHS = ["/dashboard", "/employees", "/cashflow", "/reports", "/tasks", "/manual"];
 
 export default withAuth(
 	function middleware(req) {

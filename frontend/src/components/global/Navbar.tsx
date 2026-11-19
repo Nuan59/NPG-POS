@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  HelpCircle,
   LogOut,
   Menu,
   X,
@@ -170,6 +171,19 @@ export const Navbar = () => {
             <div className="nav-icon"><RegistrationExpiryNotification /></div>
             <div className="nav-icon"><NPGNotification /></div>
             <div className="nav-icon"><TaskNotificationIcon /></div>
+
+            {/* ✅ คู่มือการใช้งาน - เปิดได้ทุกคนทุกหน้า */}
+            <div className="nav-icon">
+              <Link
+                href="/manual"
+                title="คู่มือการใช้งาน"
+                aria-label="คู่มือการใช้งาน"
+                style={isActive("/manual") ? ACTIVE_STYLE : undefined}
+                className="w-full h-full rounded-full flex items-center justify-center hover:text-white"
+              >
+                <HelpCircle size={19} strokeWidth={1.9} />
+              </Link>
+            </div>
 
             <div className="hidden sm:flex items-center gap-2 ml-1 p-1 rounded-full bg-white/[0.05] border border-white/[0.08]">
               <span

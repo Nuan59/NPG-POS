@@ -9,6 +9,7 @@ import DeliveryNoteTemplate from "@/components/pdf/DeliveryNoteTemplate";
 import PdiTemplate from "@/components/pdf/PdiTemplate";
 import { IOrder } from "@/types/Order";
 import SaleChecklist from "./SaleChecklist";
+import DownPaymentPanel from "./DownPaymentPanel";
 
 interface DocumentSelectionProps {
   order: IOrder;
@@ -111,7 +112,7 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
       const blob = await pdf(
         <PdiTemplate
           customerName={customerName}
-          chassisNumber={bike?.chassis || ""}
+          chassisNumber={bike?.chassi || ""}
           engineNumber={bike?.engine || ""}
           model={bike?.model_name || ""}
           color={bike?.color || ""}
@@ -242,6 +243,10 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
         {/* ✅ เช็คลิสต์หลังขาย - ติ๊กให้ครบก่อนกดจบรายการ (ไม่ครบก็จบได้ แต่ข้อที่ขาดจะขึ้นในหมายเหตุ) */}
         <div className="max-w-xl mx-auto mb-8">
           <SaleChecklist orderId={Number(order.id)} />
+          {/* ✅ สถานะบัญชีผ่อนดาวน์ (แสดงเฉพาะรายการที่ขอผ่อนดาวน์) */}
+          <div className="mt-4">
+            <DownPaymentPanel orderId={Number(order.id)} />
+          </div>
         </div>
 
         {/* Action Buttons */}

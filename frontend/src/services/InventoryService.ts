@@ -25,7 +25,7 @@ export const createBike = async (payload: IBike) => {
     status = "success";
   }
 
-  return { status, data: response?.json() };
+  return { status, data: await response?.json().catch(() => null) };
 };
 
 export const getBike = async (bike_id: number) => {
@@ -56,7 +56,7 @@ export const editBike = async (bike_id: number, payload: IBike) => {
     status = "success";
   }
 
-  return { status, data: response?.json() };
+  return { status, data: await response?.json().catch(() => null) };
 };
 
 export const deleteBike = async (bike_id: number) => {
@@ -104,5 +104,5 @@ export const importInventory = async (payload: {
     status = "success";
   }
 
-  return { status, data: response?.json() };
+  return { status, data: await response?.json().catch(() => null) };
 };

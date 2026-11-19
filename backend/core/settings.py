@@ -71,7 +71,12 @@ INSTALLED_APPS = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    # ✅ ทุก API ต้องล็อกอินเป็นค่าเริ่มต้น (เดิมไม่ได้ตั้ง = เปิดให้ทุกคน เช่น รายรับ-รายจ่าย / งาน / ประกาศ)
+    # endpoint ที่ตั้งใจเปิดสาธารณะต้องระบุ permission_classes เองชัดๆ (เช่น ค้นรหัสไปรษณีย์ / ล็อกอิน)
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
 
 SIMPLE_JWT = {
@@ -91,6 +96,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # ✅ บันทึกการทำงานของพนักงาน (ทุกการเพิ่ม/แก้/ลบ) - ดูได้ที่หน้า "บันทึกการทำงาน" (adm)
+    # อยู่ก่อน ReadOnlyRole เพื่อให้เห็นการกดที่ถูกบล็อกด้วย
+    "api.activity.ActivityLogMiddleware",
     # ✅ บัญชีผู้ตรวจสอบ (role=mon) ดูได้อย่างเดียว - กดได้แค่ รับเงิน / อนุมัติจ่าย
     "api.middleware.ReadOnlyRoleMiddleware.ReadOnlyRoleMiddleware",
 ]

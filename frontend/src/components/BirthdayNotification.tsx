@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Bell, Cake, Phone, X } from "lucide-react";
 import Link from "next/link";
+import { getSession } from "next-auth/react";
 
 interface ICustomer {
   id: number;
@@ -32,11 +33,15 @@ const BirthdayNotification = () => {
         return;
       }
 
-      // เรียก API โดยไม่ต้อง token
+      // ✅ แนบ token ของผู้ใช้ (backend ไม่เปิดข้อมูลลูกค้าให้คนที่ไม่ได้ล็อกอินแล้ว)
+      const session = await getSession();
+      const token = (session as any)?.user?.accessToken;
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       const response = await fetch(`${apiBase}/customers`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) {
