@@ -10,7 +10,7 @@ from django.utils import timezone
 from api.models import NPGAccount, NPGPayment
 from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income, handover_block
 from api.models.NPGPayment import NPGFee
-from api import activity
+from api import activity, receipts
 from api.serializers.NPGSerializer import (
     NPGAccountSerializer,
     NPGPaymentSerializer,
@@ -298,6 +298,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         account.update_next_payment_date()
         payment.refresh_from_db()
         _post_payment_income(payment, account)
+        receipts.record('npg_payment', payment)
         activity.note(request, (
             f"NPG #{account.id} {_customer_name(account)} งวดที่ {payment.installment_number}: "
             f"ค่างวด {_b(amount_paid)} ฿ + ค่าปรับ {_b(late_fee)} ฿"
@@ -377,6 +378,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         )
         
         _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}")
+        receipts.record('npg_payment', payment)
         activity.note(request, f"ปิดบัญชี NPG #{account.id} {_customer_name(account)}: รับ {_b(close_amount)} ฿ "
                                f"(ส่วนลด {_b(close_calculation['discount'])} ฿) · {payment_method or '-'}")
 
@@ -447,10 +449,39 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '',
         )
 
+        receipts.record('npg_fee', fee)  # ✅ ใบเสร็จชั่วคราว MF-xxxxx
         activity.note(request, f"NPG #{account.id} {_customer_name(account)}: {description} {_b(amount)} ฿ · {fee.payment_method or '-'}")
         return Response({
             'message': 'บันทึกค่าธรรมเนียมสำเร็จ',
             'fee': NPGFeeSerializer(fee).data,
+            'fee_id': fee.id,
+        })
+
+    @action(detail=True, methods=['get'], url_path=r'fee_receipt/(?P<fee_id>[0-9]+)')
+    def fee_receipt(self, request, pk=None, fee_id=None):
+        """
+        ใบเสร็จรับเงินชั่วคราวของค่าธรรมเนียม (เลขที่ MF-00001)
+        GET /npg/accounts/{id}/fee_receipt/{fee_id}/
+        """
+        account = self.get_object()
+        fee = NPGFee.objects.filter(id=fee_id, account=account).first()
+        if not fee:
+            return Response({'error': 'ไม่พบรายการค่าธรรมเนียม'}, status=status.HTTP_404_NOT_FOUND)
+        customer = getattr(account.order, "customer", None)
+        address = " ".join(str(getattr(customer, a)) for a in ["address", "subdistrict", "district", "province", "postal_code"]
+                           if customer and getattr(customer, a, None))
+        bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
+        method = fee.payment_method or "-"
+        return Response({
+            "receiptNumber": f"MF-{fee.id:05d}",
+            "date": fee.fee_date.strftime("%d/%m/") + str(fee.fee_date.year + 543),
+            "customerName": customer.name if customer else "",
+            "customerPhone": getattr(customer, "phone", "") if customer else "",
+            "customerAddress": address,
+            "chassisNumber": bike.chassi if bike else "",
+            "paymentMethodLabel": method,
+            "items": [{"description": fee.description, "amount": float(fee.amount)}],
+            "total": float(fee.amount),
         })
 
     @action(detail=True, methods=['delete'], url_path=r'delete_fee/(?P<fee_id>[0-9]+)')
@@ -473,6 +504,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         if not deleted:
             return Response({'error': 'ไม่พบรายการค่าธรรมเนียม'}, status=status.HTTP_404_NOT_FOUND)
         remove_auto_income('npg_fee', int(fee_id), _user_name(request))
+        receipts.cancel('npg_fee', int(fee_id), _user_name(request))
 
         return Response({'message': 'ลบค่าธรรมเนียมสำเร็จ'})
 
@@ -584,6 +616,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         # only_if_exists: ค่างวดที่รับก่อนมีระบบนี้ (พนักงานพิมพ์รายรับเอง) ไม่ลงใหม่ซ้ำ
         _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None,
                              only_if_exists=True)
+        receipts.record('npg_payment', payment)  # ✅ ยอดในทะเบียนใบเสร็จแก้ตาม
         # ✅ รายการที่ส่งเงินไปแล้ว: ยอดใหม่น้อยลง (เช่น เอาค่าปรับที่ไม่ได้รับออก) → ยอดส่งเงินลดตาม ลิ้นชักไม่เพี้ยน
         try:
             from api.views.CashHandoverViewSet import fit_handover_to_source
@@ -625,6 +658,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
                                f"ยอด {_b(payment.amount_paid)} ฿ ค่าปรับ {_b(payment.late_fee)} ฿ ({payment.payment_date})")
         payment.delete()
         remove_auto_income('npg_payment', payment_id, _user_name(request))
+        receipts.cancel('npg_payment', payment_id, _user_name(request))
 
         # คำนวณยอดบัญชีใหม่ทั้งหมดจากทุก payment ที่เหลืออยู่จริง
         _recalc_account(account)

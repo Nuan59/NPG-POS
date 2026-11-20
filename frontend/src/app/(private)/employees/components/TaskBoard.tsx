@@ -48,7 +48,17 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 
 interface TaskBoardProps {
   employees: IEmployee[];
+  // ✅ "active" = งานที่ยังไม่เสร็จ (ค่าเริ่มต้น) / "done" = งานที่เสร็จแล้ว (ทุกคนในงานกด ทำแล้ว)
+  view?: "active" | "done";
+  // ส่งมา = แท็บข้างนอกคุมการสลับ (หน้าพนักงาน) / ไม่ส่ง = สลับในกล่องเอง (หน้างานของฉัน)
+  onViewChange?: (v: "active" | "done") => void;
 }
+
+// ✅ งานเสร็จแล้ว = งานมอบหมายที่ทุกคนกด "ทำแล้ว" → ย้ายไปอยู่ "เสร็จแล้ว" (ไม่ลบ เก็บเป็นประวัติงาน)
+export const isCompletedPost = (p: TaskPost) =>
+  p.post_type === "assigned" && p.assignments.length > 0 && p.assignments.every((a) => a.status === "done");
+const lastCompletedAt = (p: TaskPost) =>
+  p.assignments.reduce((m, a) => (a.completed_at && a.completed_at > m ? a.completed_at : m), "");
 
 // ✅ ตั้งกำหนดเวลาได้ 2 แบบ - "ระยะเวลา" (กี่วันนับจากนี้) หรือ "วันที่" (เจาะจงวันที่)
 // บวกเป้าหมายความคืบหน้า (ไม่บังคับ) - แล้วแต่งานที่มอบหมาย
@@ -207,7 +217,10 @@ const ProgressBar = ({ a }: { a: TaskAssignment }) => {
   );
 };
 
-const TaskBoard = ({ employees }: TaskBoardProps) => {
+const TaskBoard = ({ employees, view: viewProp = "active", onViewChange }: TaskBoardProps) => {
+  const [innerView, setInnerView] = useState<"active" | "done">(viewProp);
+  const view = onViewChange ? viewProp : innerView;
+  const setView = (v: "active" | "done") => (onViewChange ? onViewChange(v) : setInnerView(v));
   const { data: session, status } = useSession();
   const router = useRouter();
   const userInfo = session?.user as any;
@@ -410,15 +423,28 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
 
   if (loading) return null;
 
+  const boardPosts = posts
+    .filter((p) => !isDutyPost(p))
+    .filter((p) => (view === "done" ? isCompletedPost(p) : !isCompletedPost(p)))
+    .sort((a, b) => (view === "done" ? lastCompletedAt(b).localeCompare(lastCompletedAt(a)) : 0));
+
   return (
     <div className="mt-4 p-4 border rounded-xl bg-white shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Megaphone size={16} className="text-orange-500" />
-          <h3 className="font-semibold text-slate-800 text-sm">ประกาศ / มอบหมายงาน</h3>
+          <h3 className="font-semibold text-slate-800 text-sm">
+            {view === "done" ? "งานที่เสร็จแล้ว" : "ประกาศ / มอบหมายงาน"}
+          </h3>
+          <button
+            onClick={() => setView(view === "done" ? "active" : "done")}
+            className="ml-1 text-xs rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-emerald-700 hover:bg-emerald-100"
+          >
+            {view === "done" ? "← งานที่ยังไม่เสร็จ" : `✓ เสร็จแล้ว ${posts.filter(isCompletedPost).length} งาน`}
+          </button>
         </div>
 
-        {status === "authenticated" && (
+        {status === "authenticated" && view === "active" && (
           <Dialog
             open={dialogOpen}
             onOpenChange={(o) => {
@@ -723,17 +749,19 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
       </div>
 
       {/* ✅ เวรไม่แสดงในบอร์ดนี้ (ดูในปฏิทินแทน) กันบอร์ดรก */}
-      {posts.some(isDutyPost) && (
+      {view === "active" && posts.some(isDutyPost) && (
         <p className="mb-3 text-xs text-gray-500 flex items-center gap-1.5">
           <UserCheck size={13} className="text-orange-500" />
           มีเวรที่ลงไว้ {posts.filter(isDutyPost).length} วัน · ดู/ลบเวรได้ในปฏิทินด้านบน
         </p>
       )}
-      {posts.filter((p) => !isDutyPost(p)).length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-6">ยังไม่มีประกาศ</p>
+      {boardPosts.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-6">
+          {loading ? "กำลังโหลด..." : view === "done" ? "ยังไม่มีงานที่เสร็จ" : "ยังไม่มีประกาศ"}
+        </p>
       ) : (
         <div className="space-y-4">
-          {posts.filter((p) => !isDutyPost(p)).map((post) => (
+          {boardPosts.map((post) => (
             <div key={post.id} className="border rounded-xl p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -742,6 +770,11 @@ const TaskBoard = ({ employees }: TaskBoardProps) => {
                     <p className="text-xs text-gray-400">
                       โดย {post.created_by} • {formatDate(post.created_at)}
                     </p>
+                    {view === "done" && lastCompletedAt(post) && (
+                      <span className="text-xs font-semibold text-emerald-700">
+                        ✓ เสร็จเมื่อ {formatLogDate(lastCompletedAt(post))}
+                      </span>
+                    )}
                     {/* ✅ กำหนดเวลาของประกาศทั่วไป */}
                     {post.post_type === "general" && (
                       <DueDateTag d={{ due_date: post.due_date, is_overdue: post.is_overdue, is_due_soon: post.is_due_soon }} />

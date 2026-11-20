@@ -49,7 +49,7 @@ const menuItems: MenuItem[] = [
   { href: "/gifts", label: "ของแถม", icon: Gift },
   { href: "/parts", label: "อะไหล่", icon: Package },
   { href: "/registration", label: "ทะเบียน", icon: FileText },
-  { href: "/service-history", label: "ประวัติรถ", icon: History },
+  { href: "/service-history", label: "ใบเสร็จ", icon: History },
   { href: "/installment", label: "คำนวณ", icon: Calculator },
   { href: "/npg", label: "NPG", icon: Landmark },
   { href: "/cashflow", label: "รายรับ-รายจ่าย", icon: Banknote },

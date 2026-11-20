@@ -32,6 +32,7 @@ from api.views.CustomTokenView import CustomTokenObtainPairView, logout_view
 from api.views.WorkHoursView import WorkHoursView
 from api.views.ActivityLogView import activity_logs, activity_log_users, activity_log_view
 from api.views.PartsViewSet import PartsViewSet
+from api.views.ReceiptsView import receipt_list
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -936,6 +937,7 @@ urlpatterns = [
     path("activity-logs/", activity_logs, name="activity-logs"),
     path("activity-logs/users/", activity_log_users, name="activity-log-users"),
     path("activity-logs/view/", activity_log_view, name="activity-log-view"),
+    path("receipts/", receipt_list, name="receipt-list"),
 
     path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),
 ]

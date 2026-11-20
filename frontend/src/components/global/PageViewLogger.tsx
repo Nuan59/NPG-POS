@@ -10,7 +10,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const TITLES: [string, string][] = [
   ["/employees/activity", "บันทึกการทำงาน"],
   ["/sales", "ขาย"], ["/customers", "ลูกค้า"], ["/inventory", "สินค้า"], ["/storage", "คลัง"],
-  ["/gifts", "ของแถม"], ["/parts", "อะไหล่"], ["/registration", "ทะเบียน"], ["/service-history", "ประวัติรถ"],
+  ["/gifts", "ของแถม"], ["/parts", "อะไหล่"], ["/registration", "ทะเบียน"], ["/service-history", "ใบเสร็จ & ประวัติรถ"],
   ["/installment", "คำนวณ"], ["/npg", "NPG"], ["/cashflow", "รายรับ-รายจ่าย"], ["/issues", "กระทู้"],
   ["/employees", "พนักงาน"], ["/reports", "รายงาน"], ["/tasks", "งานของฉัน"], ["/manual", "คู่มือ"],
   ["/dashboard", "หน้าหลัก"],

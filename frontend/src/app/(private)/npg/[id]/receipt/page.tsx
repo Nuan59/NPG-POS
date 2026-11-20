@@ -30,6 +30,7 @@ export default function NPGReceiptPage() {
 
   const accountId = params.id as string;
   const paymentId = searchParams.get("payment_id");
+  const feeId = searchParams.get("fee_id"); // ✅ ใบเสร็จชั่วคราวค่าธรรมเนียม (MF-xxxxx)
 
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +43,7 @@ export default function NPGReceiptPage() {
     }
     if (status !== "authenticated" || !session) return;
 
-    if (!paymentId) {
+    if (!paymentId && !feeId) {
       setError("ไม่พบรหัสรายการชำระเงิน (payment_id)");
       setLoading(false);
       return;
@@ -60,7 +61,10 @@ export default function NPGReceiptPage() {
         setError(null);
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-        const response = await fetch(`${baseUrl}/npg/payments/${paymentId}/receipt/`, {
+        const url = paymentId
+          ? `${baseUrl}/npg/payments/${paymentId}/receipt/`
+          : `${baseUrl}/npg/accounts/${accountId}/fee_receipt/${feeId}/`;
+        const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${session.user.accessToken}`,
             "Content-Type": "application/json",
@@ -84,7 +88,7 @@ export default function NPGReceiptPage() {
     fetchReceipt();
     // ✅ ผูกกับ token แทน object session - ไม่โหลดใบเสร็จ/สร้าง PDF ใหม่ทุกครั้งที่สลับแท็บกลับมา
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, session?.user?.accessToken, paymentId, router]);
+  }, [status, session?.user?.accessToken, paymentId, feeId, accountId, router]);
 
   if (status === "loading" || loading) {
     return (

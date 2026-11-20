@@ -17,7 +17,7 @@ from rest_framework.response import Response
 
 from api.models import Customer, Bike
 from api.models.ServiceRecord import ServiceRecord
-from api import activity, parts
+from api import activity, parts, receipts
 from api.views.CashflowView import split_payment, sync_auto_income, remove_auto_income, handover_block
 
 
@@ -165,6 +165,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             f"รับเงิน · {label} S-{record.id:08d} · {who}",
             getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '',
         )
+        receipts.record('service', record)  # ✅ ใบเสร็จชั่วคราว S-xxxxxxxx ลงทะเบียน
         activity.note(request, f"{label} S-{record.id:08d} · {who} · ยอด {total:,.0f} ฿"
                                + (" · อะไหล่: " + ", ".join(f"{i['description']} x{i['qty']:g}" for i in part_items) if part_items else ""))
 
@@ -199,6 +200,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if blocked:
             return Response({'error': blocked, 'message': blocked}, status=status.HTTP_400_BAD_REQUEST)
         response = super().destroy(request, *args, **kwargs)
+        receipts.cancel('service', record_id, getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '')
         # ✅ อะไหล่ที่ใช้ในรายการนี้ คืนเข้าสต็อก
         parts.ensure_tables()
         parts.restore('service', record_id, getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or '')

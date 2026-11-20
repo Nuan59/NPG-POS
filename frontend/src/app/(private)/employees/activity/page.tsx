@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
+import EmployeeTabs from "../components/EmployeeTabs";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, History, Loader2, RefreshCw, Search } from "lucide-react";
 
@@ -181,6 +182,8 @@ export default function ActivityLogPage() {
           </TooltipProvider>
         </div>
       </div>
+
+      <EmployeeTabs active="activity" />
 
       {/* ตัวกรอง */}
       <section className="rounded-xl border border-slate-200 bg-white p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
