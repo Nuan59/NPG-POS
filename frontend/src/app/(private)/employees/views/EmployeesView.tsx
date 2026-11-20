@@ -10,7 +10,7 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@/components/ui/tooltip";
-import { Plus, Download, History } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { EmployeeColumns } from "../components/EmployeeColumns";
 import Link from "next/link";
@@ -18,12 +18,17 @@ import { handleFilter } from "@/app/hooks/useFilter";
 import TableLoading from "@/components/global/TableLoading";
 import WorkHoursSettings from "../components/WorkHoursSettings";
 import TaskBoard from "../components/TaskBoard";
+import EmployeeTabs, { EmployeeTab } from "../components/EmployeeTabs";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface EmployeesViewProps {
 	employees: IEmployee[];
 }
 
 const EmployeesView = ({ employees }: EmployeesViewProps) => {
+	const router = useRouter();
+	const tabParam = useSearchParams().get("tab");
+	const tab: EmployeeTab = tabParam === "tasks" || tabParam === "done" ? tabParam : "staff";
 	const [searchTerm, setSearchTerm] = useState<string>("");
 	const [EmployeesDisplay, setEmployeesDisplay] =
 		useState<IEmployee[]>(employees);
@@ -42,15 +47,8 @@ const EmployeesView = ({ employees }: EmployeesViewProps) => {
 					<h6 className="prompt">รวมทั้งหมด: {EmployeesDisplay.length}</h6>
 				</div>
 				<div className="flex flex-col gap-2">
-					<SearchBar value={searchTerm} onChange={setSearchTerm} />
+					{tab === "staff" && <SearchBar value={searchTerm} onChange={setSearchTerm} />}
 					<div className="flex justify-end gap-1">
-						{/* ✅ บันทึกการทำงานของพนักงาน (adm / ผู้ตรวจสอบ) */}
-						<Link
-							href="/employees/activity"
-							className="border rounded-sm shadow-sm px-2 py-1 hover:bg-slate-100 flex items-center gap-1 text-sm"
-						>
-							<History size={18} /> บันทึกการทำงาน
-						</Link>
 						<TooltipProvider>
 							<Tooltip>
 								<Link href={`/employees/new`}>
@@ -67,15 +65,29 @@ const EmployeesView = ({ employees }: EmployeesViewProps) => {
 				</div>
 			</div>
 
-			<WorkHoursSettings />
+			<div className="mt-3">
+				<EmployeeTabs active={tab} />
+			</div>
 
-			<TaskBoard employees={employees} />
+			{tab === "staff" && (
+				<>
+					<WorkHoursSettings />
+					<Suspense fallback={<TableLoading />}>
+						<ScrollArea className="mt-3">
+							<DataTable data={EmployeesDisplay} columns={EmployeeColumns} />
+						</ScrollArea>
+					</Suspense>
+				</>
+			)}
 
-		<Suspense fallback={<TableLoading />}>
-				<ScrollArea className="mt-3">
-					<DataTable data={EmployeesDisplay} columns={EmployeeColumns} />
-				</ScrollArea>
-			</Suspense>
+			{/* ✅ งานที่ยังไม่เสร็จ / งานที่เสร็จแล้ว (ทุกคนกด ทำแล้ว) - ใช้กล่องเดียวกัน แค่กรองต่างกัน */}
+			{tab !== "staff" && (
+				<TaskBoard
+					employees={employees}
+					view={tab === "done" ? "done" : "active"}
+					onViewChange={(v) => router.push(v === "done" ? "/employees?tab=done" : "/employees?tab=tasks")}
+				/>
+			)}
 		</>
 	);
 };

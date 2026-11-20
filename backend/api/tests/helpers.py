@@ -87,4 +87,6 @@ class BaseTestCase(TestCase):
         activity._table_ready = False
         from api import parts
         parts._ready = False
+        from api import receipts
+        receipts._ready = False
         super().setUp()

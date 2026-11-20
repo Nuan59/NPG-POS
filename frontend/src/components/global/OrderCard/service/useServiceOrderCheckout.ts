@@ -145,8 +145,8 @@ export const useServiceOrderCheckout = ({
       const saved = await res.json().catch(() => null);
       const bikeId = isPartSale ? null : orderBike?.id;
       resetOrder();
-      // ขายอะไหล่ (ไม่มีรถ) → หน้ารายละเอียดรายการ พิมพ์ใบเสร็จได้ / งานซ่อม → ประวัติรถคันนั้น
-      router.push(bikeId ? `/service-history?bike=${bikeId}` : saved?.data ? `/service-history/${saved.data}` : "/parts");
+      // ✅ รับเงินแล้วเปิดใบเสร็จชั่วคราวทันที (พิมพ์ / บันทึก PDF ได้เลย)
+      router.push(saved?.data ? `/service-history/${saved.data}/TempReceipt` : bikeId ? `/service-history?bike=${bikeId}` : "/parts");
     } catch (error) {
       console.error("❌ service checkout error:", error);
       toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ ลองใหม่อีกครั้ง");

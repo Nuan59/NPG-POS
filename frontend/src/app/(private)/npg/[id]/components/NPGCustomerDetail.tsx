@@ -500,9 +500,15 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       });
 
       if (response.ok) {
+        const data = await response.json().catch(() => ({}));
         toast.success("บันทึกค่าธรรมเนียมสำเร็จ");
         setIsFeeDialogOpen(false);
         resetFeeForm();
+        // ✅ รับเงินแล้วเปิดใบเสร็จชั่วคราวทันที
+        if (data.fee_id) {
+          router.push(`/npg/${customerId}/receipt?fee_id=${data.fee_id}`);
+          return;
+        }
         setActiveTab("fees");
         fetchAccountDetail();
       } else {
@@ -908,8 +914,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                   <th className="text-left p-2.5 font-semibold">วิธีชำระ</th>
                   <th className="text-left p-2.5 font-semibold">หมายเหตุ</th>
                   <th className="text-left p-2.5 font-semibold">ผู้บันทึก</th>
-                  {/* 🔒 ลบค่าธรรมเนียม เฉพาะ adm */}
-                  {isAdmin && <th className="text-center p-2.5 font-semibold">จัดการ</th>}
+                  <th className="text-center p-2.5 font-semibold">จัดการ</th>
                 </tr>
               </thead>
               <tbody>
@@ -921,8 +926,19 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                     <td className="p-2.5 text-[#7A7A7A]">{fee.payment_method || "-"}</td>
                     <td className="p-2.5 text-[#7A7A7A]">{fee.note || "-"}</td>
                     <td className="p-2.5 text-[#7A7A7A]">{fee.created_by || "-"}</td>
-                    {isAdmin && (
-                      <td className="p-2.5 text-center">
+                    <td className="p-2.5 text-center whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-[#F26B1D]"
+                        onClick={() => router.push(`/npg/${customerId}/receipt?fee_id=${fee.id}`)}
+                        aria-label="ใบเสร็จชั่วคราว"
+                        title="ใบเสร็จชั่วคราว"
+                      >
+                        <Receipt className="h-4 w-4" />
+                      </Button>
+                      {/* 🔒 ลบค่าธรรมเนียม เฉพาะ adm */}
+                      {isAdmin && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -932,8 +948,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </td>
-                    )}
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
