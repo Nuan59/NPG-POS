@@ -57,6 +57,8 @@ export default function ActivityLogPage() {
   const [q, setQ] = useState("");
   const [qInput, setQInput] = useState("");
   const [errorsOnly, setErrorsOnly] = useState(false);
+  // ✅ การเปิดหน้า (ดูอย่างเดียว) มีเยอะมาก - ซ่อนไว้ก่อน ติ๊กเพื่อดู
+  const [showViews, setShowViews] = useState(false);
   const [page, setPage] = useState(1);
 
   const [rows, setRows] = useState<LogRow[]>([]);
@@ -74,9 +76,10 @@ export default function ActivityLogPage() {
       if (to) params.set("date_to", to);
       if (q) params.set("q", q);
       if (errorsOnly) params.set("errors", "1");
+      if (!showViews) params.set("views", "0");
       return `${baseUrl}/activity-logs/?${params}`;
     },
-    [userId, from, to, q, errorsOnly]
+    [userId, from, to, q, errorsOnly, showViews]
   );
 
   const load = useCallback(async () => {
@@ -106,7 +109,7 @@ export default function ActivityLogPage() {
   }, [token]);
 
   // เปลี่ยนตัวกรอง → กลับหน้า 1
-  useEffect(() => { setPage(1); }, [userId, from, to, q, errorsOnly]);
+  useEffect(() => { setPage(1); }, [userId, from, to, q, errorsOnly, showViews]);
 
   const exportCsv = async () => {
     if (!token || exporting) return;
@@ -195,10 +198,16 @@ export default function ActivityLogPage() {
               placeholder="เช่น ค่าปรับ, NPG #12" className={`${inputCls} w-full pl-8`} />
           </div>
         </form>
-        <label className="flex items-center gap-2 text-sm text-[#1e2432] py-2 cursor-pointer">
-          <input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} className="h-4 w-4 accent-[#F26B1D]" />
-          เฉพาะที่ไม่สำเร็จ
-        </label>
+        <div className="space-y-1.5 py-1">
+          <label className="flex items-center gap-2 text-sm text-[#1e2432] cursor-pointer">
+            <input type="checkbox" checked={errorsOnly} onChange={(e) => setErrorsOnly(e.target.checked)} className="h-4 w-4 accent-[#F26B1D]" />
+            เฉพาะที่ไม่สำเร็จ
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[#1e2432] cursor-pointer">
+            <input type="checkbox" checked={showViews} onChange={(e) => setShowViews(e.target.checked)} className="h-4 w-4 accent-[#F26B1D]" />
+            รวมการเปิดหน้า
+          </label>
+        </div>
       </section>
 
       {/* รายการ */}
@@ -214,14 +223,15 @@ export default function ActivityLogPage() {
           <ul className="divide-y divide-slate-100">
             {rows.map((r) => {
               const ok = r.status < 400;
+              const isView = r.method === "VIEW";
               const isOpen = open === r.id;
               return (
                 <li key={r.id} className="px-4 py-3">
                   <button className="w-full text-left flex items-start gap-3" onClick={() => setOpen(isOpen ? null : r.id)}>
-                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${ok ? "bg-emerald-500" : "bg-red-500"}`} />
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${isView ? "bg-slate-300" : ok ? "bg-emerald-500" : "bg-red-500"}`} />
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="font-semibold text-[#1e2432]">{r.action}</span>
+                        <span className={isView ? "text-slate-500" : "font-semibold text-[#1e2432]"}>{r.action}</span>
                         {!ok && <span className="rounded-full bg-red-50 border border-red-200 px-2 text-[11px] font-semibold text-red-700">ไม่สำเร็จ {r.status}</span>}
                       </div>
                       {r.detail && <p className="text-sm text-slate-700 break-words">{r.detail}</p>}

@@ -6,6 +6,7 @@ export const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/inventory": "inventory",
   "/storage": "storage",
   "/gifts": "gifts",
+  "/parts": "parts",
   "/registration": "registration",
   "/installment": "calculator",
   "/npg": "npg",

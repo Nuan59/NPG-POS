@@ -349,6 +349,8 @@ const OrderCard = () => {
   });
 
   const isSale = transactionType === "ขาย";
+  // ✅ ขายอะไหล่หน้าร้าน: ไม่ต้องเลือกรถ ลูกค้าไม่บังคับ
+  const isPartSale = transactionType === "ขายอะไหล่";
 
   // ✅ font-medium + text-slate-900 ทั้งการ์ด - ฟอนต์หลักของเว็บบาง อ่านยาก
   return (
@@ -367,12 +369,12 @@ const OrderCard = () => {
         />
 
         {/* 1. ลูกค้า */}
-        <StepLabel step={1} label="ลูกค้า" />
+        <StepLabel step={1} label="ลูกค้า" hint={isPartSale ? "(ไม่บังคับ)" : undefined} />
         <OrderCustomer />
 
         {/* 2. รถ - แท็บ "ขาย" เลือกจากคลังสินค้า (รถยังไม่ขาย) / แท็บอื่นเลือกจากรถของลูกค้าคนนี้ */}
-        <StepLabel step={2} label="รถ" hint={isSale ? undefined : "(รถของลูกค้า)"} />
-        {orderBike && bikeDisplay ? (
+        {!isPartSale && <StepLabel step={2} label="รถ" hint={isSale ? undefined : "(รถของลูกค้า)"} />}
+        {isPartSale ? null : orderBike && bikeDisplay ? (
           <OrderBike bike={bikeDisplay} onRemove={removeBikeFromOrder} />
         ) : isSale ? (
           <Link href="/inventory">
@@ -466,7 +468,8 @@ const OrderCard = () => {
             setItems={setServiceItems}
             detail={serviceDetail}
             setDetail={setServiceDetail}
-            showMileage={!!orderBike}
+            showMileage={!!orderBike && !isPartSale}
+            itemsStep={isPartSale ? 2 : 3}
             mileage={mileage}
             setMileage={setMileage}
           />
@@ -475,7 +478,7 @@ const OrderCard = () => {
         {/* รูปแบบการชำระ - ขาย (ต้องมีรถก่อน) / บริการ (โชว์เสมอ) */}
         {(!isSale || orderBike) && (
           <PaymentTypeSection
-            step={isSale ? 5 : 4}
+            step={isSale ? 5 : isPartSale ? 3 : 4}
             paymentType={paymentType}
             setPaymentType={setPaymentType}
             transferBank={transferBank}
