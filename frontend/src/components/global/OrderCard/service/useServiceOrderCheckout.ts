@@ -59,16 +59,21 @@ export const useServiceOrderCheckout = ({
   const submittingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const validItems = serviceItems.filter((item) => item.description.trim() !== "" && item.amount > 0);
+  const isPartSale = transactionType === "ขายอะไหล่";
+  // อะไหล่จากสต็อก ราคา 0 ได้ (เช่น แถม) แต่ต้องมีจำนวน / รายการพิมพ์เองต้องมีราคา
+  const validItems = serviceItems.filter((item) =>
+    item.partId ? (item.qty || 0) > 0 : item.description.trim() !== "" && item.amount > 0
+  );
   const itemsTotal = validItems.reduce((sum, i) => sum + i.amount, 0);
   const splitCashNumber = toNumber(splitCash);
 
   /** ตรวจข้อมูลก่อนส่ง - คืนข้อความผิดพลาด หรือ "" ถ้าผ่าน */
   const validate = (): string => {
-    if (!orderCustomer) return "กรุณาเลือกลูกค้าก่อนบันทึกรายการ";
-    if (!orderBike?.id) return "กรุณาเลือกรถก่อนบันทึกรายการ";
+    if (!orderCustomer && !isPartSale) return "กรุณาเลือกลูกค้าก่อนบันทึกรายการ";
+    if (!orderBike?.id && !isPartSale) return "กรุณาเลือกรถก่อนบันทึกรายการ";
+    if (isPartSale && !validItems.some((i) => i.partId)) return "กรุณาเลือกอะไหล่จากสต็อกอย่างน้อย 1 รายการ";
     if (transactionType === "อื่นๆ" && !otherTransactionDetail.trim()) return "กรุณาระบุรายละเอียดประเภทงาน";
-    if (validItems.length === 0) return "กรุณาเพิ่มอย่างน้อย 1 รายการ พร้อมระบุราคา";
+    if (validItems.length === 0 || itemsTotal <= 0) return "กรุณาเพิ่มอย่างน้อย 1 รายการ พร้อมระบุราคา";
 
     // ✅ ต้องเลือกรูปแบบการชำระ (ระบบส่งเงินสดใช้ค่านี้ตัดสินว่าต้องส่งเงินไหม)
     if (!paymentType) return "กรุณาเลือกรูปแบบการชำระ";
@@ -95,15 +100,14 @@ export const useServiceOrderCheckout = ({
     }
 
     const payload = {
-      customer: orderCustomer.id,
-      bike: orderBike.id,
+      customer: orderCustomer?.id ?? null,
+      bike: isPartSale ? null : orderBike.id,
       transaction_type: transactionType,
       transaction_type_detail: transactionType === "อื่นๆ" ? otherTransactionDetail.trim() : "",
       mileage: mileage.trim() !== "" ? toNumber(mileage) : null,
-      items: validItems.map(({ description, amount }) => ({
-        description: description.trim(),
-        amount,
-      })),
+      items: validItems.map(({ description, amount, partId, qty }) =>
+        partId ? { description: description.trim(), amount, part_id: partId, qty } : { description: description.trim(), amount }
+      ),
       payment_type: paymentType,
       transfer_bank: paymentType === "เงินโอน" || paymentType === "แบ่งจ่าย" ? transferBank : "",
       check_number: paymentType === "เช็ค" ? checkNumber : "",
@@ -138,9 +142,11 @@ export const useServiceOrderCheckout = ({
       }
 
       toast.success("บันทึกรายการสำเร็จ!");
-      const bikeId = orderBike.id;
+      const saved = await res.json().catch(() => null);
+      const bikeId = isPartSale ? null : orderBike?.id;
       resetOrder();
-      router.push(`/service-history?bike=${bikeId}`);
+      // ขายอะไหล่ (ไม่มีรถ) → หน้ารายละเอียดรายการ พิมพ์ใบเสร็จได้ / งานซ่อม → ประวัติรถคันนั้น
+      router.push(bikeId ? `/service-history?bike=${bikeId}` : saved?.data ? `/service-history/${saved.data}` : "/parts");
     } catch (error) {
       console.error("❌ service checkout error:", error);
       toast.error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ ลองใหม่อีกครั้ง");

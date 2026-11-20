@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   HelpCircle,
+  Package,
   LogOut,
   Menu,
   X,
@@ -46,6 +47,7 @@ const menuItems: MenuItem[] = [
   { href: "/inventory", label: "สินค้า", icon: Bike },
   { href: "/storage", label: "คลัง", icon: Warehouse },
   { href: "/gifts", label: "ของแถม", icon: Gift },
+  { href: "/parts", label: "อะไหล่", icon: Package },
   { href: "/registration", label: "ทะเบียน", icon: FileText },
   { href: "/service-history", label: "ประวัติรถ", icon: History },
   { href: "/installment", label: "คำนวณ", icon: Calculator },
@@ -131,7 +133,7 @@ export const Navbar = () => {
               />
             </span>
             <span className="block self-stretch w-[7px] -ml-[18px] bg-[#F26B1D]" style={{ transform: "skewX(-19deg)" }} />
-            <span className="hidden sm:flex items-center gap-1.5 ml-4">
+            <span className="hidden sm:flex xl:hidden min-[1760px]:flex items-center gap-1.5 ml-4">
               <span
                 className="font-semibold text-xl xl:text-[26px] bg-clip-text text-transparent whitespace-nowrap"
                 style={{ backgroundImage: "linear-gradient(180deg, #FFC39A, #FF8A3D)" }}
@@ -145,7 +147,7 @@ export const Navbar = () => {
           </Link>
 
           {/* เมนู (จอใหญ่) - ไอคอนเหนือชื่อ */}
-          <div className="hidden xl:flex flex-1 min-w-0 items-center justify-center gap-px">
+          <div className="hidden xl:flex flex-1 min-w-0 items-center justify-start min-[1760px]:justify-center gap-px overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {visibleItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -154,8 +156,8 @@ export const Navbar = () => {
                   key={item.href}
                   href={item.href}
                   style={active ? ACTIVE_STYLE : undefined}
-                  className={`flex flex-col items-center gap-[3px] rounded-xl px-1.5 2xl:px-2.5 py-[7px] text-[13px] 2xl:text-[14px] font-semibold whitespace-nowrap transition-colors ${
-                    active ? "text-white px-3 2xl:px-3.5" : "hover:text-white hover:bg-white/[0.06]"
+                  className={`flex flex-col items-center gap-[3px] rounded-xl px-1 min-[1400px]:px-1.5 2xl:px-2.5 py-[7px] text-[12px] min-[1400px]:text-[13px] 2xl:text-[14px] font-semibold whitespace-nowrap transition-colors ${
+                    active ? "text-white px-2 min-[1400px]:px-3 2xl:px-3.5" : "hover:text-white hover:bg-white/[0.06]"
                   }`}
                 >
                   <Icon size={20} strokeWidth={active ? 2.2 : 2} />

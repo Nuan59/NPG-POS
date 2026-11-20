@@ -16,6 +16,7 @@ interface ServiceOrderFormProps {
   showMileage?: boolean;
   mileage: string;
   setMileage: (value: string) => void;
+  itemsStep?: number;
 }
 
 /**
@@ -31,6 +32,7 @@ const ServiceOrderForm = ({
   showMileage = false,
   mileage,
   setMileage,
+  itemsStep = 3,
 }: ServiceOrderFormProps) => {
   return (
     <>
@@ -50,7 +52,7 @@ const ServiceOrderForm = ({
         </div>
       )}
 
-      <StepLabel step={3} label="รายการ" />
+      <StepLabel step={itemsStep} label={transactionType === "ขายอะไหล่" ? "อะไหล่ที่ขาย" : "รายการ"} />
       <ServiceItems items={items} setItems={setItems} />
 
       <StepLabel label="หมายเหตุ" />

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Prompt } from "next/font/google";
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, ChevronDown, ClipboardList, Eye,
-  Landmark, Lightbulb, LifeBuoy, Moon, Printer, Receipt, Rocket, Search, Send, ShieldCheck, ShoppingCart,
+  Landmark, Lightbulb, Package, PackagePlus, LifeBuoy, Moon, Printer, Receipt, Rocket, Search, Send, ShieldCheck, ShoppingCart,
   Sparkles, Users, Wallet, Wrench, X,
 } from "lucide-react";
 import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
@@ -20,7 +20,7 @@ const readable = Prompt({ weight: ["400", "500", "600", "700"], subsets: ["latin
 const ICONS: Record<ManualIcon, typeof BookOpen> = {
   start: Rocket, sale: ShoppingCart, customer: Users, npg: Landmark, cash: Wallet,
   service: Wrench, task: ClipboardList, admin: ShieldCheck, help: LifeBuoy,
-  finish: CheckCircle2, send: Send, expense: Receipt, close: Moon,
+  finish: CheckCircle2, send: Send, expense: Receipt, close: Moon, parts: Package, receive: PackagePlus,
 };
 
 const thaiDate = (iso: string) =>

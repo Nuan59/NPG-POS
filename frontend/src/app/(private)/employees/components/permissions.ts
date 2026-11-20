@@ -13,6 +13,7 @@ export const PERMISSION_LIST: PermissionItem[] = [
 	{ key: "inventory",    label: "สินค้า" },
 	{ key: "storage",      label: "คลัง" },
 	{ key: "gifts",        label: "ของแถม" },
+	{ key: "parts",        label: "อะไหล่" },
 	{ key: "registration", label: "ทะเบียน" },
 	{ key: "calculator",   label: "คำนวณ" },
 	{ key: "npg",          label: "NPG" },

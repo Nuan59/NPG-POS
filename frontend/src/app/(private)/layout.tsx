@@ -2,6 +2,7 @@ import React from "react";
 import { Navbar } from "@/components/global/Navbar";
 import { Prompt } from "next/font/google";
 import OrderCard from "@/components/global/OrderCard";
+import PageViewLogger from "@/components/global/PageViewLogger";
 import OrderProvider from "@/context/OrderContext";
 import IssueLoginNotification from "@/components/global/IssueLoginNotification";
 import TaskLoginNotification from "@/components/global/TaskLoginNotification";
@@ -23,6 +24,7 @@ export default function PrivateLayout({
 				<TaskLoginNotification />
 				{/* ✅ แถบปิดร้าน (ส่งเงิน / รายรับ-รายจ่าย / note ปิดร้าน) - ขึ้นเฉพาะพนักงาน ช่วงก่อนปิดร้าน */}
 				<DailyCloseBar />
+				<PageViewLogger />
 				<Navbar />
 				<AnnouncementBar />
 				<main className="flex flex-col lg:grid lg:grid-cols-[3fr_1fr] text-slate-900 gap-0 mt-0">

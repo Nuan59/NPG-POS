@@ -52,6 +52,8 @@ def activity_logs(request):
         return Response({"error": "รูปแบบวันที่ไม่ถูกต้อง (YYYY-MM-DD)"}, status=400)
     if p.get("errors") in ("1", "true"):
         where.append("status >= 400")
+    if p.get("views") in ("0", "false"):
+        where.append("method <> 'VIEW'")
     q = (p.get("q") or "").strip()
     if q:
         like = f"%{q.lower()}%"
@@ -108,3 +110,20 @@ def activity_log_users(request):
         )
         users = [{"id": r[0], "username": r[1], "name": r[2] or r[1], "count": r[3]} for r in c.fetchall()]
     return Response(users)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def activity_log_view(request):
+    """
+    ✅ บันทึกการเปิดหน้า (หน้าเว็บส่งมาทุกครั้งที่เปลี่ยนหน้า) { path, title }
+    เก็บเป็น method = VIEW แยกจากการเพิ่ม/แก้/ลบ (หน้าบันทึกการทำงานกรองซ่อนได้)
+    """
+    path = str(request.data.get("path") or "")[:300]
+    title = str(request.data.get("title") or "").strip()[:100]
+    activity.skip(request)  # ไม่ให้ middleware บันทึกซ้ำเป็น POST
+    if path.startswith("/"):
+        activity.write(user=request.user, method="VIEW", path=path, status=200,
+                       action=f"เปิดหน้า {title}".strip() if title else "เปิดหน้า",
+                       ip=activity.client_ip(request))
+    return Response({"ok": True})

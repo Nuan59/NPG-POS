@@ -30,7 +30,8 @@ from api.views.RegistrationView import registration_list, update_status, status_
 from rest_framework_simplejwt.views import TokenRefreshView
 from api.views.CustomTokenView import CustomTokenObtainPairView, logout_view
 from api.views.WorkHoursView import WorkHoursView
-from api.views.ActivityLogView import activity_logs, activity_log_users
+from api.views.ActivityLogView import activity_logs, activity_log_users, activity_log_view
+from api.views.PartsViewSet import PartsViewSet
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -852,6 +853,7 @@ router.register(r'cash-handover', CashHandoverViewSet, basename='cash-handover')
 router.register(r'expense-requests', ExpenseRequestViewSet, basename='expense-requests')
 router.register(r'tasks/posts', TaskPostViewSet, basename='task-posts')
 router.register(r'announcements', AnnouncementViewSet, basename='announcements')
+router.register(r'parts', PartsViewSet, basename='parts')
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -933,6 +935,7 @@ urlpatterns = [
     path("work-hours/", WorkHoursView.as_view(), name="work-hours"),
     path("activity-logs/", activity_logs, name="activity-logs"),
     path("activity-logs/users/", activity_log_users, name="activity-log-users"),
+    path("activity-logs/view/", activity_log_view, name="activity-log-view"),
 
     path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),
 ]

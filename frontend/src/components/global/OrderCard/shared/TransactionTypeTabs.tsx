@@ -15,6 +15,7 @@ const TAB_LABEL: Record<TransactionType, string> = {
   ขาย: "ขาย",
   ซ่อม: "ซ่อม",
   "ต่อภาษี+พรบ": "ภาษี+พรบ",
+  ขายอะไหล่: "อะไหล่",
   อื่นๆ: "อื่นๆ",
 };
 
@@ -25,13 +26,13 @@ const TAB_LABEL: Record<TransactionType, string> = {
 const TransactionTypeTabs = ({ value, onChange, otherDetail, onOtherDetailChange }: TransactionTypeTabsProps) => {
   return (
     <div className="mb-1">
-      <div className="grid grid-cols-4 gap-0.5 bg-slate-200/70 rounded-xl p-1">
+      <div className="grid grid-cols-5 gap-0.5 bg-slate-200/70 rounded-xl p-1">
         {TRANSACTION_TYPES.map((type) => (
           <button
             key={type}
             type="button"
             onClick={() => onChange(type)}
-            className={`text-[13px] py-2 px-1 rounded-lg transition-colors ${
+            className={`text-[12.5px] py-2 px-0.5 rounded-lg whitespace-nowrap transition-colors ${
               value === type ? "bg-[#1e2432] text-white font-semibold" : "text-slate-600 hover:text-slate-700"
             }`}
           >

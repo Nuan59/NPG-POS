@@ -1,5 +1,6 @@
 import { IBike } from "@/types/Bike";
 import { X } from "lucide-react";
+import { CostCodeBadge } from "./CostCode";
 
 interface OrderBikeProps {
   bike: IBike;
@@ -18,6 +19,10 @@ const OrderBike = ({ bike, onRemove }: OrderBikeProps) => {
       <div className="min-w-0 pr-3">
         <p className="text-[17px] font-bold leading-tight truncate">{bike.model_name}</p>
         {sub && <p className="text-xs text-slate-200 truncate">{sub}</p>}
+        {/* ✅ โค้ดทุนของรถ (ช่องราคาขายส่ง) - ไว้ดูตอนต่อราคา */}
+        {(bike as any).wholesale_price && (
+          <p className="mt-1"><CostCodeBadge value={(bike as any).wholesale_price} dark /></p>
+        )}
       </div>
       <button
         type="button"

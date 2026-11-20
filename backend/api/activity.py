@@ -45,9 +45,15 @@ ACTIONS = [
     (r"^/order/\d+/down_payment/?$", "POST", "สร้างบัญชีผ่อนดาวน์ย้อนหลัง"),
     (r"^/order/\d+/?$", "PUT|PATCH", "แก้ไขรายการขาย"),
     (r"^/order/\d+/?$", "DELETE", "ลบรายการขาย"),
-    (r"^/service/?$", "POST", "บันทึกงานบริการ"),
+    (r"^/service/?$", "POST", "บันทึกงานซ่อม / ขายอะไหล่"),
     (r"^/service/\d+/?$", "PUT|PATCH", "แก้ไขงานบริการ"),
     (r"^/service/\d+/?$", "DELETE", "ลบงานบริการ"),
+    # อะไหล่
+    (r"^/parts/?$", "POST", "เพิ่มอะไหล่"),
+    (r"^/parts/\d+/receive/?$", "POST", "รับอะไหล่เข้า"),
+    (r"^/parts/\d+/adjust/?$", "POST", "ปรับยอดอะไหล่"),
+    (r"^/parts/\d+/?$", "PATCH|PUT", "แก้ไขอะไหล่"),
+    (r"^/parts/\d+/?$", "DELETE", "ปิดอะไหล่"),
     # NPG
     (r"^/npg/accounts/\d+/record_payment/?$", "POST", "รับชำระค่างวด NPG"),
     (r"^/npg/accounts/\d+/close_account/?$", "POST", "ปิดบัญชี NPG"),
