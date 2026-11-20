@@ -49,8 +49,7 @@ class PartSerializer(serializers.ModelSerializer):
         data = super().to_representation(obj)
         request = self.context.get("request")
         if request is not None and not _is_admin(request):
-            data.pop("cost", None)  # 🔒 ราคาทุน (ตัวเลข) ไม่ส่งให้พนักงาน - หน้าเว็บแสดงเป็นโค้ดเท่านั้น
-            data.pop("cost_code", None)
+            data.pop("cost", None)  # 🔒 ทุนตัวเลขไม่ส่งให้พนักงาน - ได้แค่โค้ดทุน (ใช้ในกล่องรายการสั่งซื้อ)
         return data
 
 

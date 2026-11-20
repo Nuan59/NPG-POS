@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getSession } from "next-auth/react";
 import { Loader2, Package, Search, X } from "lucide-react";
+import { CostCodeBadge } from "../shared/CostCode";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -13,6 +14,7 @@ export interface PickedPart {
   unit: string;
   price: string | number;
   qty: string | number;
+  cost_code?: string;
 }
 
 /**
@@ -83,7 +85,10 @@ export default function PartPickerDialog({ onPick, onClose }: { onPick: (p: Pick
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-[#1e2432]">{p.name}</p>
-                    <p className="text-xs text-slate-500">{p.code || "-"} · เหลือ {left.toLocaleString()} {p.unit}</p>
+                    <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                      <span>{p.code || "-"} · เหลือ {left.toLocaleString()} {p.unit}</span>
+                      <CostCodeBadge value={p.cost_code} />
+                    </p>
                   </div>
                   <span className={`shrink-0 text-sm font-semibold ${out ? "text-red-600" : "text-orange-600"}`}>
                     {out ? "หมด" : `฿${Number(p.price).toLocaleString()}`}

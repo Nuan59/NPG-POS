@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { Package, Plus, X } from "lucide-react";
 import PartPickerDialog, { PickedPart } from "./PartPickerDialog";
+import { CostCodeBadge } from "../shared/CostCode";
 
 export interface ServiceItem {
   id: string;
@@ -15,6 +16,7 @@ export interface ServiceItem {
   unitPrice?: number;
   unit?: string;
   maxQty?: number;
+  costCode?: string;
 }
 
 interface ServiceItemsProps {
@@ -48,7 +50,7 @@ const ServiceItems = ({ items, setItems }: ServiceItemsProps) => {
       ...items.filter((i) => i.description.trim() !== "" || i.amount > 0),
       {
         id: newId(), description: p.code ? `${p.name} (${p.code})` : p.name, amount: unitPrice,
-        partId: p.id, qty: 1, unitPrice, unit: p.unit, maxQty: Number(p.qty) || 0,
+        partId: p.id, qty: 1, unitPrice, unit: p.unit, maxQty: Number(p.qty) || 0, costCode: p.cost_code || "",
       },
     ]);
   };
@@ -99,6 +101,7 @@ const ServiceItems = ({ items, setItems }: ServiceItemsProps) => {
             <div className="flex items-center gap-1.5">
               <Package className="h-4 w-4 shrink-0 text-orange-500" />
               <span className="flex-1 min-w-0 truncate text-sm font-semibold">{item.description}</span>
+              <CostCodeBadge value={item.costCode} />
               <button
                 type="button"
                 onClick={() => removeItem(item.id)}

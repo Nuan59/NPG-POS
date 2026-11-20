@@ -130,8 +130,8 @@ class CostCodeTests(BaseTestCase):
         r = c.post(f"/parts/{pid}/receive/", {"qty": 10, "unit_cost_code": "MW"}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(Part.objects.get(pk=pid).cost, Decimal("60.00"))
-        self.assertNotIn("cost", r.data["part"])
-        self.assertNotIn("cost_code", r.data["part"])
+        self.assertNotIn("cost", r.data["part"])              # ตัวเลขทุนไม่ส่งให้พนักงาน
+        self.assertEqual(r.data["part"]["cost_code"], "MT")     # ได้แค่โค้ด (ใช้ในกล่องรายการสั่งซื้อ)
         self.assertTrue(all("unit_cost" not in m for m in c.get(f"/parts/{pid}/movements/").data))
         self.assertEqual(client_for(admin).get(f"/parts/{pid}/").data["cost_code"], "MT")
         self.assertEqual(c.post(f"/parts/{pid}/receive/", {"qty": 1, "unit_cost_code": "1A"}, format="json").status_code, 400)
