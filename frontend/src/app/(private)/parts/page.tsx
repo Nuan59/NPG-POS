@@ -1,11 +1,20 @@
 "use client";
 
-import { ReactNode, useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { ColumnDef } from "@tanstack/react-table";
 import {
-  AlertTriangle, ArrowDownToLine, History, Loader2, Package, Pencil, Plus, Search, SlidersHorizontal, Trash2,
+  AlertTriangle, ArrowDownToLine, History, Loader2, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2,
 } from "lucide-react";
+import SearchBar from "@/components/global/SearchBar";
+import { DataTable } from "@/components/ui/data-table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -66,20 +75,13 @@ const Field = ({ label, hint, children }: { label: string; hint?: string; childr
 export default function PartsPage() {
   const { data: session } = useSession();
   const token = (session as any)?.user?.accessToken as string | undefined;
-  const isAdmin = String((session as any)?.user?.role ?? "").toLowerCase() === "adm";
-  const readOnly = String((session as any)?.user?.role ?? "").toLowerCase() === "mon";
+  const role = String((session as any)?.user?.role ?? "").toLowerCase();
+  const isAdmin = role === "adm";
+  const readOnly = role === "mon";
 
   const [rows, setRows] = useState<Part[]>([]);
-  const [summary, setSummary] = useState<{ count: number; low: number; stock_value?: number } | null>(null);
   const [q, setQ] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
-  const [sort, setSort] = useState<Sort>({ k: "name", dir: 1 });
-  const sorted = [...rows].sort((a, b) => {
-    const av = a[sort.k], bv = b[sort.k];
-    const num = ["qty", "price", "wholesale_price", "cost"].includes(sort.k);
-    const r = num ? n(av) - n(bv) : String(av ?? "").localeCompare(String(bv ?? ""), "th");
-    return r * sort.dir;
-  });
   const [loading, setLoading] = useState(true);
 
   const [editing, setEditing] = useState<Part | "new" | null>(null);
@@ -105,23 +107,24 @@ export default function PartsPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (q.trim()) params.set("q", q.trim());
-      if (lowOnly) params.set("low", "1");
-      const [list, sum] = await Promise.all([call(`/parts/?${params}`), call("/parts/summary/")]);
-      setRows(list);
-      setSummary(sum);
+      setRows(await call("/parts/"));
     } catch (e: any) {
       toast.error(e.message);
     } finally {
       setLoading(false);
     }
-  }, [token, q, lowOnly, call]);
+  }, [token, call]);
 
-  useEffect(() => {
-    const t = setTimeout(load, 250);
-    return () => clearTimeout(t);
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
+
+  // ✅ ค้นหาในเครื่อง (เหมือนหน้าอื่น) - ชื่อ / รหัส / รุ่น / ที่เก็บ
+  const display = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return rows
+      .filter((p) => !lowOnly || p.low)
+      .filter((p) => !t || [p.name, p.code, p.fits, p.location].some((v) => (v || "").toLowerCase().includes(t)));
+  }, [rows, q, lowOnly]);
+  const lowCount = rows.filter((p) => p.low).length;
 
   const deactivate = async (p: Part) => {
     if (!window.confirm(`ปิดอะไหล่ "${p.name}"?\nจะไม่ขึ้นในรายการอีก แต่ประวัติยังอยู่`)) return;
@@ -134,185 +137,124 @@ export default function PartsPage() {
     }
   };
 
+  const columns: ColumnDef<Part>[] = [
+    { accessorKey: "code", header: "รหัส", cell: ({ row }) => row.original.code || "-" },
+    { accessorKey: "name", header: "ชื่ออะไหล่" },
+    { accessorKey: "fits", header: "ใช้กับรุ่น", cell: ({ row }) => row.original.fits || "-" },
+    { accessorKey: "location", header: "ที่เก็บ", cell: ({ row }) => row.original.location || "-" },
+    {
+      accessorKey: "qty",
+      header: "คงเหลือ",
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <span className={`whitespace-nowrap ${p.low ? "text-red-600" : ""}`}>
+            {fmt(p.qty)} {p.unit}
+            {p.low && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] text-red-700">ใกล้หมด</span>}
+          </span>
+        );
+      },
+    },
+    { accessorKey: "price", header: "ราคาขาย", cell: ({ row }) => fmt(row.original.price) },
+    { accessorKey: "wholesale_price", header: "ราคาส่ง", cell: ({ row }) => (row.original.wholesale_price ? fmt(row.original.wholesale_price) : "-") },
+    ...(isAdmin ? [{ accessorKey: "cost", header: "ทุน", cell: ({ row }: { row: { original: Part } }) => fmt(row.original.cost) } as ColumnDef<Part>] : []),
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        const p = row.original;
+        return (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!readOnly && (
+                <DropdownMenuItem onClick={() => setReceiving(p)} className="flex justify-between gap-2 font-semibold text-orange-600 focus:text-orange-600">
+                  <ArrowDownToLine className="h-4 w-4" /> รับเข้า
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => setHistory(p)} className="flex justify-between gap-2">
+                <History className="opacity-60 h-4 w-4" /> ประวัติเข้า-ออก
+              </DropdownMenuItem>
+              {!readOnly && (
+                <DropdownMenuItem onClick={() => setEditing(p)} className="flex justify-between gap-2">
+                  <Pencil className="opacity-60 h-4 w-4" /> แก้ไข
+                </DropdownMenuItem>
+              )}
+              {isAdmin && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setAdjusting(p)} className="flex justify-between gap-2">
+                    <SlidersHorizontal className="opacity-60 h-4 w-4" /> ปรับยอด
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => deactivate(p)} className="flex justify-between gap-2 text-red-600 focus:text-red-600">
+                    <Trash2 className="h-4 w-4" /> ปิดอะไหล่
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-7xl space-y-5 font-medium text-slate-900">
-      {/* หัว */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="h-11 w-11 rounded-xl bg-[#F26B1D] text-white grid place-items-center"><Package size={22} /></span>
-          <div>
-            <p className="text-xs text-slate-500">สต็อกอะไหล่ · ขายและใช้ในงานซ่อมได้</p>
-            <h1 className="text-xl md:text-2xl font-bold text-[#1e2432]">อะไหล่</h1>
+    <>
+      <div className="grid grid-cols-2">
+        <div>
+          <h2 className="text-3xl font-semibold prompt">อะไหล่</h2>
+          <h6 className="prompt">
+            รวมทั้งหมด: {display.length}
+            {lowCount > 0 && <span className="ml-3 text-red-600">ใกล้หมด: {lowCount}</span>}
+          </h6>
+        </div>
+        <div className="flex flex-col gap-2">
+          <SearchBar value={q} onChange={setQ} placeholder="ค้นหาชื่อ รหัส รุ่นรถ ที่เก็บ..." />
+          <div className="flex justify-end gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger
+                  onClick={() => setLowOnly(!lowOnly)}
+                  className={`border rounded-sm shadow-sm p-1 ${lowOnly ? "bg-red-50 text-red-600 border-red-200" : "hover:bg-slate-100"}`}
+                >
+                  <AlertTriangle />
+                </TooltipTrigger>
+                <TooltipContent><p>{lowOnly ? "แสดงทั้งหมด" : "เฉพาะใกล้หมด"}</p></TooltipContent>
+              </Tooltip>
+              {!readOnly && (
+                <Tooltip>
+                  <TooltipTrigger onClick={() => setEditing("new")} className="border rounded-sm shadow-sm p-1 hover:bg-slate-100">
+                    <Plus />
+                  </TooltipTrigger>
+                  <TooltipContent><p>เพิ่มอะไหล่</p></TooltipContent>
+                </Tooltip>
+              )}
+            </TooltipProvider>
           </div>
         </div>
-        {!readOnly && (
-          <button
-            onClick={() => setEditing("new")}
-            className="flex items-center gap-1.5 rounded-xl bg-[#F26B1D] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#d95c14]"
-          >
-            <Plus size={18} /> เพิ่มอะไหล่
-          </button>
-        )}
       </div>
 
-      {/* สรุป */}
-      <section className="grid grid-cols-2 gap-3 rounded-2xl bg-[#1e2432] p-4 text-white sm:grid-cols-3">
-        <div className="rounded-xl bg-white/[0.07] px-4 py-3">
-          <p className="text-xs text-white/65">อะไหล่ทั้งหมด</p>
-          <p className="text-2xl font-bold">{summary ? summary.count.toLocaleString() : "-"} <span className="text-sm font-normal text-white/60">รายการ</span></p>
-        </div>
-        <button
-          onClick={() => setLowOnly(!lowOnly)}
-          className={`rounded-xl px-4 py-3 text-left transition ${lowOnly ? "bg-[#F26B1D]" : "bg-white/[0.07] hover:bg-white/[0.12]"}`}
-        >
-          <p className="text-xs text-white/75">ใกล้หมด {lowOnly ? "(กำลังกรอง)" : "(กดเพื่อดู)"}</p>
-          <p className={`text-2xl font-bold ${!lowOnly && summary?.low ? "text-amber-300" : ""}`}>
-            {summary ? summary.low.toLocaleString() : "-"} <span className="text-sm font-normal text-white/60">รายการ</span>
-          </p>
-        </button>
-        {summary?.stock_value !== undefined && (
-          <div className="col-span-2 rounded-xl bg-white/[0.07] px-4 py-3 sm:col-span-1">
-            <p className="text-xs text-white/65">มูลค่าสต็อก (ราคาทุน)</p>
-            <p className="text-2xl font-bold text-[#FF9A52]">฿{fmt(summary.stock_value)}</p>
-          </div>
-        )}
-      </section>
-
-      <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
-        <b>ขายอะไหล่</b> หรือ <b>ใช้ในงานซ่อม</b>: ทำที่กล่องรายการสั่งซื้อทางขวา แท็บ <b>อะไหล่</b> หรือ <b>ซ่อม</b> → ปุ่ม <b>อะไหล่จากสต็อก</b> ระบบตัดสต็อกให้เอง
-      </div>
-
-      {/* ค้นหา */}
-      <div className="relative">
-        <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="ค้นหาชื่อ รหัส รุ่นรถ หรือที่เก็บ"
-          className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-[15px] outline-none focus:border-[#F26B1D]"
-        />
-      </div>
-
-      {/* รายการ - จอคอม: ตาราง (กดหัวคอลัมน์เพื่อเรียง) / มือถือ: การ์ด */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        {loading && rows.length === 0 ? (
-          <div className="flex justify-center py-14 text-slate-400"><Loader2 className="animate-spin" /></div>
-        ) : rows.length === 0 ? (
-          <div className="py-14 text-center text-slate-500">
-            {q || lowOnly ? "ไม่พบอะไหล่ที่ค้นหา" : "ยังไม่มีอะไหล่ กด เพิ่มอะไหล่ เพื่อเริ่ม"}
-          </div>
-        ) : (
-          <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-[#1e2432] text-left text-white">
-                    <SortTh label="รหัส" k="code" sort={sort} setSort={setSort} />
-                    <SortTh label="ชื่ออะไหล่" k="name" sort={sort} setSort={setSort} />
-                    <SortTh label="ใช้กับรุ่น" k="fits" sort={sort} setSort={setSort} />
-                    <SortTh label="ที่เก็บ" k="location" sort={sort} setSort={setSort} />
-                    <SortTh label="คงเหลือ" k="qty" sort={sort} setSort={setSort} right />
-                    <SortTh label="ราคาขาย" k="price" sort={sort} setSort={setSort} right />
-                    <SortTh label="ราคาส่ง" k="wholesale_price" sort={sort} setSort={setSort} right />
-                    {isAdmin && <SortTh label="ทุน" k="cost" sort={sort} setSort={setSort} right />}
-                    <th className="px-3 py-3 text-right font-semibold">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {sorted.map((p, i) => (
-                    <tr key={p.id} className={`${p.low ? "bg-red-50/60" : i % 2 ? "bg-slate-50/60" : "bg-white"} hover:bg-orange-50/50`}>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-slate-500">{p.code || "-"}</td>
-                      <td className="px-3 py-2.5 font-bold text-[#1e2432]">{p.name}</td>
-                      <td className="px-3 py-2.5 text-slate-600">{p.fits || "-"}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap text-slate-600">{p.location || "-"}</td>
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums">
-                        <span className={`text-base font-bold ${p.low ? "text-red-600" : "text-[#1e2432]"}`}>{fmt(p.qty)}</span>{" "}
-                        <span className="text-xs text-slate-500">{p.unit}</span>
-                        {p.low && <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">ใกล้หมด</span>}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-orange-600 tabular-nums">฿{fmt(p.price)}</td>
-                      <td className="px-3 py-2.5 text-right text-slate-600 tabular-nums">{p.wholesale_price ? `฿${fmt(p.wholesale_price)}` : "-"}</td>
-                      {isAdmin && <td className="px-3 py-2.5 text-right text-slate-500 tabular-nums">฿{fmt(p.cost)}</td>}
-                      <td className="px-3 py-2">
-                        <RowActions p={p} isAdmin={isAdmin} readOnly={readOnly} onReceive={setReceiving} onHistory={setHistory}
-                          onEdit={setEditing} onAdjust={setAdjusting} onDeactivate={deactivate} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <ul className="divide-y divide-slate-100 md:hidden">
-              {sorted.map((p) => (
-                <li key={p.id} className="space-y-2 px-4 py-3">
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-[#1e2432]">{p.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {[p.code, p.fits && `ใช้กับ ${p.fits}`, p.location && `ที่เก็บ ${p.location}`].filter(Boolean).join(" · ") || "-"}
-                      </p>
-                    </div>
-                    <div className="text-right tabular-nums">
-                      <p className={`text-lg font-bold ${p.low ? "text-red-600" : "text-[#1e2432]"}`}>
-                        {fmt(p.qty)} <span className="text-xs font-normal text-slate-500">{p.unit}</span>
-                      </p>
-                      <p className="text-sm font-semibold text-orange-600">฿{fmt(p.price)}</p>
-                    </div>
-                  </div>
-                  <RowActions p={p} isAdmin={isAdmin} readOnly={readOnly} onReceive={setReceiving} onHistory={setHistory}
-                    onEdit={setEditing} onAdjust={setAdjusting} onDeactivate={deactivate} />
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+      {loading && rows.length === 0 ? (
+        <div className="flex justify-center py-14 text-slate-400"><Loader2 className="animate-spin" /></div>
+      ) : (
+        <ScrollArea className="h-[85%] mt-3">
+          <DataTable data={display} columns={columns} />
+        </ScrollArea>
+      )}
 
       {editing && <PartForm part={editing === "new" ? null : editing} isAdmin={isAdmin} call={call} onClose={() => setEditing(null)} onSaved={load} />}
       {receiving && <ReceiveForm part={receiving} call={call} onClose={() => setReceiving(null)} onSaved={load} />}
       {adjusting && <AdjustForm part={adjusting} call={call} onClose={() => setAdjusting(null)} onSaved={load} />}
       {history && <HistoryDialog part={history} isAdmin={isAdmin} call={call} onClose={() => setHistory(null)} />}
-    </div>
+    </>
   );
 }
 
 type Call = (path: string, method?: string, body?: object) => Promise<any>;
-type SortKey = "code" | "name" | "fits" | "location" | "qty" | "price" | "wholesale_price" | "cost";
-type Sort = { k: SortKey; dir: 1 | -1 };
-
-/** หัวคอลัมน์ กดเพื่อเรียง (กดซ้ำ = กลับด้าน) */
-const SortTh = ({ label, k, sort, setSort, right = false }: {
-  label: string; k: SortKey; sort: Sort; setSort: (s: Sort) => void; right?: boolean;
-}) => (
-  <th className={`px-3 py-3 font-semibold whitespace-nowrap ${right ? "text-right" : ""}`}>
-    <button
-      onClick={() => setSort({ k, dir: sort.k === k ? (sort.dir === 1 ? -1 : 1) : 1 })}
-      className="inline-flex items-center gap-1 hover:text-orange-300"
-    >
-      {label}
-      <span className={`text-[10px] ${sort.k === k ? "text-orange-300" : "text-white/30"}`}>{sort.k === k && sort.dir === -1 ? "▼" : "▲"}</span>
-    </button>
-  </th>
-);
-
-const RowActions = ({ p, isAdmin, readOnly, onReceive, onHistory, onEdit, onAdjust, onDeactivate }: {
-  p: Part; isAdmin: boolean; readOnly: boolean;
-  onReceive: (p: Part) => void; onHistory: (p: Part) => void; onEdit: (p: Part) => void;
-  onAdjust: (p: Part) => void; onDeactivate: (p: Part) => void;
-}) => (
-  <div className="flex justify-end gap-1.5">
-    {!readOnly && (
-      <button onClick={() => onReceive(p)} className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-[#1e2432] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2a3245]">
-        <ArrowDownToLine size={14} /> รับเข้า
-      </button>
-    )}
-    <button onClick={() => onHistory(p)} title="ประวัติเข้า-ออก" className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50"><History size={16} /></button>
-    {!readOnly && <button onClick={() => onEdit(p)} title="แก้ไข" className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50"><Pencil size={16} /></button>}
-    {isAdmin && <button onClick={() => onAdjust(p)} title="ปรับยอด / ตรวจนับ" className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50"><SlidersHorizontal size={16} /></button>}
-    {isAdmin && <button onClick={() => onDeactivate(p)} title="ปิดอะไหล่" className="rounded-lg border border-slate-200 bg-white p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button>}
-  </div>
-);
 
 const SaveButtons = ({ saving, onClose, onSave, label }: { saving: boolean; onClose: () => void; onSave: () => void; label: string }) => (
   <DialogFooter className="gap-2">

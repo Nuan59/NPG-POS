@@ -40,10 +40,11 @@ export default function PageViewLogger() {
 
   useEffect(() => {
     if (!pathname || pathname === "/login") return;
-    const now = Date.now();
-    if (last.current.path === pathname && now - last.current.at < 60_000) return;
-    last.current = { path: pathname, at: now };
+    if (last.current.path === pathname && Date.now() - last.current.at < 60_000) return;
     const t = setTimeout(async () => {
+      // ✅ จดว่าส่งแล้ว "ตอนส่งจริง" เท่านั้น (ถ้าจดก่อน แล้ว effect ถูกยกเลิก/รันซ้ำ จะไม่ได้ส่งเลย)
+      if (last.current.path === pathname && Date.now() - last.current.at < 60_000) return;
+      last.current = { path: pathname, at: Date.now() };
       try {
         const session = await getSession();
         const token = (session as any)?.user?.accessToken;

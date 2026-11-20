@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Link from "next/link";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, History, Loader2, RefreshCw, Search } from "lucide-react";
@@ -146,27 +150,35 @@ export default function ActivityLogPage() {
   const pages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const inputCls = "rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm outline-none focus:border-[#F26B1D]";
 
+  const openRow = rows.find((r) => r.id === open) || null;
+
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href="/employees" aria-label="กลับ" className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <span className="h-11 w-11 shrink-0 rounded-xl bg-[#F26B1D] text-white grid place-items-center"><History size={22} /></span>
-          <div className="min-w-0">
-            <p className="text-xs text-[#7A7A7A]">ใครทำอะไร เมื่อไหร่ · แก้หรือลบไม่ได้</p>
-            <h1 className="text-xl md:text-2xl font-bold text-[#1e2432]">บันทึกการทำงาน</h1>
-          </div>
+    <div className="space-y-4">
+      {/* หัว (แบบเดียวกับหน้าอื่น) */}
+      <div className="grid grid-cols-2">
+        <div>
+          <h2 className="text-3xl font-semibold prompt">บันทึกการทำงาน</h2>
+          <h6 className="prompt">รวมทั้งหมด: {total.toLocaleString()}</h6>
         </div>
-        <div className="flex gap-2">
-          <button onClick={load} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm flex items-center gap-1.5 hover:bg-slate-50">
-            <RefreshCw size={15} /> รีเฟรช
-          </button>
-          <button onClick={exportCsv} disabled={exporting || !total} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm flex items-center gap-1.5 hover:bg-slate-50 disabled:opacity-50">
-            {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Export
-          </button>
+        <div className="flex items-start justify-end gap-1">
+          <TooltipProvider>
+            <Tooltip>
+              <Link href="/employees">
+                <TooltipTrigger className="border rounded-sm shadow-sm p-1 hover:bg-slate-100"><ArrowLeft /></TooltipTrigger>
+              </Link>
+              <TooltipContent><p>กลับหน้าพนักงาน</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger onClick={load} className="border rounded-sm shadow-sm p-1 hover:bg-slate-100"><RefreshCw /></TooltipTrigger>
+              <TooltipContent><p>รีเฟรช</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger onClick={exportCsv} disabled={exporting || !total} className="border rounded-sm shadow-sm p-1 hover:bg-slate-100 disabled:opacity-40">
+                {exporting ? <Loader2 className="animate-spin" /> : <Download />}
+              </TooltipTrigger>
+              <TooltipContent><p>Export (เปิดใน Excel)</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
@@ -210,63 +222,81 @@ export default function ActivityLogPage() {
         </div>
       </section>
 
-      {/* รายการ */}
-      <section className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 text-sm">
-          <span className="text-[#7A7A7A] tabular-nums">ทั้งหมด {total.toLocaleString()} รายการ</span>
-          {loading && <Loader2 size={16} className="animate-spin text-[#F26B1D]" />}
-        </div>
+      {/* รายการ - ตาราง (แบบเดียวกับหน้าอื่น) กดแถวเพื่อดูรายละเอียด */}
+      <div className="rounded-md bg-white">
+        <Table>
+          <TableHeader className="bg-slate-100">
+            <TableRow>
+              {["เวลา", "พนักงาน", "ตำแหน่ง", "งาน", "รายละเอียด", "ผล"].map((h) => (
+                <TableHead key={h} className={`text-slate-900 font-bold ${h === "รายละเอียด" ? "text-left" : "text-center"}`}>{h}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && rows.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto animate-spin text-slate-400" /></TableCell></TableRow>
+            ) : rows.length === 0 ? (
+              <TableRow><TableCell colSpan={6} className="h-24 text-center text-slate-500">ไม่มีบันทึกในช่วงนี้</TableCell></TableRow>
+            ) : (
+              rows.map((r) => {
+                const ok = r.status < 400;
+                const isView = r.method === "VIEW";
+                return (
+                  <TableRow
+                    key={r.id}
+                    onClick={() => setOpen(r.id)}
+                    className={`cursor-pointer hover:bg-slate-100 transition-colors ${isView ? "text-slate-500" : "text-slate-900 font-bold"}`}
+                  >
+                    <TableCell className="text-center whitespace-nowrap tabular-nums">{fmtTime(r.created_at)}</TableCell>
+                    <TableCell className="text-center whitespace-nowrap">{r.user_name || r.username || "ไม่ทราบ"}</TableCell>
+                    <TableCell className="text-center whitespace-nowrap">{r.role ? ROLE_LABEL[r.role] || r.role : "-"}</TableCell>
+                    <TableCell className="text-center">{r.action}</TableCell>
+                    <TableCell className="text-left font-normal text-slate-700 max-w-[420px]">
+                      <span className="line-clamp-2 break-words">{r.detail || "-"}</span>
+                    </TableCell>
+                    <TableCell className="text-center whitespace-nowrap">
+                      {isView ? (
+                        <span className="text-xs text-slate-400">เปิดดู</span>
+                      ) : ok ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">สำเร็จ</span>
+                      ) : (
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700">ไม่สำเร็จ {r.status}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-        {!loading && rows.length === 0 ? (
-          <p className="py-12 text-center text-sm text-[#7A7A7A]">ไม่มีบันทึกในช่วงนี้</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {rows.map((r) => {
-              const ok = r.status < 400;
-              const isView = r.method === "VIEW";
-              const isOpen = open === r.id;
-              return (
-                <li key={r.id} className="px-4 py-3">
-                  <button className="w-full text-left flex items-start gap-3" onClick={() => setOpen(isOpen ? null : r.id)}>
-                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${isView ? "bg-slate-300" : ok ? "bg-emerald-500" : "bg-red-500"}`} />
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className={isView ? "text-slate-500" : "font-semibold text-[#1e2432]"}>{r.action}</span>
-                        {!ok && <span className="rounded-full bg-red-50 border border-red-200 px-2 text-[11px] font-semibold text-red-700">ไม่สำเร็จ {r.status}</span>}
-                      </div>
-                      {r.detail && <p className="text-sm text-slate-700 break-words">{r.detail}</p>}
-                      <p className="text-xs text-[#7A7A7A]">
-                        <span className="font-medium text-[#1e2432]">{r.user_name || r.username || "ไม่ทราบ (ไม่ได้ล็อกอิน)"}</span>
-                        {r.role ? ` · ${ROLE_LABEL[r.role] || r.role}` : ""} · {fmtTime(r.created_at)}
-                      </p>
-                    </div>
-                    <ChevronDown size={16} className={`mt-1 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {isOpen && (
-                    <div className="mt-2 ml-5 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs space-y-1.5 break-all">
-                      <p><span className="text-[#7A7A7A]">คำขอ:</span> {r.method} {r.path} · {r.duration_ms} ms</p>
-                      <p><span className="text-[#7A7A7A]">IP:</span> {r.ip || "-"}</p>
-                      {r.payload && <pre className="whitespace-pre-wrap font-mono text-[11px] text-slate-700">{r.payload}</pre>}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+      <div className="flex items-center justify-between px-5 py-4">
+        <Button variant="ghost" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}><ChevronLeft /></Button>
+        <span className="text-sm text-slate-500 tabular-nums">หน้า {page} / {pages}</span>
+        <Button variant="ghost" size="sm" onClick={() => setPage(page + 1)} disabled={page >= pages}><ChevronRight /></Button>
+      </div>
 
-        {pages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5 text-sm">
-            <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-slate-50 disabled:opacity-40">
-              <ChevronLeft size={16} /> ก่อนหน้า
-            </button>
-            <span className="tabular-nums text-[#7A7A7A]">หน้า {page} / {pages}</span>
-            <button disabled={page >= pages} onClick={() => setPage(page + 1)} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-slate-50 disabled:opacity-40">
-              ถัดไป <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
-      </section>
+      {/* รายละเอียด 1 รายการ */}
+      {openRow && (
+        <Dialog open onOpenChange={(o) => !o && setOpen(null)}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{openRow.action}</DialogTitle>
+              <DialogDescription>
+                {openRow.user_name || openRow.username || "ไม่ทราบ"} · {fmtTime(openRow.created_at)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 text-sm">
+              {openRow.detail && <p className="whitespace-pre-wrap break-words text-slate-800">{openRow.detail}</p>}
+              <p className="text-xs text-slate-500 break-all">คำขอ: {openRow.method} {openRow.path} · {openRow.duration_ms} ms · IP {openRow.ip || "-"}</p>
+              {openRow.payload && (
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] text-slate-700">{openRow.payload}</pre>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
