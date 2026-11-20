@@ -110,3 +110,28 @@ class PageViewLogTests(BaseTestCase):
         a = client_for(make_user("boss", "adm"))
         self.assertEqual(a.get("/activity-logs/").data["total"], 1)
         self.assertEqual(a.get("/activity-logs/?views=0").data["total"], 0)
+
+
+class CostCodeTests(BaseTestCase):
+    def test_decode_encode(self):
+        from api.parts import decode_cost, encode_cost, StockError
+        self.assertEqual(decode_cost("NOWTT"), Decimal("14500"))
+        self.assertEqual(decode_cost("ntt"), Decimal("100"))
+        self.assertEqual(encode_cost(Decimal("112.40")), "NNC")
+        with self.assertRaises(StockError):
+            decode_cost("NX1")
+
+    def test_receive_with_code_and_cost_never_sent_to_staff(self):
+        staff, admin = make_user("staff", "emp"), make_user("boss", "adm")
+        c = client_for(staff)
+        pid = c.post("/parts/", {"name": "หัวเทียน", "price": 90, "start_qty": 10, "unit_cost_code": "WW"},
+                     format="json").data["id"]
+        self.assertEqual(Part.objects.get(pk=pid).cost, Decimal("55.00"))
+        r = c.post(f"/parts/{pid}/receive/", {"qty": 10, "unit_cost_code": "MW"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(Part.objects.get(pk=pid).cost, Decimal("60.00"))
+        self.assertNotIn("cost", r.data["part"])
+        self.assertNotIn("cost_code", r.data["part"])
+        self.assertTrue(all("unit_cost" not in m for m in c.get(f"/parts/{pid}/movements/").data))
+        self.assertEqual(client_for(admin).get(f"/parts/{pid}/").data["cost_code"], "MT")
+        self.assertEqual(c.post(f"/parts/{pid}/receive/", {"qty": 1, "unit_cost_code": "1A"}, format="json").status_code, 400)

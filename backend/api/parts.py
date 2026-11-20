@@ -26,6 +26,34 @@ def D(value, default="0"):
         raise StockError(f"ตัวเลขไม่ถูกต้อง: {value}")
 
 
+# ✅ โค้ดต้นทุน - ชุดเดียวกับราคาขายส่งรถ (frontend/src/services/PriceDecoder.ts)
+COST_CODE = {"N": "1", "C": "2", "I": "3", "O": "4", "W": "5", "M": "6", "A": "7", "E": "8", "Z": "9", "T": "0"}
+_CODE_OF = {v: k for k, v in COST_CODE.items()}
+
+
+def decode_cost(code):
+    """โค้ดทุน → ตัวเลข เช่น NTT = 100 (ว่าง = 0)"""
+    text = str(code or "").strip().upper()
+    if not text:
+        return Decimal("0")
+    if any(ch not in COST_CODE for ch in text):
+        raise StockError(f"โค้ดทุน {text} ไม่ถูกต้อง (ใช้ได้แค่ N C I O W M A E Z T)")
+    return Decimal("".join(COST_CODE[ch] for ch in text))
+
+
+def encode_cost(value):
+    """ตัวเลข → โค้ดทุน (ปัดเป็นจำนวนเต็ม) เช่น 112.5 → NNC"""
+    n = int(Decimal(str(value or 0)).quantize(Decimal("1")))
+    return "".join(_CODE_OF[d] for d in str(n)) if n > 0 else ""
+
+
+def cost_from(data):
+    """รับทุนได้ทั้ง unit_cost_code (โค้ด) หรือ unit_cost (ตัวเลข)"""
+    if data.get("unit_cost_code") not in (None, ""):
+        return decode_cost(data.get("unit_cost_code"))
+    return D(data.get("unit_cost") or 0)
+
+
 def fmt(x):
     x = Decimal(str(x or 0))
     return f"{x:,.0f}" if x == x.to_integral_value() else f"{x:,.2f}"

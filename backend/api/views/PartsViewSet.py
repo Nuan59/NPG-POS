@@ -31,40 +31,50 @@ def _user(request):
 
 class PartSerializer(serializers.ModelSerializer):
     low = serializers.SerializerMethodField()
+    cost_code = serializers.SerializerMethodField()
 
     class Meta:
         model = Part
-        fields = ["id", "code", "name", "fits", "unit", "cost", "price", "wholesale_price", "qty", "min_qty",
+        fields = ["id", "code", "name", "fits", "unit", "cost", "cost_code", "price", "qty", "min_qty",
                   "location", "notes", "active", "low", "created_at", "updated_at"]
         read_only_fields = ["id", "qty", "cost", "low", "created_at", "updated_at"]
 
     def get_low(self, obj):
         return obj.active and obj.qty <= obj.min_qty
 
+    def get_cost_code(self, obj):
+        return parts.encode_cost(obj.cost)
+
     def to_representation(self, obj):
         data = super().to_representation(obj)
         request = self.context.get("request")
         if request is not None and not _is_admin(request):
-            data.pop("cost", None)  # 🔒 ราคาทุนเฉพาะ adm
+            data.pop("cost", None)  # 🔒 ราคาทุน (ตัวเลข) ไม่ส่งให้พนักงาน - หน้าเว็บแสดงเป็นโค้ดเท่านั้น
+            data.pop("cost_code", None)
         return data
 
 
 class MovementSerializer(serializers.ModelSerializer):
     kind_label = serializers.SerializerMethodField()
+    cost_code = serializers.SerializerMethodField()
 
     class Meta:
         model = PartMovement
-        fields = ["id", "kind", "kind_label", "qty", "qty_after", "unit_cost", "unit_price", "ref_type", "ref_id",
-                  "supplier", "bill_no", "note", "created_by", "created_at"]
+        fields = ["id", "kind", "kind_label", "qty", "qty_after", "unit_cost", "cost_code", "unit_price", "ref_type",
+                  "ref_id", "supplier", "bill_no", "note", "created_by", "created_at"]
 
     def get_kind_label(self, obj):
         return PartMovement.KIND_LABEL.get(obj.kind, obj.kind)
+
+    def get_cost_code(self, obj):
+        return parts.encode_cost(obj.unit_cost)
 
     def to_representation(self, obj):
         data = super().to_representation(obj)
         request = self.context.get("request")
         if request is not None and not _is_admin(request):
             data.pop("unit_cost", None)
+            data.pop("cost_code", None)
         return data
 
 
@@ -107,7 +117,7 @@ class PartsViewSet(viewsets.ModelViewSet):
         # ✅ ยอดตั้งต้น = รับเข้าครั้งแรก (มีประวัติ + ทุนเฉลี่ยถูกต้อง)
         start_qty = request.data.get("start_qty")
         if start_qty not in (None, "", 0, "0"):
-            part, mv = parts.receive(part.id, start_qty, request.data.get("unit_cost") or 0, _user(request),
+            part, mv = parts.receive(part.id, start_qty, parts.cost_from(request.data), _user(request),
                                      note="ยอดตั้งต้น")
             note += f" · ยอดตั้งต้น {parts.fmt(mv.qty)} {part.unit}"
         activity.note(request, note)
@@ -135,13 +145,13 @@ class PartsViewSet(viewsets.ModelViewSet):
     def receive(self, request, pk=None):
         part = self.get_object()
         d = request.data
-        part, mv = parts.receive(part.id, d.get("qty"), d.get("unit_cost") or 0, _user(request),
+        part, mv = parts.receive(part.id, d.get("qty"), parts.cost_from(d), _user(request),
                                  supplier=(d.get("supplier") or "").strip(), bill_no=(d.get("bill_no") or "").strip(),
                                  note=(d.get("note") or "").strip())
         expense = None
         if d.get("pay_cash") in (True, "true", "1", 1):
             expense = parts.post_purchase_expense(mv, part, _user(request))
-        activity.note(request, f"รับเข้า {part.name} +{parts.fmt(mv.qty)} {part.unit} ทุน {parts.fmt(mv.unit_cost)}/{part.unit}"
+        activity.note(request, f"รับเข้า {part.name} +{parts.fmt(mv.qty)} {part.unit} โค้ดทุน {parts.encode_cost(mv.unit_cost) or '-'}"
                                + (f" · {mv.supplier}" if mv.supplier else "")
                                + (f" · ลงรายจ่ายเงินสด {parts.fmt(expense.expense)} ฿" if expense else ""))
         return Response({"part": self.get_serializer(part).data, "expense_id": expense.id if expense else None})

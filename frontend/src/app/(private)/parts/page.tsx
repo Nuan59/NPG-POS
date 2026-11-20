@@ -16,6 +16,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { isValidEncodedPrice } from "@/services/PriceDecoder";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -25,9 +26,8 @@ interface Part {
   name: string;
   fits: string;
   unit: string;
-  cost?: string;
+  cost_code?: string; // โค้ดทุน (เฉพาะ adm) - ไม่แสดงตัวเลขทุนที่ไหนเลย
   price: string;
-  wholesale_price: string | null;
   qty: string;
   min_qty: string;
   location: string;
@@ -41,7 +41,7 @@ interface Movement {
   kind_label: string;
   qty: string;
   qty_after: string;
-  unit_cost?: string;
+  cost_code?: string;
   unit_price: string | null;
   ref_type: string;
   ref_id: number | null;
@@ -70,7 +70,8 @@ const Field = ({ label, hint, children }: { label: string; hint?: string; childr
 /**
  * ✅ เมนูอะไหล่ - รายการอะไหล่ คงเหลือ รับเข้า ประวัติเข้า-ออก
  * - ขาย / ใช้ในงานซ่อม → ทำที่กล่องรายการสั่งซื้อ (แท็บ อะไหล่ / ซ่อม → ปุ่ม อะไหล่จากสต็อก)
- * - ราคาทุน มูลค่าสต็อก ปรับยอด ปิดอะไหล่ = เฉพาะ adm
+ * - ทุน: กรอกเป็นโค้ดทุน (N C I O W M A E Z T = 1-0 ชุดเดียวกับราคาขายส่งรถ) ไม่แสดงตัวเลขทุน
+ * - ปรับยอด ปิดอะไหล่ = เฉพาะ adm
  */
 export default function PartsPage() {
   const { data: session } = useSession();
@@ -156,8 +157,6 @@ export default function PartsPage() {
       },
     },
     { accessorKey: "price", header: "ราคาขาย", cell: ({ row }) => fmt(row.original.price) },
-    { accessorKey: "wholesale_price", header: "ราคาส่ง", cell: ({ row }) => (row.original.wholesale_price ? fmt(row.original.wholesale_price) : "-") },
-    ...(isAdmin ? [{ accessorKey: "cost", header: "ทุน", cell: ({ row }: { row: { original: Part } }) => fmt(row.original.cost) } as ColumnDef<Part>] : []),
     {
       id: "actions",
       cell: ({ row }) => {
@@ -256,6 +255,28 @@ export default function PartsPage() {
 
 type Call = (path: string, method?: string, body?: object) => Promise<any>;
 
+const DIGIT_TO_CODE: Record<string, string> = { "1": "N", "2": "C", "3": "I", "4": "O", "5": "W", "6": "M", "7": "A", "8": "E", "9": "Z", "0": "T" };
+
+/** ✅ ช่องโค้ดทุน - พิมพ์ตัวอักษรได้อย่างเดียว (ตัวเลขจะถูกแปลงเป็นโค้ดให้) ไม่แสดงตัวเลขทุน */
+const CostCodeField = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => {
+  const valid = !value || isValidEncodedPrice(value);
+  return (
+    <Field label="โค้ดทุนต่อหน่วย" hint={valid ? "เช่น NTT · ไม่มีเว้นว่างได้" : "โค้ดไม่ถูกต้อง ใช้ได้แค่ N C I O W M A E Z T"}>
+      <input
+        value={value}
+        onChange={(e) => {
+          // พิมพ์ตัวเลข → แปลงเป็นตัวอักษรทีละตัว (1→N 2→C ... 0→T) ตัวอักษรคงไว้
+          const raw = e.target.value.toUpperCase().replace(/\s/g, "");
+          onChange(raw.split("").map((ch) => DIGIT_TO_CODE[ch] ?? ch).join(""));
+        }}
+        placeholder="โค้ดทุน"
+        autoComplete="off"
+        className={`${inputCls} font-mono tracking-widest uppercase ${valid ? "" : "border-red-400 focus:border-red-500"}`}
+      />
+    </Field>
+  );
+};
+
 const SaveButtons = ({ saving, onClose, onSave, label }: { saving: boolean; onClose: () => void; onSave: () => void; label: string }) => (
   <DialogFooter className="gap-2">
     <button onClick={onClose} disabled={saving} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50">ยกเลิก</button>
@@ -268,9 +289,9 @@ const SaveButtons = ({ saving, onClose, onSave, label }: { saving: boolean; onCl
 function PartForm({ part, isAdmin, call, onClose, onSaved }: { part: Part | null; isAdmin: boolean; call: Call; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
     name: part?.name ?? "", code: part?.code ?? "", fits: part?.fits ?? "", unit: part?.unit ?? "ชิ้น",
-    price: part ? String(n(part.price)) : "", wholesale_price: part?.wholesale_price ? String(n(part.wholesale_price)) : "",
+    price: part ? String(n(part.price)) : "",
     min_qty: part ? String(n(part.min_qty)) : "2", location: part?.location ?? "", notes: part?.notes ?? "",
-    start_qty: "", unit_cost: "",
+    start_qty: "", cost_code: "",
   });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
@@ -281,11 +302,11 @@ function PartForm({ part, isAdmin, call, onClose, onSaved }: { part: Part | null
     try {
       const body: Record<string, unknown> = {
         name: f.name.trim(), code: f.code.trim(), fits: f.fits.trim(), unit: f.unit.trim() || "ชิ้น",
-        price: n(f.price), wholesale_price: f.wholesale_price ? n(f.wholesale_price) : null,
+        price: n(f.price),
         min_qty: n(f.min_qty), location: f.location.trim(), notes: f.notes,
       };
       if (part) await call(`/parts/${part.id}/`, "PATCH", body);
-      else await call("/parts/", "POST", { ...body, start_qty: n(f.start_qty), unit_cost: n(f.unit_cost) });
+      else await call("/parts/", "POST", { ...body, start_qty: n(f.start_qty), unit_cost_code: f.cost_code });
       toast.success(part ? "แก้ไขแล้ว" : "เพิ่มอะไหล่แล้ว");
       onSaved();
       onClose();
@@ -309,13 +330,12 @@ function PartForm({ part, isAdmin, call, onClose, onSaved }: { part: Part | null
           <Field label="หน่วย"><input value={f.unit} onChange={set("unit")} placeholder="ชิ้น / ชุด / ลิตร" className={inputCls} /></Field>
           <div className="sm:col-span-2"><Field label="ใช้กับรุ่น"><input value={f.fits} onChange={set("fits")} placeholder="เช่น Wave 110i, Click 125" className={inputCls} /></Field></div>
           <Field label="ราคาขาย (฿)"><input value={f.price} onChange={set("price")} inputMode="decimal" className={inputCls} /></Field>
-          <Field label="ราคาส่ง (฿)" hint="ไม่มีก็เว้นว่าง"><input value={f.wholesale_price} onChange={set("wholesale_price")} inputMode="decimal" className={inputCls} /></Field>
           <Field label="เตือนเมื่อเหลือไม่เกิน"><input value={f.min_qty} onChange={set("min_qty")} inputMode="decimal" className={inputCls} /></Field>
           <Field label="ที่เก็บ"><input value={f.location} onChange={set("location")} placeholder="เช่น ชั้น A2" className={inputCls} /></Field>
           {!part && (
             <>
               <Field label="มีอยู่ตอนนี้กี่ชิ้น" hint="ยังไม่มีของ ใส่ 0"><input value={f.start_qty} onChange={set("start_qty")} inputMode="decimal" className={inputCls} /></Field>
-              {isAdmin && <Field label="ราคาทุนต่อชิ้น (฿)"><input value={f.unit_cost} onChange={set("unit_cost")} inputMode="decimal" className={inputCls} /></Field>}
+              <CostCodeField value={f.cost_code} onChange={(v) => setF({ ...f, cost_code: v })} />
             </>
           )}
         </div>
@@ -327,17 +347,22 @@ function PartForm({ part, isAdmin, call, onClose, onSaved }: { part: Part | null
 }
 
 function ReceiveForm({ part, call, onClose, onSaved }: { part: Part; call: Call; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ qty: "", unit_cost: part.cost ? String(n(part.cost)) : "", supplier: "", bill_no: "", note: "" });
+  const [f, setF] = useState({ qty: "", cost_code: part.cost_code ?? "", supplier: "", bill_no: "", note: "" });
   const [payCash, setPayCash] = useState(false);
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
-  const total = n(f.qty) * n(f.unit_cost);
 
   const save = async () => {
     if (n(f.qty) <= 0) return toast.error("กรุณาใส่จำนวนที่รับเข้า");
     setSaving(true);
     try {
-      await call(`/parts/${part.id}/receive/`, "POST", { ...f, qty: n(f.qty), unit_cost: n(f.unit_cost), pay_cash: payCash });
+      if (f.cost_code && !isValidEncodedPrice(f.cost_code)) {
+        setSaving(false);
+        return toast.error("โค้ดทุนไม่ถูกต้อง ใช้ได้แค่ N C I O W M A E Z T");
+      }
+      await call(`/parts/${part.id}/receive/`, "POST", {
+        qty: n(f.qty), unit_cost_code: f.cost_code, supplier: f.supplier, bill_no: f.bill_no, note: f.note, pay_cash: payCash,
+      });
       toast.success(`รับเข้า ${part.name} +${fmt(f.qty)} ${part.unit}${payCash ? " · ลงรายจ่ายเงินสดแล้ว" : ""}`);
       onSaved();
       onClose();
@@ -357,7 +382,7 @@ function ReceiveForm({ part, call, onClose, onSaved }: { part: Part; call: Call;
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={`จำนวน (${part.unit}) *`}><input autoFocus value={f.qty} onChange={set("qty")} inputMode="decimal" className={inputCls} /></Field>
-          <Field label="ราคาทุนต่อหน่วย (฿)"><input value={f.unit_cost} onChange={set("unit_cost")} inputMode="decimal" className={inputCls} /></Field>
+          <CostCodeField value={f.cost_code} onChange={(v) => setF({ ...f, cost_code: v })} />
           <Field label="ซื้อจากร้าน"><input value={f.supplier} onChange={set("supplier")} className={inputCls} /></Field>
           <Field label="เลขที่บิล"><input value={f.bill_no} onChange={set("bill_no")} className={inputCls} /></Field>
         </div>
@@ -365,7 +390,6 @@ function ReceiveForm({ part, call, onClose, onSaved }: { part: Part; call: Call;
           <input type="checkbox" checked={payCash} onChange={(e) => setPayCash(e.target.checked)} className="mt-1 h-5 w-5 accent-[#F26B1D]" />
           <span className="text-sm">
             <b>จ่ายเงินสดจากลิ้นชัก</b> — ลงรายจ่ายในหน้ารายรับ-รายจ่ายวันนี้ให้เลย
-            {total > 0 && <span className="block text-slate-500">ยอด ฿{fmt(total)}</span>}
           </span>
         </label>
         <SaveButtons saving={saving} onClose={onClose} onSave={save} label="รับเข้า" />
@@ -448,7 +472,7 @@ function HistoryDialog({ part, isAdmin, call, onClose }: { part: Part; isAdmin: 
                     <p className="text-xs text-slate-500">
                       {[
                         when(m.created_at), m.created_by && `โดย ${m.created_by}`, m.supplier, m.bill_no && `บิล ${m.bill_no}`,
-                        m.unit_price && `ขาย ฿${fmt(m.unit_price)}`, isAdmin && m.kind === "in" && m.unit_cost && `ทุน ฿${fmt(m.unit_cost)}`, m.note,
+                        m.unit_price && `ขาย ฿${fmt(m.unit_price)}`, isAdmin && m.kind === "in" && m.cost_code && `โค้ดทุน ${m.cost_code}`, m.note,
                       ].filter(Boolean).join(" · ")}
                     </p>
                   </div>
