@@ -14,8 +14,7 @@ export const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/issues": "board",
   "/employees": "employees",
   "/reports": "reports",
-  // ✅ ประวัติการรับบริการของรถ - ใช้สิทธิ์เดียวกับ "รายงาน" ไปก่อน (ปรับเป็นสิทธิ์แยกทีหลังได้)
-  // (ใช้ key แยก "service_history" แต่พนักงานยังใช้สิทธิ์ "รายงาน" เหมือนเดิม - ดู useEmployeePermissions)
+  // ✅ ใบเสร็จ & ประวัติรถ - ติ๊กได้ในหน้าพนักงาน (ยังไม่เคยติ๊ก = เปิดให้คนที่ ขาย / NPG / รายงาน ดู withPermissionDefaults)
   "/service-history": "service_history",
 };
 

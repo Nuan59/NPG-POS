@@ -27,7 +27,7 @@ import { IEmployee } from "@/types/IEmployee";
 import { createEmployee, editEmployee } from "@/services/EmployeeService";
 import { getDate } from "@/util/GetDateString";
 import { asOptionalField } from "@/util/ZodOptionalField";
-import { PERMISSION_LIST, defaultPermissions } from "../../components/permissions";
+import { PERMISSION_LIST, defaultPermissions, withPermissionDefaults } from "../../components/permissions";
 
 const EditFormSchema = z
 	.object({
@@ -79,7 +79,7 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 			password: "",
 			repeat_password: "",
 			permissions: employee?.permissions
-				? { ...defaultPermissions, ...employee.permissions }
+				? { ...defaultPermissions, ...withPermissionDefaults(employee.permissions) }
 				: { ...defaultPermissions },
 		},
 		resolver: zodResolver(!employee ? CreateFormSchema : EditFormSchema),
