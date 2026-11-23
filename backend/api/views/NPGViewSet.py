@@ -115,7 +115,7 @@ def _user_name(request):
     return getattr(request.user, 'name', '') or getattr(request.user, 'username', '') or ''
 
 
-def _post_payment_income(payment, account, label=None, only_if_exists=False):
+def _post_payment_income(payment, account, label=None, only_if_exists=False, entry_date=None):
     """✅ รายรับอัตโนมัติของค่างวด NPG (รวมค่าปรับที่เก็บพร้อมงวด)"""
     total = float(payment.amount_paid or 0) + float(payment.late_fee or 0)
     cash, transfer = split_payment(total, payment.payment_method, payment.cash_amount)
@@ -123,7 +123,14 @@ def _post_payment_income(payment, account, label=None, only_if_exists=False):
     user = payment.created_by
     name = (getattr(user, 'name', '') or getattr(user, 'username', '')) if user else ''
     sync_auto_income('npg_payment', payment.id, cash, transfer, f"รับเงิน · {label} · {_customer_name(account)}", name,
-                     only_if_exists=only_if_exists)
+                     entry_date=entry_date, only_if_exists=only_if_exists)
+
+
+CLOSE_METHODS = ("เงินสด", "เงินโอน", "เช็ค", "แบ่งจ่าย")
+
+
+def _is_close_payment(p):
+    return (p.note or "").startswith("ปิดบัญชี")
 
 
 def _recalc_account(account):
@@ -156,7 +163,19 @@ def _recalc_account(account):
     account.remaining_balance = max(running, 0)
     account.last_payment_date = payments[-1].payment_date if payments else None
 
-    if account.paid_count >= account.installment_count or account.remaining_balance <= 0:
+    close_payment = next((p for p in reversed(payments) if _is_close_payment(p)), None)
+    if close_payment:
+        # ✅ ปิดบัญชีแล้ว: ยอดปิดบัญชี (หลังหักส่วนลด) = จ่ายครบ → หนี้ 0 สถานะ "ปิดบัญชี" เสมอ แม้ adm แก้รายการ
+        account.remaining_balance = 0
+        account.status = "closed"
+        account.close_amount = close_payment.amount_paid
+        account.close_date = close_payment.payment_date
+    elif account.status == "closed":
+        # ลบรายการปิดบัญชีออก → เปิดบัญชีกลับมาผ่อนต่อ
+        account.status = "completed" if account.remaining_balance <= 0 else "active"
+        account.close_amount = None
+        account.close_date = None
+    elif account.paid_count >= account.installment_count or account.remaining_balance <= 0:
         account.status = "completed"
     elif account.status == "completed":
         # แก้ไขรายการจนยอดไม่ครบแล้ว ต้องเปิดบัญชีกลับมาเป็น active
@@ -357,12 +376,34 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         account.refresh_from_db()
 
         close_calculation = account.calculate_close_amount()
-        close_amount = request.data.get('close_amount')
-        close_amount = float(close_amount) if close_amount is not None else close_calculation['close_amount']
+        try:
+            close_amount = request.data.get('close_amount')
+            close_amount = round(float(close_amount), 2) if close_amount not in (None, '') else close_calculation['close_amount']
+        except (TypeError, ValueError):
+            return Response({'error': 'ยอดปิดบัญชีไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
+        remaining = float(account.remaining_balance)
+        if close_amount <= 0 or close_amount > remaining + 0.5:
+            return Response({'error': f'ยอดปิดบัญชีต้องมากกว่า 0 และไม่เกินหนี้คงเหลือ {_b(remaining)} บาท'},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        payment_method = request.data.get('payment_method', '')
-        transfer_bank = request.data.get('transfer_bank', '')
-        check_number = request.data.get('check_number', '')
+        # ✅ ต้องเลือกวิธีชำระ - เดิมไม่ได้ส่งมา → ยอดปิดบัญชีไม่ลงรายรับ-รายจ่าย และใบเสร็จขึ้นวิธีชำระ "-"
+        payment_method = (request.data.get('payment_method') or '').strip()
+        if payment_method not in CLOSE_METHODS:
+            return Response({'error': 'กรุณาเลือกวิธีชำระ (เงินสด / เงินโอน / เช็ค / แบ่งจ่าย)'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        transfer_bank = request.data.get('transfer_bank', '') or ''
+        check_number = request.data.get('check_number', '') or ''
+        cash_amount = None
+        if payment_method == 'แบ่งจ่าย':
+            try:
+                cash_amount = round(float(request.data.get('cash_amount')), 2)
+            except (TypeError, ValueError):
+                return Response({'error': 'แบ่งจ่าย: กรุณาใส่ยอดเงินสด'}, status=status.HTTP_400_BAD_REQUEST)
+            if cash_amount <= 0 or cash_amount >= close_amount:
+                return Response({'error': 'แบ่งจ่าย: ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดปิดบัญชี'},
+                                status=status.HTTP_400_BAD_REQUEST)
+        # ส่วนลดจริง = หนี้คงเหลือ - ยอดที่รับจริง (ตรงกับที่ลูกค้าจ่าย)
+        close_calculation['discount'] = round(max(remaining - close_amount, 0), 2)
         
         payment = NPGPayment.objects.create(
             account=account,
@@ -373,7 +414,8 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             payment_method=payment_method,
             transfer_bank=transfer_bank,
             check_number=check_number,
-            note=f"ปิดบัญชี - ส่วนลด {close_calculation['discount']} บาท",
+            cash_amount=cash_amount,
+            note=f"ปิดบัญชี - ส่วนลด {_b(close_calculation['discount'])} บาท",
             created_by=request.user
         )
         
@@ -572,6 +614,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
         payment = self.get_object()
         account = payment.account
+        had_no_method = not (payment.payment_method or '').strip()
         before = {
             'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': payment.payment_method or '-',
             'วันที่': str(payment.payment_date), 'หมายเหตุ': payment.note or '',
@@ -612,10 +655,13 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         account.refresh_from_db()
         # ✅ รายรับอัตโนมัติแก้ตาม (ยอด / วิธีชำระ)
         payment.refresh_from_db()
-        is_close = (payment.note or '').startswith('ปิดบัญชี')
+        is_close = _is_close_payment(payment)
         # only_if_exists: ค่างวดที่รับก่อนมีระบบนี้ (พนักงานพิมพ์รายรับเอง) ไม่ลงใหม่ซ้ำ
+        # ✅ ยกเว้นรายการที่ไม่เคยมีวิธีชำระ (เช่น ปิดบัญชีแบบเก่า) → adm ใส่วิธีชำระแล้วลงรายรับให้ ณ วันที่รับเงินจริง
+        fill_missing = is_close and had_no_method and (payment.payment_method or '').strip() in CLOSE_METHODS
         _post_payment_income(payment, account, label=f"ปิดบัญชี NPG #{account.id}" if is_close else None,
-                             only_if_exists=True)
+                             only_if_exists=not fill_missing,
+                             entry_date=payment.payment_date if fill_missing else None)
         receipts.record('npg_payment', payment)  # ✅ ยอดในทะเบียนใบเสร็จแก้ตาม
         # ✅ รายการที่ส่งเงินไปแล้ว: ยอดใหม่น้อยลง (เช่น เอาค่าปรับที่ไม่ได้รับออก) → ยอดส่งเงินลดตาม ลิ้นชักไม่เพี้ยน
         try:

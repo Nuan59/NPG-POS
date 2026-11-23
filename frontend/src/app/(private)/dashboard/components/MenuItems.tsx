@@ -14,6 +14,8 @@ import {
   Wallet,
   ChevronRight,
   ClipboardList,
+  Package,
+  History,
 } from "lucide-react";
 import React from "react";
 import { useEmployeePermissions } from "@/app/hooks/useEmployeePermissions";
@@ -24,6 +26,8 @@ const menuPages = [
   { href: "/customers", icon: UsersRound, label: "ลูกค้า", description: "จัดการข้อมูลลูกค้า" },
   { href: "/inventory", icon: ShoppingCart, label: "สินค้า", description: "คลังสินค้าทั้งหมด" },
   { href: "/gifts", icon: Gift, label: "ของแถม", description: "จัดการของแถม" },
+  { href: "/parts", icon: Package, label: "อะไหล่", description: "สต็อกอะไหล่ รับเข้า ขาย" },
+  { href: "/service-history", icon: History, label: "ใบเสร็จ", description: "ใบเสร็จชั่วคราว · ประวัติรถ" },
   { href: "/npg", icon: CreditCard, label: "NPG", description: "ระบบไฟแนนซ์" },
   { href: "/storage", icon: Warehouse, label: "คลัง", description: "สถานที่จัดเก็บ" },
   { href: "/cashflow", icon: Wallet, label: "รายรับ-รายจ่าย", description: "เงินสด/โอนรายวัน" },
