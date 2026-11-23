@@ -209,7 +209,9 @@ class NPGAccount(models.Model):
         remaining_installments = self.installment_count - self.paid_count
         
         # ✅ แปลงงวดที่เหลือเป็นจำนวนเดือน (รายวัน/รายสัปดาห์ได้เป็นเศษเดือน)
-        remaining_months = remaining_installments * self.months_per_period(self.period_type)
+        # ✅ รอบชำระจริงจาก Order ก่อน (ตรงกับหน้าจอ) - period_type เก่าบางบัญชีบันทึกผิด
+        period = getattr(self.order, "npg_period", None) if self.order_id else None
+        remaining_months = remaining_installments * self.months_per_period(period or self.period_type)
         
         principal_per_installment = float(self.finance_amount) / self.installment_count
         remaining_principal = principal_per_installment * remaining_installments

@@ -14,6 +14,7 @@ export const PERMISSION_LIST: PermissionItem[] = [
 	{ key: "storage",      label: "คลัง" },
 	{ key: "gifts",        label: "ของแถม" },
 	{ key: "parts",        label: "อะไหล่" },
+	{ key: "service_history", label: "ใบเสร็จ & ประวัติรถ" },
 	{ key: "registration", label: "ทะเบียน" },
 	{ key: "calculator",   label: "คำนวณ" },
 	{ key: "npg",          label: "NPG" },
@@ -22,6 +23,26 @@ export const PERMISSION_LIST: PermissionItem[] = [
 	{ key: "employees",    label: "พนักงาน" },
 	{ key: "reports",      label: "รายงาน" },
 ];
+
+/**
+ * ✅ เมนูที่เพิ่มทีหลัง - พนักงานเก่ายังไม่เคยมีค่านี้ (ไม่ใช่ "ปิด") → ใช้ค่าตั้งต้นตามงานที่ทำอยู่แล้ว
+ * adm ติ๊กออก/ติ๊กใส่ในหน้าแก้ไขพนักงานเมื่อไหร่ ใช้ค่าที่ติ๊กแทนทันที
+ *   อะไหล่              ← คนที่ขายได้ (ขายอะไหล่ / ใช้อะไหล่ในงานซ่อม)
+ *   ใบเสร็จ & ประวัติรถ ← คนที่รับเงินลูกค้า (ขาย / NPG) หรือดูรายงาน (สิทธิ์เดิมของประวัติรถ)
+ */
+const FALLBACK: Record<string, (p: Record<string, boolean>) => boolean> = {
+	parts: (p) => !!p.sale,
+	service_history: (p) => !!(p.sale || p.npg || p.reports),
+};
+
+export const withPermissionDefaults = (p?: Record<string, boolean> | null): Record<string, boolean> => {
+	const src = p || {};
+	const out: Record<string, boolean> = { ...src };
+	for (const [key, fn] of Object.entries(FALLBACK)) {
+		if (typeof src[key] !== "boolean") out[key] = fn(src);
+	}
+	return out;
+};
 
 export const defaultPermissions: Record<string, boolean> = PERMISSION_LIST.reduce(
 	(acc, perm) => ({ ...acc, [perm.key]: false }),

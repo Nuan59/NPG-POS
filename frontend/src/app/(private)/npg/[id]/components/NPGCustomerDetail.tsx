@@ -190,6 +190,11 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [isCloseAccountDialogOpen, setIsCloseAccountDialogOpen] = useState(false);
   const [isClosingAccount, setIsClosingAccount] = useState(false); // ✅ กันกดปิดบัญชีซ้ำ
   const [closeAccountAmount, setCloseAccountAmount] = useState<number>(0);
+  // ✅ วิธีชำระตอนปิดบัญชี - ต้องกดเลือกเอง (เดิมไม่มีให้เลือก → ยอดปิดบัญชีไม่ลงรายรับ-รายจ่าย)
+  const [closeMethod, setCloseMethod] = useState<string>("");
+  const [closeBank, setCloseBank] = useState<string>("");
+  const [closeCheck, setCloseCheck] = useState<string>("");
+  const [closeCash, setCloseCash] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"payments" | "fees">("payments");
   const submitLock = useRef(false); // ✅ กันดับเบิลคลิกเร็วกว่า state อัปเดต
 
@@ -368,6 +373,14 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
   const handleCloseAccount = async () => {
     if (!account || !accessToken || submitLock.current) return;
+    if (!closeMethod) {
+      toast.error("กรุณาเลือกวิธีชำระ");
+      return;
+    }
+    if (closeMethod === "แบ่งจ่าย" && !(parseFloat(closeCash) > 0 && parseFloat(closeCash) < closeAccountAmount)) {
+      toast.error("แบ่งจ่าย: ใส่ยอดเงินสดให้น้อยกว่ายอดปิดบัญชี");
+      return;
+    }
 
     submitLock.current = true;
     setIsClosingAccount(true);
@@ -380,6 +393,10 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         },
         body: JSON.stringify({
           close_amount: closeAccountAmount,
+          payment_method: closeMethod,
+          transfer_bank: closeMethod === "เงินโอน" ? closeBank : "",
+          check_number: closeMethod === "เช็ค" ? closeCheck : "",
+          cash_amount: closeMethod === "แบ่งจ่าย" ? parseFloat(closeCash) : undefined,
         }),
       });
 
@@ -406,7 +423,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setEditingPayment(payment);
     setEditAmount(String(payment.amount_paid));
     setEditNote(payment.note || "");
-    setEditMethod(payment.payment_method || "เงินสด");
+    // ✅ รายการที่ไม่มีวิธีชำระ ให้ว่างไว้ (ไม่เดาเป็นเงินสดเอง) - adm กดเลือกเองถึงจะลงรายรับ
+    setEditMethod(payment.payment_method || "");
     setEditBank(payment.transfer_bank || "");
     setEditCheckNumber(payment.check_number || "");
     // ✅ แปลงเป็น yyyy-mm-dd สำหรับ input type="date"
@@ -712,7 +730,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
           <Button
             className="h-12 text-base bg-[#1e2432] hover:bg-[#2a3245] text-white"
-            onClick={() => setIsCloseAccountDialogOpen(true)}
+            onClick={() => {
+              setCloseMethod("");
+              setCloseBank("");
+              setCloseCheck("");
+              setCloseCash("");
+              setIsCloseAccountDialogOpen(true);
+            }}
           >
             <CheckCircle size={18} className="mr-2" />
             ปิดบัญชี
@@ -880,7 +904,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                         {Number(payment.remaining_balance_after || 0).toLocaleString()} ฿
                       </td>
                       <td className="p-2.5 text-[#7A7A7A]">
-                        {payment.payment_method || "-"}
+                        {payment.payment_method || (
+                          // ✅ รายการเก่าที่ไม่มีวิธีชำระ (เช่น ปิดบัญชีแบบเดิม) = ยังไม่ลงรายรับ - adm กดแก้ไขแล้วเลือกวิธีชำระ
+                          <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                            ไม่ระบุ · ยังไม่ลงรายรับ
+                          </span>
+                        )}
                         {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
                         {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
                       </td>
@@ -1133,13 +1162,45 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
               <div className="flex justify-between">
                 <span className="text-[#7A7A7A]">ส่วนลดดอกเบี้ย</span>
                 <span className="font-medium text-emerald-600">
-                  -{(account.remaining_balance - closeAccountAmount).toLocaleString()} ฿
+                  {account.remaining_balance - closeAccountAmount > 0 ? "-" : ""}
+                  {Math.max(account.remaining_balance - closeAccountAmount, 0).toLocaleString()} ฿
                 </span>
               </div>
               <div className="flex justify-between text-lg font-bold border-t border-dashed pt-2">
                 <span>ยอดชำระปิดบัญชี</span>
                 <span className="text-[#F26B1D]">{closeAccountAmount.toLocaleString()} ฿</span>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>วิธีการชำระ <span className="text-red-500">*</span></Label>
+              <SegButtons options={[...PAY_METHODS, "แบ่งจ่าย"]} value={closeMethod} onChange={setCloseMethod} cols={4} />
+              {closeMethod === "เงินโอน" && (
+                <SegButtons options={BANKS} value={closeBank} onChange={setCloseBank} toggleable cols={2} />
+              )}
+              {closeMethod === "เช็ค" && (
+                <Input type="text" placeholder="เลขที่เช็ค" value={closeCheck} onChange={(e) => setCloseCheck(e.target.value)} />
+              )}
+              {closeMethod === "แบ่งจ่าย" && (
+                <div className="space-y-1">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="ยอดเงินสด"
+                    value={closeCash}
+                    onChange={(e) => setCloseCash(e.target.value)}
+                  />
+                  <p className="text-xs text-[#7A7A7A] tabular-nums">
+                    เงินโอน {Math.max(closeAccountAmount - (parseFloat(closeCash) || 0), 0).toLocaleString()} ฿
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-sm tabular-nums">
+              <span className="text-[#7A7A7A]">ลงรายรับ (อัตโนมัติ)</span>
+              <b className="text-[#1e2432]">
+                {closeMethod === "เช็ค" ? "เช็ค - ยังไม่ลงรายรับวันนี้" : closeMethod ? `${closeAccountAmount.toLocaleString()} ฿` : "-"}
+              </b>
             </div>
           </div>
           <DialogFooter className="gap-2">
@@ -1148,7 +1209,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             </Button>
             <Button
               onClick={handleCloseAccount}
-              disabled={isClosingAccount}
+              disabled={isClosingAccount || !closeMethod}
               className="bg-[#F26B1D] hover:bg-[#d95c14] text-white"
             >
               {isClosingAccount ? (
@@ -1214,6 +1275,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
               <SegButtons options={PAY_METHODS} value={editMethod} onChange={setEditMethod} />
+              {editingPayment && !editingPayment.payment_method && (editingPayment.note || "").startsWith("ปิดบัญชี") && (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  ปิดบัญชีรายการนี้ยังไม่ลงรายรับ เลือกวิธีชำระแล้วกดบันทึก ระบบจะลงรายรับให้ ณ วันที่ปิดบัญชี
+                  (ถ้าเคยพิมพ์ลงหน้ารายรับ-รายจ่ายเองไว้แล้ว ให้ลบแถวเดิมออก กันยอดซ้ำ)
+                </p>
+              )}
               {editMethod === "เงินโอน" && (
                 <SegButtons options={BANKS} value={editBank} onChange={setEditBank} toggleable cols={2} />
               )}

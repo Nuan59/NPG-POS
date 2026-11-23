@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { IEmployee } from "@/types/IEmployee";
 import { editEmployee } from "@/services/EmployeeService";
-import { PERMISSION_LIST, defaultPermissions } from "./permissions";
+import { PERMISSION_LIST, defaultPermissions, withPermissionDefaults } from "./permissions";
 
 interface PermissionsDialogProps {
 	employee: IEmployee;
@@ -31,7 +31,7 @@ const PermissionsDialog = ({
 }: PermissionsDialogProps) => {
 	const [permissions, setPermissions] = useState<Record<string, boolean>>({
 		...defaultPermissions,
-		...(employee.permissions || {}),
+		...withPermissionDefaults(employee.permissions),
 	});
 	const [isSaving, setIsSaving] = useState(false);
 

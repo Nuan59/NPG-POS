@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { withPermissionDefaults } from "@/app/(private)/employees/components/permissions";
 
 // ✅ หน้าที่ผู้ตรวจสอบเข้าได้ (ต้องตรงกับ MONITOR_PATHS ใน middleware.ts)
 export const MONITOR_PAGES = ["employees", "cashflow", "reports"];
@@ -46,7 +47,7 @@ export const useEmployeePermissions = () => {
     })
       .then((r) => r.json())
       .then((data) => {
-        setPermissions(data?.permissions || {});
+        setPermissions(withPermissionDefaults(data?.permissions));
       })
       .catch(() => {
         setPermissions({});
@@ -62,8 +63,6 @@ export const useEmployeePermissions = () => {
     if (!key) return true;
     if (isAdmin) return true;
     if (isMonitor) return MONITOR_PAGES.includes(key);
-    // ประวัติรถ: พนักงานใช้สิทธิ์ "รายงาน" เหมือนเดิม
-    if (key === "service_history") return !!permissions.service_history || !!permissions.reports;
     return !!permissions[key];
   };
 
