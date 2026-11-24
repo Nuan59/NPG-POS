@@ -11,12 +11,12 @@
   GET    /cash-handover/                   ใบส่งเงิน (พนักงานเห็นของตัวเอง, adm เห็นทั้งหมด) ?status=pending
   POST   /cash-handover/submit/            { items: [{source, source_id}], note }
   POST   /cash-handover/send-now/          { items: [{source, source_id, amount?}], note? }
-                                            ส่งเงินจากหน้า รายรับ-รายจ่าย: หักลิ้นชักทันที ไม่ต้องรอ adm
-                                            ✅ ส่งเป็นรายรายการ: 1 รายการ = 1 แถว "ส่งเงิน" (auto_source=handover)
+                                            ส่งเงินจากหน้า รายรับ-รายจ่าย → ใบ "รอ adm รับ" (ยังไม่หักลิ้นชัก)
                                             ✅ แก้ยอดที่จะส่งได้ (0 < amount <= ยอดเต็ม) ส่งไม่เต็ม ส่วนที่เหลืออยู่ในลิ้นชัก รายการนั้นจบ
-                                            (เก็บเป็นประวัติการส่ง status=received - ไม่มีขั้นตอนใบรอรับ)
-                                            หลังส่ง adm แก้ยอด / ลบ (ยกเลิกเฉพาะรายการนั้น) ได้ที่แถวในหน้า รายรับ-รายจ่าย
-  POST   /cash-handover/<id>/receive/      (adm) { received_amount?, note? }
+  POST   /cash-handover/<id>/receive/      (adm เท่านั้น) { received_amount?, note? }
+                                            🔒 นโยบายร้าน: ส่งเงินทุกครั้งต้องมีคนรับ = adm (ผู้ตรวจสอบ / พนักงาน รับไม่ได้)
+                                            รับครบ → ลงแถว "ส่งเงิน" 1 แถวต่อ 1 รายการ (auto_source=handover) หักลิ้นชักวันที่รับ
+                                            ยอดไม่ตรง → แถว "ส่งเงิน" แถวเดียวตามยอดที่รับจริง (status=mismatch)
   POST   /cash-handover/<id>/cancel/       (เจ้าของใบ / adm ขณะยัง pending) ยกเลิกใบ รายการกลับไปค้างส่ง
   GET    /cash-handover/summary/           ตัวเลขสำหรับ badge
 
@@ -334,6 +334,22 @@ def _sync_cashflow(h, amount, receiver):
         date=today, section='cash', seq=next_seq, description=desc, sent=amount, created_by=receiver,
     )
     h.cashflow_entry_id = entry.id
+
+
+def _post_item_rows(h, receiver):
+    """✅ แถว "ส่งเงิน" 1 แถวต่อ 1 รายการ (หักลิ้นชักวันนี้) - ลงตอน adm รับเงิน"""
+    sender = h.created_by_name or h.created_by_username
+    who = sender if sender == receiver else f"{sender} → {receiver}"
+    today = _today_bkk()
+    seq = (CashflowEntry.objects.filter(date=today, section='cash').aggregate(m=Max('seq'))['m'] or -1) + 1
+    for item in h.items.order_by('id'):
+        CashflowEntry.objects.create(
+            date=today, section='cash', seq=seq,
+            description=_item_row_desc(item, _item_full(item.source, item.source_id)),
+            sent=item.amount, created_by=who[:255],
+            auto_source=ITEM_ROW, auto_source_id=item.id,
+        )
+        seq += 1
 
 
 def _recalc_total(h):
@@ -701,29 +717,12 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 r['amount'] = amount
             chosen.append(r)
 
-        sender = _display_name(request.user)
         try:
             with transaction.atomic():
+                # 🔒 ส่งแล้ว = ใบรอ adm รับ (ยังไม่หักลิ้นชัก) - adm กดรับแล้วถึงลงแถว "ส่งเงิน"
                 h = self._create_handover(
-                    request.user.username, chosen, (request.data.get('note') or '').strip(), status_value='received',
+                    request.user.username, chosen, (request.data.get('note') or '').strip(), status_value='pending',
                 )
-                h.received_amount = h.total
-                h.received_by = sender
-                h.received_at = timezone.now()
-                h.cashflow_entry_id = None
-                h.save()
-                # ✅ ลง "ส่งเงิน" 1 แถวต่อ 1 รายการ หักลิ้นชักวันนี้
-                full_of = {(r['source'], r['source_id']): r['full'] for r in chosen}
-                today = _today_bkk()
-                seq = (CashflowEntry.objects.filter(date=today, section='cash').aggregate(m=Max('seq'))['m'] or -1) + 1
-                for item in h.items.order_by('id'):
-                    CashflowEntry.objects.create(
-                        date=today, section='cash', seq=seq,
-                        description=_item_row_desc(item, full_of.get((item.source, item.source_id))),
-                        sent=item.amount, created_by=sender,
-                        auto_source=ITEM_ROW, auto_source_id=item.id,
-                    )
-                    seq += 1
         except IntegrityError:
             return Response({'error': 'มีรายการถูกส่งซ้ำ กรุณารีเฟรชแล้วลองใหม่'}, status=status.HTTP_409_CONFLICT)
 
@@ -732,8 +731,9 @@ class CashHandoverViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def receive(self, request, pk=None):
-        if not _is_reviewer(request):
-            return Response({'error': 'เฉพาะ adm / ผู้ตรวจสอบ เท่านั้นที่กดรับเงินได้'}, status=status.HTTP_403_FORBIDDEN)
+        # 🔒 ส่งเงินทุกครั้งต้องมีคนรับเป็น adm เท่านั้น
+        if not _is_admin(request):
+            return Response({'error': 'เฉพาะ adm เท่านั้นที่กดรับเงินได้'}, status=status.HTTP_403_FORBIDDEN)
 
         with transaction.atomic():
             h = CashHandover.objects.select_for_update().filter(pk=pk).first()
@@ -759,10 +759,17 @@ class CashHandoverViewSet(viewsets.ViewSet):
         return Response(_handover_json(h))
 
     def _mark_received(self, h, received, request):
-        """ตั้งใบเป็นรับแล้ว + ลงรายรับเงินสดตามยอดที่รับจริง (เรียกภายใน transaction)"""
+        """
+        ตั้งใบเป็นรับแล้ว (เรียกภายใน transaction) + หักลิ้นชัก ณ วันที่ adm รับ
+        - รับครบ → แถว "ส่งเงิน" รายรายการ (adm แก้ยอด / ลบทีละรายการได้ในหน้า รายรับ-รายจ่าย)
+        - ยอดไม่ตรง → แถวเดียวตามยอดที่รับจริง
+        """
         receiver = _display_name(request.user)
         h.cashflow_entry_id = None
-        _sync_cashflow(h, received, receiver)
+        if received == h.total:
+            _post_item_rows(h, receiver)
+        else:
+            _sync_cashflow(h, received, receiver)
         h.received_amount = received
         h.received_by = receiver
         h.received_at = timezone.now()
@@ -955,8 +962,7 @@ class CashHandoverViewSet(viewsets.ViewSet):
                 return Response({'error': 'ไม่พบใบส่งเงิน'}, status=status.HTTP_404_NOT_FOUND)
             if h.status not in ('received', 'mismatch'):
                 return Response({'error': 'ใบนี้ยังไม่ได้รับเงิน'}, status=status.HTTP_400_BAD_REQUEST)
-            if _item_rows_qs(h).exists():
-                return Response({'error': 'ส่งแบบรายรายการ - ใช้ "ยกเลิกการส่ง" แทน'}, status=status.HTTP_400_BAD_REQUEST)
+            _item_rows_qs(h).delete()  # ✅ แถว "ส่งเงิน" รายรายการ → เงินกลับเข้าลิ้นชัก ใบกลับไปรอ adm รับ
             _sync_cashflow(h, None, '')
             h.received_amount = None
             h.received_by = ''

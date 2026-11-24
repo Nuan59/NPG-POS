@@ -363,6 +363,20 @@ class CashflowViewSet(viewsets.ViewSet):
             section_label = {"cash": "เงินสด", "transfer": "โอน"}
             changes = []
 
+            # 🔒 นโยบายร้าน: ส่งเงินทุกครั้งต้องมี adm รับ → พนักงานพิมพ์ / แก้ยอด "ส่งเงิน" เองไม่ได้
+            #    (ส่งได้ทางเดียว: เลือกจากรายการค้างส่ง → ใบรอ adm รับ) เช็คก่อนบันทึกอะไรทั้งนั้น
+            if not is_admin:
+                old_sent = dict(CashflowEntry.objects.filter(date=date_str).values_list("id", "sent"))
+                for row in (data.get("cashRows") or []) + (data.get("transferRows") or []):
+                    new_sent = Decimal(str(row.get("sent") or 0))
+                    rid = row.get("id")
+                    before = old_sent.get(rid, Decimal("0")) if rid else Decimal("0")
+                    if new_sent != Decimal(str(before or 0)):
+                        return Response(
+                            {"error": "ส่งเงินต้องให้ adm รับ - กด + แล้วเลือก ส่งเงิน จากรายการค้างส่งเท่านั้น"},
+                            status=status.HTTP_403_FORBIDDEN,
+                        )
+
             def sync_section(rows_data, section, deleted_ids):
                 sec = section_label.get(section, section)
                 existing = {

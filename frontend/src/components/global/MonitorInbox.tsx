@@ -232,20 +232,10 @@ export default function MonitorInbox() {
                 {t.h.items.length} รายการ · ส่งเมื่อ {when(t.h.created_at)}
                 {t.h.note && ` · ${t.h.note}`}
               </p>
-              <div className="mt-4 space-y-2">
-                <BigButton onClick={() => setPending({ mode: "receive", h: t.h })}>
-                  <Check size={24} strokeWidth={3} /> ได้รับเงินแล้ว
-                </BigButton>
-                <BigButton
-                  tone="gray"
-                  onClick={() => {
-                    setPartialAmount("");
-                    setPending({ mode: "partial", h: t.h });
-                  }}
-                >
-                  ได้รับไม่ครบ
-                </BigButton>
-              </div>
+              {/* 🔒 รับเงินได้เฉพาะ adm - ผู้ตรวจสอบดูอย่างเดียว */}
+              <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-base font-medium text-amber-800">
+                รอ adm กดรับเงิน
+              </p>
             </div>
           ) : (
             <div key={t.key} className="rounded-3xl bg-white border border-gray-200 border-l-[6px] border-l-[#F26B1D] p-5 shadow-sm">

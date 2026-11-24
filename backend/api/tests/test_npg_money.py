@@ -62,6 +62,9 @@ class LateFeeTests(BaseTestCase):
         r = client_for(self.staff).post("/cash-handover/send-now/",
                                         {"items": [{"source": "npg_payment", "source_id": pid}]}, format="json")
         self.assertIn(r.status_code, (200, 201), r.content)
+        # 🔒 ส่งแล้วต้องให้ adm รับก่อน ถึงจะหักลิ้นชัก
+        rr = client_for(self.admin).post(f"/cash-handover/{r.data['id']}/receive/", {}, format="json")
+        self.assertEqual(rr.status_code, 200, rr.content)
         from api.models.CashHandover import CashHandoverItem
         self.assertEqual(CashHandoverItem.objects.get(source="npg_payment", source_id=pid).amount, Decimal("56500"))
 
