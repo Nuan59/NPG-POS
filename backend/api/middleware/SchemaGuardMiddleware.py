@@ -4,6 +4,7 @@
 
   npg_fees.cash_amount    ยอดเงินสด (แบ่งจ่าย เงินสด + โอน)
   npg_fees.transfer_bank  ธนาคารที่โอน
+  tax_invoice.receiver_name  ผู้รับ (คนมารับรถ/ใบ ไม่ใช่ผู้ซื้อเสมอไป)
 """
 import threading
 import traceback
@@ -13,6 +14,7 @@ from django.db import connection
 COLUMNS = [
     ("npg_fees", "cash_amount", "NUMERIC(12,2) NULL"),
     ("npg_fees", "transfer_bank", "VARCHAR(100) NOT NULL DEFAULT ''"),
+    ("tax_invoice", "receiver_name", "VARCHAR(255) NOT NULL DEFAULT ''"),
 ]
 
 _done = False

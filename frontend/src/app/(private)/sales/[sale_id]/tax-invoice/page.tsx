@@ -29,6 +29,7 @@ interface Defaults {
   buyer_tax_id: string;
   buyer_branch: string;
   buyer_phone: string;
+  receiver_name: string;
   item_description: string;
   issue_date: string;
 }
@@ -82,7 +83,7 @@ export default function TaxInvoicePage() {
       setInvoices(d.invoices || []);
       setCanIssue(!!d.can_issue);
       setCanCancel(!!d.can_cancel);
-      setForm(d.defaults);
+      setForm({ receiver_name: "", ...d.defaults });
       setAmountInput(String(d.defaults?.amount ?? ""));
     } catch (e: any) {
       toast.error(e.message);
@@ -119,6 +120,7 @@ export default function TaxInvoicePage() {
       id: 0, order_id: Number(sale_id), number: "ตัวอย่าง (ยังไม่ออกเลข)", status: "preview",
       issue_date: form.issue_date, buyer_name: form.buyer_name, buyer_address: form.buyer_address,
       buyer_tax_id: form.buyer_tax_id.replace(/\D/g, ""), buyer_branch: form.buyer_branch, buyer_phone: form.buyer_phone,
+      receiver_name: form.receiver_name,
       item_description: form.item_description, amount: total, base_amount: base, vat_amount: vat, vat_rate: 7,
       issued_by: (session as any)?.user?.name || (session as any)?.user?.username || "",
     });
@@ -208,10 +210,12 @@ export default function TaxInvoicePage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-3 text-sm">
             <div>
-              <p className="text-xs text-slate-500">ผู้รับ (ผู้ซื้อ)</p>
+              <p className="text-xs text-slate-500">ผู้ซื้อ</p>
               <p className="font-semibold">{active.buyer_name}</p>
               <p className="text-slate-600">{active.buyer_address}</p>
               <p className="text-slate-600">เลขผู้เสียภาษี {active.buyer_tax_id || "-"}{active.buyer_branch ? ` · สาขา ${active.buyer_branch}` : ""}</p>
+              <p className="text-xs text-slate-500 mt-2">ผู้รับ</p>
+              <p className="font-semibold">{active.receiver_name || "-"}</p>
             </div>
             <div>
               <p className="text-xs text-slate-500">ผู้ออก</p>
@@ -240,7 +244,7 @@ export default function TaxInvoicePage() {
             </p>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-3">
-                <h3 className="font-semibold">ผู้รับ (ผู้ซื้อ)</h3>
+                <h3 className="font-semibold">ผู้ซื้อ</h3>
                 <div className="space-y-1"><Label>ชื่อ / ชื่อบริษัท *</Label><Input value={form.buyer_name} onChange={set("buyer_name")} /></div>
                 <div className="space-y-1"><Label>ที่อยู่ *</Label><Textarea rows={2} value={form.buyer_address} onChange={set("buyer_address")} /></div>
                 <div className="grid grid-cols-2 gap-3">
@@ -250,6 +254,10 @@ export default function TaxInvoicePage() {
                     {taxIdBad && <p className="text-xs text-red-600">ต้องเป็นตัวเลข 13 หลัก</p>}
                   </div>
                   <div className="space-y-1"><Label>สาขา (ถ้าเป็นบริษัท)</Label><Input placeholder="เช่น สำนักงานใหญ่" value={form.buyer_branch} onChange={set("buyer_branch")} /></div>
+                </div>
+                <div className="space-y-1 rounded-lg border border-orange-200 bg-orange-50/50 p-3">
+                  <Label>ผู้รับ (คนที่มารับรถ / รับใบ ไม่ต้องเป็นผู้ซื้อ)</Label>
+                  <Input placeholder="ไม่ใส่ = เว้นช่องไว้ให้เขียนเอง" value={form.receiver_name} onChange={set("receiver_name")} />
                 </div>
               </div>
               <div className="space-y-3">
@@ -313,7 +321,8 @@ export default function TaxInvoicePage() {
           </DialogHeader>
           {form && (
             <div className="space-y-1 text-sm">
-              <p>ผู้รับ: <b>{form.buyer_name}</b></p>
+              <p>ผู้ซื้อ: <b>{form.buyer_name}</b></p>
+              <p>ผู้รับ: <b>{form.receiver_name || "- (เว้นไว้เขียนเอง)"}</b></p>
               <p>ผู้ออก: <b>{(session as any)?.user?.name || (session as any)?.user?.username}</b></p>
               <p>วันที่: <b>{thaiDate(form.issue_date)}</b></p>
               <p>ยอด: <b>{money(preview.total)} ฿</b> (VAT {money(preview.vat)})</p>

@@ -75,6 +75,7 @@ def _defaults(order):
         "buyer_tax_id": (c.id_card_number or "") if c else "",
         "buyer_branch": "",
         "buyer_phone": (c.phone or "") if c else "",
+        "receiver_name": "",  # ✅ ผู้รับ (คนมารับรถ/ใบ) ไม่ใช่ผู้ซื้อเสมอไป - กรอกใน POS
         "item_description": desc[:500],
         "issue_date": date.today().isoformat(),
     }
@@ -140,7 +141,8 @@ def _issue(request):
         v = d.get(k)
         return (base[k] if v is None else str(v)).strip()
 
-    data = {k: val(k) for k in ("buyer_name", "buyer_address", "buyer_tax_id", "buyer_branch", "buyer_phone", "item_description")}
+    data = {k: val(k) for k in ("buyer_name", "buyer_address", "buyer_tax_id", "buyer_branch", "buyer_phone",
+                                "receiver_name", "item_description")}
     if not data["buyer_name"]:
         return Response({"error": "กรุณาใส่ชื่อผู้ซื้อ (ผู้รับใบกำกับภาษี)"}, status=400)
     if not data["buyer_address"]:

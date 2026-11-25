@@ -17,7 +17,7 @@ _ready = False
 _lock = threading.Lock()
 
 COLS = ["id", "number", "seq", "order_id", "status", "issue_date", "buyer_name", "buyer_address", "buyer_tax_id",
-        "buyer_branch", "buyer_phone", "item_description", "amount", "base_amount", "vat_amount", "vat_rate",
+        "buyer_branch", "buyer_phone", "receiver_name", "item_description", "amount", "base_amount", "vat_amount", "vat_rate",
         "issued_by", "issued_by_username", "created_at", "cancelled_at", "cancelled_by", "cancel_reason"]
 
 
@@ -45,6 +45,7 @@ def ensure_tables():
                     buyer_tax_id VARCHAR(20) NOT NULL DEFAULT '',
                     buyer_branch VARCHAR(100) NOT NULL DEFAULT '',
                     buyer_phone VARCHAR(30) NOT NULL DEFAULT '',
+                    receiver_name VARCHAR(255) NOT NULL DEFAULT '',
                     item_description VARCHAR(500) NOT NULL DEFAULT '',
                     amount NUMERIC(12,2) NOT NULL,
                     base_amount NUMERIC(12,2) NOT NULL,
@@ -133,11 +134,11 @@ def issue(order_id, data):
             c.execute(f"UPDATE {COUNTER} SET last_seq = %s WHERE id = 1", [seq])
             vals = [fmt_number(seq), seq, order_id, "active", data["issue_date"], data["buyer_name"][:255],
                     data["buyer_address"][:500], data["buyer_tax_id"][:20], data["buyer_branch"][:100],
-                    data["buyer_phone"][:30], data["item_description"][:500], amount, base, vat, VAT_RATE,
+                    data["buyer_phone"][:30], data.get("receiver_name", "")[:255], data["item_description"][:500], amount, base, vat, VAT_RATE,
                     data["issued_by"][:150], data["issued_by_username"][:150]]
             c.execute(
                 f"INSERT INTO {TABLE} (number, seq, order_id, status, issue_date, buyer_name, buyer_address, buyer_tax_id, "
-                f"buyer_branch, buyer_phone, item_description, amount, base_amount, vat_amount, vat_rate, issued_by, "
+                f"buyer_branch, buyer_phone, receiver_name, item_description, amount, base_amount, vat_amount, vat_rate, issued_by, "
                 f"issued_by_username) VALUES ({', '.join(['%s'] * len(vals))})", vals)
             c.execute(f"SELECT id FROM {TABLE} WHERE seq = %s", [seq])
             new_id = c.fetchone()[0]

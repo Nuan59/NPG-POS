@@ -14,6 +14,7 @@ export interface TaxInvoiceData {
   buyer_tax_id: string;
   buyer_branch: string;
   buyer_phone: string;
+  receiver_name?: string; // ✅ ผู้รับ (คนที่มารับรถ/ใบ) - ไม่จำเป็นต้องเป็นผู้ซื้อ
   item_description: string;
   amount: number;
   base_amount: number;
@@ -70,42 +71,43 @@ export const bahtText = (amount: number): string => {
 
 const BORDER = "1pt solid #1e2432";
 const s = StyleSheet.create({
-  page: { fontFamily: "Sarabun", fontSize: 10, padding: 32, color: "#111" },
-  header: { flexDirection: "row", alignItems: "center", borderBottom: BORDER, paddingBottom: 8 },
-  logo: { width: 70, height: 46, objectFit: "contain", marginRight: 10 },
+  // ✅ เต็มหน้า A4: ตารางรายการยืดเต็มพื้นที่ ช่องเซ็นอยู่ล่างสุดของหน้า
+  page: { fontFamily: "Sarabun", fontSize: 12, paddingTop: 36, paddingBottom: 40, paddingHorizontal: 40, color: "#111", flexDirection: "column" },
+  header: { flexDirection: "row", alignItems: "center", borderBottom: BORDER, paddingBottom: 10 },
+  logo: { width: 92, height: 60, objectFit: "contain", marginRight: 12 },
   company: { flex: 1 },
-  companyName: { fontSize: 14, fontWeight: "bold" },
-  small: { fontSize: 9 },
-  badge: { border: BORDER, paddingVertical: 3, paddingHorizontal: 10, fontWeight: "bold", fontSize: 10 },
-  title: { textAlign: "center", fontSize: 16, fontWeight: "bold", marginTop: 10, marginBottom: 8 },
-  infoBox: { flexDirection: "row", border: BORDER, marginBottom: 8 },
-  left: { flex: 3, padding: 6, borderRight: BORDER },
-  right: { flex: 2, padding: 6 },
-  row: { flexDirection: "row", marginBottom: 3 },
-  label: { width: 118, fontWeight: "bold" },
-  labelR: { width: 58, fontWeight: "bold" },
+  companyName: { fontSize: 17, fontWeight: "bold" },
+  small: { fontSize: 10.5 },
+  badge: { border: BORDER, paddingVertical: 4, paddingHorizontal: 14, fontWeight: "bold", fontSize: 12 },
+  title: { textAlign: "center", fontSize: 20, fontWeight: "bold", marginTop: 14, marginBottom: 12 },
+  infoBox: { flexDirection: "row", border: BORDER, marginBottom: 12 },
+  left: { flex: 3, padding: 8, borderRight: BORDER },
+  right: { flex: 2, padding: 8 },
+  row: { flexDirection: "row", marginBottom: 4 },
+  label: { width: 140, fontWeight: "bold" },
+  labelR: { width: 68, fontWeight: "bold" },
   val: { flex: 1 },
-  th: { flexDirection: "row", backgroundColor: "#eef0f4", borderTop: BORDER, borderBottom: BORDER, borderLeft: BORDER, borderRight: BORDER },
-  td: { flexDirection: "row", borderLeft: BORDER, borderRight: BORDER, borderBottom: BORDER, minHeight: 90 },
-  c1: { width: 36, padding: 4, textAlign: "center", borderRight: BORDER },
-  c2: { flex: 1, padding: 4, borderRight: BORDER },
-  c3: { width: 50, padding: 4, textAlign: "center", borderRight: BORDER },
-  c4: { width: 100, padding: 4, textAlign: "right" },
-  sumWrap: { flexDirection: "row", marginTop: 0 },
-  words: { flex: 1, border: BORDER, borderTop: 0, padding: 6, justifyContent: "center" },
-  sum: { width: 250, borderRight: BORDER, borderBottom: BORDER },
-  sumRow: { flexDirection: "row", borderBottom: "0.5pt solid #999", paddingVertical: 4, paddingHorizontal: 6 },
+  th: { flexDirection: "row", backgroundColor: "#eef0f4", borderTop: BORDER, borderBottom: BORDER, borderLeft: BORDER, borderRight: BORDER, fontWeight: "bold" },
+  td: { flexDirection: "row", borderLeft: BORDER, borderRight: BORDER, borderBottom: BORDER, flexGrow: 1 },
+  c1: { width: 44, padding: 6, textAlign: "center", borderRight: BORDER },
+  c2: { flex: 1, padding: 6, borderRight: BORDER, lineHeight: 1.5 },
+  c3: { width: 62, padding: 6, textAlign: "center", borderRight: BORDER },
+  c4: { width: 120, padding: 6, textAlign: "right" },
+  sumWrap: { flexDirection: "row" },
+  words: { flex: 1, border: BORDER, borderTop: 0, padding: 8, justifyContent: "center" },
+  sum: { width: 290, borderRight: BORDER, borderBottom: BORDER },
+  sumRow: { flexDirection: "row", borderBottom: "0.5pt solid #999", paddingVertical: 6, paddingHorizontal: 8 },
   sumLabel: { flex: 1 },
-  sumVal: { width: 100, textAlign: "right" },
-  total: { fontWeight: "bold", fontSize: 11 },
-  signs: { flexDirection: "row", marginTop: 36, justifyContent: "space-between" },
+  sumVal: { width: 120, textAlign: "right" },
+  total: { fontWeight: "bold", fontSize: 14 },
+  signs: { flexDirection: "row", marginTop: 40, justifyContent: "space-between" },
   sign: { width: "42%", alignItems: "center" },
-  line: { borderBottom: "0.8pt dotted #333", width: "100%", height: 26 },
+  line: { borderBottom: "0.8pt dotted #333", width: "100%", height: 34 },
   cancelled: {
-    position: "absolute", top: 300, left: 90, fontSize: 80, color: "#dc2626", opacity: 0.25,
+    position: "absolute", top: 360, left: 110, fontSize: 100, color: "#dc2626", opacity: 0.22,
     transform: "rotate(-30deg)", fontWeight: "bold",
   },
-  cancelNote: { marginTop: 10, color: "#b91c1c", fontSize: 9 },
+  cancelNote: { marginTop: 10, color: "#b91c1c", fontSize: 10.5 },
 });
 
 const InvoicePage = ({ inv, badge, logoUrl }: { inv: TaxInvoiceData; badge: string; logoUrl?: string }) => (
@@ -124,13 +126,16 @@ const InvoicePage = ({ inv, badge, logoUrl }: { inv: TaxInvoiceData; badge: stri
 
     <View style={s.infoBox}>
       <View style={s.left}>
-        <View style={s.row}><Text style={s.label}>ผู้ซื้อ (ผู้รับ)</Text><Text style={s.val}>{sanitizeText(inv.buyer_name)}{ZWJ}</Text></View>
+        <View style={s.row}><Text style={s.label}>ผู้ซื้อ</Text><Text style={s.val}>{sanitizeText(inv.buyer_name)}{ZWJ}</Text></View>
         <View style={s.row}><Text style={s.label}>ที่อยู่</Text><Text style={s.val}>{sanitizeText(inv.buyer_address) || "-"}{ZWJ}</Text></View>
         <View style={s.row}>
           <Text style={s.label}>เลขประจำตัวผู้เสียภาษี</Text>
           <Text style={s.val}>{fmtTaxId(inv.buyer_tax_id)}{inv.buyer_branch ? `  สาขา ${sanitizeText(inv.buyer_branch)}` : ""}{ZWJ}</Text>
         </View>
         {!!inv.buyer_phone && <View style={s.row}><Text style={s.label}>โทร</Text><Text style={s.val}>{inv.buyer_phone}</Text></View>}
+        {!!inv.receiver_name && (
+          <View style={s.row}><Text style={s.label}>ผู้รับ</Text><Text style={s.val}>{sanitizeText(inv.receiver_name)}{ZWJ}</Text></View>
+        )}
       </View>
       <View style={s.right}>
         <View style={s.row}><Text style={s.labelR}>เลขที่</Text><Text style={{ ...s.val, fontWeight: "bold" }}>{inv.number}</Text></View>
@@ -170,12 +175,15 @@ const InvoicePage = ({ inv, badge, logoUrl }: { inv: TaxInvoiceData; badge: stri
     <View style={s.signs}>
       <View style={s.sign}>
         <View style={s.line} />
-        <Text>ผู้รับใบกำกับภาษี{ZWJ}</Text>
-        <Text style={s.small}>({sanitizeText(inv.buyer_name)}){ZWJ}</Text>
+        <Text>ผู้รับ{ZWJ}</Text>
+        <Text style={s.small}>
+          ({inv.receiver_name ? sanitizeText(inv.receiver_name) : ".................................................."}){ZWJ}
+        </Text>
+        <Text style={s.small}>วันที่ ........../........../..........</Text>
       </View>
       <View style={s.sign}>
         <View style={s.line} />
-        <Text>ผู้ออกใบกำกับภาษี{ZWJ}</Text>
+        <Text>ผู้ออก{ZWJ}</Text>
         <Text style={s.small}>({sanitizeText(inv.issued_by)}) · {thaiDate(inv.issue_date)}{ZWJ}</Text>
       </View>
     </View>

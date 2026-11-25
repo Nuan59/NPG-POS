@@ -51,7 +51,9 @@ class TaxInvoiceTests(BaseTestCase):
         r = a.post(f"/tax-invoices/{first['id']}/cancel/", {"reason": "ชื่อผิด"}, format="json")
         self.assertEqual((r.status_code, r.data["status"], r.data["cancelled_by"]), (200, "cancelled", "boss"))
         second = self.issue(amount=48000, buyer_name="บริษัท ทดสอบ จำกัด", buyer_tax_id="0105555555555",
-                            buyer_branch="สำนักงานใหญ่").data
+                            buyer_branch="สำนักงานใหญ่", receiver_name="นายรับ แทนบริษัท").data
+        self.assertEqual(second["receiver_name"], "นายรับ แทนบริษัท")
+        self.assertEqual(second["buyer_name"], "บริษัท ทดสอบ จำกัด")
         self.assertEqual(second["number"], "INV-000002")  # ไม่เอาเลขที่ยกเลิกมาใช้ซ้ำ
         self.assertEqual(second["amount"], 48000)
         invs = self.c.get("/tax-invoices/", {"order": self.order.id}).data["invoices"]
