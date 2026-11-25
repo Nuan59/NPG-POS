@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { pdf } from "@react-pdf/renderer";
 import { toast } from "sonner";
-import { ArrowLeft, FileText, Loader2, Printer, XCircle } from "lucide-react";
+import { ArrowLeft, Eye, FileText, Loader2, Printer, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,6 +109,19 @@ export default function TaxInvoicePage() {
       win?.close();
       toast.error("สร้าง PDF ไม่สำเร็จ");
     }
+  };
+
+  // ✅ ดูตัวอย่างก่อนออก - ใช้ข้อมูลในฟอร์ม ยังไม่บันทึก ยังไม่ใช้เลขที่
+  const previewPdf = () => {
+    if (!form) return;
+    const { total, base, vat } = splitVat(Number(amountInput) || 0);
+    openPdf({
+      id: 0, order_id: Number(sale_id), number: "ตัวอย่าง (ยังไม่ออกเลข)", status: "preview",
+      issue_date: form.issue_date, buyer_name: form.buyer_name, buyer_address: form.buyer_address,
+      buyer_tax_id: form.buyer_tax_id.replace(/\D/g, ""), buyer_branch: form.buyer_branch, buyer_phone: form.buyer_phone,
+      item_description: form.item_description, amount: total, base_amount: base, vat_amount: vat, vat_rate: 7,
+      issued_by: (session as any)?.user?.name || (session as any)?.user?.username || "",
+    });
   };
 
   const issue = async () => {
@@ -257,7 +270,10 @@ export default function TaxInvoicePage() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" className="gap-2" disabled={amountNum <= 0} onClick={previewPdf}>
+                <Eye size={16} /> ดูตัวอย่าง
+              </Button>
               <Button
                 disabled={!form.buyer_name.trim() || !form.buyer_address.trim() || amountNum <= 0 || taxIdBad}
                 onClick={() => setConfirmOpen(true)}

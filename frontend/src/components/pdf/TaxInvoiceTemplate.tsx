@@ -7,7 +7,7 @@ registerFonts();
 // ✅ ใบกำกับภาษี (ขายรถ) - ข้อมูลทั้งหมดมาจากใบที่บันทึกไว้ในระบบ (แก้ลูกค้าทีหลัง ใบเดิมไม่เปลี่ยน)
 export interface TaxInvoiceData {
   number: string;
-  status: "active" | "cancelled";
+  status: "active" | "cancelled" | "preview"; // preview = ดูตัวอย่างก่อนออก (ยังไม่มีเลขที่)
   issue_date: string;
   buyer_name: string;
   buyer_address: string;
@@ -180,6 +180,7 @@ const InvoicePage = ({ inv, badge, logoUrl }: { inv: TaxInvoiceData; badge: stri
       </View>
     </View>
 
+    {inv.status === "preview" && <Text style={s.cancelled}>ตัวอย่าง{ZWJ}</Text>}
     {inv.status === "cancelled" && (
       <>
         <Text style={s.cancelled}>ยกเลิก</Text>
