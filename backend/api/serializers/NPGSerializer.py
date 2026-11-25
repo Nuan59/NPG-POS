@@ -43,7 +43,7 @@ class NPGFeeSerializer(serializers.ModelSerializer):
         model = NPGFee
         fields = [
             'id', 'account', 'fee_date', 'description', 'amount',
-            'payment_method', 'note', 'created_by', 'created_at',
+            'payment_method', 'cash_amount', 'transfer_bank', 'note', 'created_by', 'created_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_at']
 

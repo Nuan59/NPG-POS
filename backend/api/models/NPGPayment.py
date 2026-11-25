@@ -125,6 +125,9 @@ class NPGFee(models.Model):
     description = models.CharField(max_length=255, verbose_name='รายการ')
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='จำนวนเงิน')
     payment_method = models.CharField(max_length=20, blank=True, default="", verbose_name='วิธีการชำระ')
+    # ✅ แบ่งจ่าย (เงินสด + โอน) - คอลัมน์เพิ่มให้เองโดย SchemaGuardMiddleware
+    cash_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='ยอดเงินสด (แบ่งจ่าย)')
+    transfer_bank = models.CharField(max_length=100, blank=True, default="", verbose_name='ธนาคารที่โอน')
     note = models.TextField(blank=True, default="", verbose_name='หมายเหตุ')
     created_by = models.CharField(max_length=255, blank=True, default="", verbose_name='ผู้บันทึก')
     created_at = models.DateTimeField(auto_now_add=True)

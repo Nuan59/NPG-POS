@@ -242,6 +242,14 @@ const OrderRowButtons = ({ order }: { order: IOrder }) => {
 							ใบเสร็จรับเงิน
 						</DropdownMenuItem>
 					</Link>
+
+					{/* ✅ ใบกำกับภาษี - ออก / พิมพ์ซ้ำ (เลข INV-xxxxxx) */}
+					<Link href={`/sales/${order.id}/tax-invoice`}>
+						<DropdownMenuItem className="flex justify-between gap-2 text-orange-700 focus:text-orange-700">
+							<FileText className="opacity-60 h-4 w-4" />
+							ใบกำกับภาษี
+						</DropdownMenuItem>
+					</Link>
 					
 					<Link href={`/sales/${order.id}/delivery-note`}>
 						<DropdownMenuItem className="flex justify-between gap-2">

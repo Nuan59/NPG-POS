@@ -78,6 +78,8 @@ interface Fee {
   description: string;
   amount: number | string;
   payment_method: string;
+  cash_amount?: number | string | null;
+  transfer_bank?: string;
   note: string;
   created_by: string;
 }
@@ -125,11 +127,13 @@ interface Payment {
   payment_method?: string;
   transfer_bank?: string;
   check_number?: string;
+  cash_amount?: number | null; // ✅ แบ่งจ่าย: ยอดเงินสด (ที่เหลือ = โอน)
   late_fee?: number; // ✅ ค่าปรับจ่ายล่าช้าจริงที่คิดตอนบันทึกรายการนี้
   note: string;
 }
 
-const PAY_METHODS = ["เงินสด", "เงินโอน", "เช็ค"];
+// ✅ ทุกการรับเงินแบ่งจ่ายได้ (เงินสดส่วนหนึ่ง + โอนส่วนหนึ่ง)
+const PAY_METHODS = ["เงินสด", "เงินโอน", "เช็ค", "แบ่งจ่าย"];
 const BANKS = ["KBank", "BBL"];
 
 // ปุ่มเลือกแบบกลุ่ม (วิธีชำระ / ธนาคาร)
@@ -164,6 +168,57 @@ const SegButtons = ({
   </div>
 );
 
+/**
+ * ✅ เลือกวิธีชำระ (ใช้ทุกหน้าต่างรับเงิน: ค่างวด / ปิดบัญชี / ค่าธรรมเนียม / adm แก้ไข)
+ * แบ่งจ่าย = ใส่ยอดเงินสด ที่เหลือเป็นเงินโอน (เลือกธนาคารของส่วนโอนได้)
+ */
+const splitInvalid = (method: string, cash: string, total: number) =>
+  method === "แบ่งจ่าย" && !(parseFloat(cash) > 0 && parseFloat(cash) < total);
+
+const PayMethodPicker = ({
+  method, setMethod, bank, setBank, check, setCheck, cash, setCash, total,
+}: {
+  method: string;
+  setMethod: (v: string) => void;
+  bank: string;
+  setBank: (v: string) => void;
+  check?: string;
+  setCheck?: (v: string) => void;
+  cash: string;
+  setCash: (v: string) => void;
+  total: number;
+}) => {
+  const cashNum = parseFloat(cash) || 0;
+  return (
+    <div className="space-y-2">
+      <SegButtons options={PAY_METHODS} value={method} onChange={setMethod} cols={4} />
+      {method === "แบ่งจ่าย" && (
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+          <label className="space-y-1 text-xs text-[#7A7A7A]">
+            <span>เงินสด (฿)</span>
+            <Input type="number" inputMode="decimal" placeholder="0" value={cash} onChange={(e) => setCash(e.target.value)} className="bg-white" />
+          </label>
+          <div className="space-y-1 text-xs text-[#7A7A7A]">
+            <span>เงินโอน (฿)</span>
+            <p className="h-10 flex items-center px-3 rounded-md border bg-white text-sm font-semibold text-[#1e2432] tabular-nums">
+              {Math.max(total - cashNum, 0).toLocaleString()}
+            </p>
+          </div>
+          {splitInvalid(method, cash, total) && cash.trim() !== "" && (
+            <p className="col-span-2 text-xs text-red-600">เงินสดต้องมากกว่า 0 และน้อยกว่า {total.toLocaleString()} ฿</p>
+          )}
+        </div>
+      )}
+      {(method === "เงินโอน" || method === "แบ่งจ่าย") && (
+        <SegButtons options={BANKS} value={bank} onChange={setBank} toggleable cols={2} />
+      )}
+      {method === "เช็ค" && setCheck && (
+        <Input type="text" placeholder="เลขที่เช็ค" value={check || ""} onChange={(e) => setCheck(e.target.value)} />
+      )}
+    </div>
+  );
+};
+
 const InfoRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex justify-between gap-4 py-1.5">
     <span className="text-[#7A7A7A] shrink-0">{label}</span>
@@ -183,6 +238,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [paymentMethodType, setPaymentMethodType] = useState<string>("เงินสด");
   const [transferBank, setTransferBank] = useState<string>("");
   const [checkNumber, setCheckNumber] = useState<string>("");
+  const [paymentCash, setPaymentCash] = useState<string>(""); // แบ่งจ่าย: ยอดเงินสด
   // ✅ ค่าปรับที่รับจริง - ตั้งต้นตามที่ระบบคำนวณ แก้/ยกเว้นได้ (ลูกค้าจ่ายแค่ค่างวด = 0)
   const [paymentLateFee, setPaymentLateFee] = useState<string>("0");
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -205,6 +261,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [editMethod, setEditMethod] = useState<string>("เงินสด");
   const [editBank, setEditBank] = useState<string>("");
   const [editCheckNumber, setEditCheckNumber] = useState<string>("");
+  const [editCash, setEditCash] = useState<string>("");
   const [editPaymentDate, setEditPaymentDate] = useState<string>("");
   const [editLateFee, setEditLateFee] = useState<string>("0");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -214,6 +271,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
   const [feeDescription, setFeeDescription] = useState("");
   const [feeAmount, setFeeAmount] = useState("");
   const [feeMethod, setFeeMethod] = useState("เงินสด");
+  const [feeBank, setFeeBank] = useState("");
+  const [feeCash, setFeeCash] = useState("");
   const [feeNote, setFeeNote] = useState("");
   const [isSavingFee, setIsSavingFee] = useState(false);
   const [deletingFee, setDeletingFee] = useState<Fee | null>(null);
@@ -305,6 +364,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setPaymentMethodType("เงินสด");
     setTransferBank("");
     setCheckNumber("");
+    setPaymentCash("");
     setPaymentLateFee("0");
   };
 
@@ -332,6 +392,11 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
+    if (splitInvalid(paymentMethodType, paymentCash, amount + lateFee)) {
+      toast.error("แบ่งจ่าย: ใส่ยอดเงินสดให้มากกว่า 0 และน้อยกว่ายอดรวม");
+      return;
+    }
+
     submitLock.current = true;
     setIsSavingPayment(true);
     try {
@@ -346,8 +411,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           late_fee: lateFee,
           note: paymentNote,
           payment_method: paymentMethodType,
-          transfer_bank: paymentMethodType === "เงินโอน" ? transferBank : "",
+          transfer_bank: paymentMethodType === "เงินโอน" || paymentMethodType === "แบ่งจ่าย" ? transferBank : "",
           check_number: paymentMethodType === "เช็ค" ? checkNumber : "",
+          cash_amount: paymentMethodType === "แบ่งจ่าย" ? parseFloat(paymentCash) : undefined,
         }),
       });
 
@@ -377,7 +443,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       toast.error("กรุณาเลือกวิธีชำระ");
       return;
     }
-    if (closeMethod === "แบ่งจ่าย" && !(parseFloat(closeCash) > 0 && parseFloat(closeCash) < closeAccountAmount)) {
+    if (splitInvalid(closeMethod, closeCash, closeAccountAmount)) {
       toast.error("แบ่งจ่าย: ใส่ยอดเงินสดให้น้อยกว่ายอดปิดบัญชี");
       return;
     }
@@ -394,7 +460,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
         body: JSON.stringify({
           close_amount: closeAccountAmount,
           payment_method: closeMethod,
-          transfer_bank: closeMethod === "เงินโอน" ? closeBank : "",
+          transfer_bank: closeMethod === "เงินโอน" || closeMethod === "แบ่งจ่าย" ? closeBank : "",
           check_number: closeMethod === "เช็ค" ? closeCheck : "",
           cash_amount: closeMethod === "แบ่งจ่าย" ? parseFloat(closeCash) : undefined,
         }),
@@ -427,6 +493,7 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setEditMethod(payment.payment_method || "");
     setEditBank(payment.transfer_bank || "");
     setEditCheckNumber(payment.check_number || "");
+    setEditCash(payment.cash_amount != null ? String(Number(payment.cash_amount)) : "");
     // ✅ แปลงเป็น yyyy-mm-dd สำหรับ input type="date"
     setEditPaymentDate(payment.payment_date ? payment.payment_date.slice(0, 10) : "");
     setEditLateFee(String(Number(payment.late_fee || 0)));
@@ -447,6 +514,11 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
       return;
     }
 
+    if (splitInvalid(editMethod, editCash, amount + lateFee)) {
+      toast.error("แบ่งจ่าย: ใส่ยอดเงินสดให้มากกว่า 0 และน้อยกว่ายอดรวม");
+      return;
+    }
+
     setIsSavingEdit(true);
     try {
       const response = await fetch(`${baseUrl}/npg/payments/${editingPayment.id}/edit/`, {
@@ -460,8 +532,9 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           late_fee: lateFee,
           note: editNote,
           payment_method: editMethod,
-          transfer_bank: editMethod === "เงินโอน" ? editBank : "",
+          transfer_bank: editMethod === "เงินโอน" || editMethod === "แบ่งจ่าย" ? editBank : "",
           check_number: editMethod === "เช็ค" ? editCheckNumber : "",
+          ...(editMethod === "แบ่งจ่าย" ? { cash_amount: parseFloat(editCash) } : {}),
           payment_date: editPaymentDate || undefined,
         }),
       });
@@ -486,6 +559,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     setFeeDescription("");
     setFeeAmount("");
     setFeeMethod("เงินสด");
+    setFeeBank("");
+    setFeeCash("");
     setFeeNote("");
   };
 
@@ -498,6 +573,10 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
     }
     if (isNaN(amount) || amount <= 0) {
       toast.error("กรุณากรอกจำนวนเงินที่ถูกต้อง");
+      return;
+    }
+    if (splitInvalid(feeMethod, feeCash, amount)) {
+      toast.error("แบ่งจ่าย: ใส่ยอดเงินสดให้มากกว่า 0 และน้อยกว่ายอดรวม");
       return;
     }
 
@@ -513,6 +592,8 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
           description: feeDescription.trim(),
           amount,
           payment_method: feeMethod,
+          transfer_bank: feeMethod === "เงินโอน" || feeMethod === "แบ่งจ่าย" ? feeBank : "",
+          cash_amount: feeMethod === "แบ่งจ่าย" ? parseFloat(feeCash) : undefined,
           note: feeNote,
         }),
       });
@@ -911,6 +992,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                           </span>
                         )}
                         {payment.payment_method === "เงินโอน" && payment.transfer_bank ? ` (${payment.transfer_bank})` : ""}
+                        {payment.payment_method === "แบ่งจ่าย" && (
+                          <span className="block text-xs">
+                            สด {Number(payment.cash_amount || 0).toLocaleString()} · โอน{payment.transfer_bank ? ` ${payment.transfer_bank}` : ""}{" "}
+                            {Math.max(Number(payment.amount_paid || 0) + Number(payment.late_fee || 0) - Number(payment.cash_amount || 0), 0).toLocaleString()}
+                          </span>
+                        )}
                         {payment.payment_method === "เช็ค" && payment.check_number ? ` เลขที่ ${payment.check_number}` : ""}
                       </td>
                       <td className="p-2.5 text-[#7A7A7A]">{payment.note || "-"}</td>
@@ -952,7 +1039,14 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
                     <td className="px-4 py-2.5 tabular-nums">{fmtDate(fee.fee_date)}</td>
                     <td className="p-2.5">{fee.description}</td>
                     <td className="p-2.5 text-right text-emerald-600 font-semibold tabular-nums">{baht(fee.amount)}</td>
-                    <td className="p-2.5 text-[#7A7A7A]">{fee.payment_method || "-"}</td>
+                    <td className="p-2.5 text-[#7A7A7A]">
+                      {fee.payment_method || "-"}
+                      {fee.payment_method === "แบ่งจ่าย" && (
+                        <span className="block text-xs">
+                          สด {Number(fee.cash_amount || 0).toLocaleString()} · โอน {Math.max(Number(fee.amount) - Number(fee.cash_amount || 0), 0).toLocaleString()}
+                        </span>
+                      )}
+                    </td>
                     <td className="p-2.5 text-[#7A7A7A]">{fee.note || "-"}</td>
                     <td className="p-2.5 text-[#7A7A7A]">{fee.created_by || "-"}</td>
                     <td className="p-2.5 text-center whitespace-nowrap">
@@ -1086,20 +1180,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             </div>
             <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
-              <SegButtons options={PAY_METHODS} value={paymentMethodType} onChange={setPaymentMethodType} />
-
-              {paymentMethodType === "เงินโอน" && (
-                <SegButtons options={BANKS} value={transferBank} onChange={setTransferBank} toggleable cols={2} />
-              )}
-
-              {paymentMethodType === "เช็ค" && (
-                <Input
-                  type="text"
-                  placeholder="เลขที่เช็ค"
-                  value={checkNumber}
-                  onChange={(e) => setCheckNumber(e.target.value)}
-                />
-              )}
+              <PayMethodPicker
+                method={paymentMethodType} setMethod={setPaymentMethodType}
+                bank={transferBank} setBank={setTransferBank}
+                check={checkNumber} setCheck={setCheckNumber}
+                cash={paymentCash} setCash={setPaymentCash}
+                total={(parseFloat(paymentAmount) || 0) + (parseFloat(paymentLateFee) || 0)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="npg-pay-note">หมายเหตุ (ถ้ามี)</Label>
@@ -1174,27 +1261,13 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
             <div className="space-y-2">
               <Label>วิธีการชำระ <span className="text-red-500">*</span></Label>
-              <SegButtons options={[...PAY_METHODS, "แบ่งจ่าย"]} value={closeMethod} onChange={setCloseMethod} cols={4} />
-              {closeMethod === "เงินโอน" && (
-                <SegButtons options={BANKS} value={closeBank} onChange={setCloseBank} toggleable cols={2} />
-              )}
-              {closeMethod === "เช็ค" && (
-                <Input type="text" placeholder="เลขที่เช็ค" value={closeCheck} onChange={(e) => setCloseCheck(e.target.value)} />
-              )}
-              {closeMethod === "แบ่งจ่าย" && (
-                <div className="space-y-1">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="ยอดเงินสด"
-                    value={closeCash}
-                    onChange={(e) => setCloseCash(e.target.value)}
-                  />
-                  <p className="text-xs text-[#7A7A7A] tabular-nums">
-                    เงินโอน {Math.max(closeAccountAmount - (parseFloat(closeCash) || 0), 0).toLocaleString()} ฿
-                  </p>
-                </div>
-              )}
+              <PayMethodPicker
+                method={closeMethod} setMethod={setCloseMethod}
+                bank={closeBank} setBank={setCloseBank}
+                check={closeCheck} setCheck={setCloseCheck}
+                cash={closeCash} setCash={setCloseCash}
+                total={closeAccountAmount}
+              />
             </div>
             <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 flex items-center justify-between text-sm tabular-nums">
               <span className="text-[#7A7A7A]">ลงรายรับ (อัตโนมัติ)</span>
@@ -1274,23 +1347,18 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
 
             <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
-              <SegButtons options={PAY_METHODS} value={editMethod} onChange={setEditMethod} />
+              <PayMethodPicker
+                method={editMethod} setMethod={setEditMethod}
+                bank={editBank} setBank={setEditBank}
+                check={editCheckNumber} setCheck={setEditCheckNumber}
+                cash={editCash} setCash={setEditCash}
+                total={(parseFloat(editAmount) || 0) + (parseFloat(editLateFee) || 0)}
+              />
               {editingPayment && !editingPayment.payment_method && (editingPayment.note || "").startsWith("ปิดบัญชี") && (
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   ปิดบัญชีรายการนี้ยังไม่ลงรายรับ เลือกวิธีชำระแล้วกดบันทึก ระบบจะลงรายรับให้ ณ วันที่ปิดบัญชี
                   (ถ้าเคยพิมพ์ลงหน้ารายรับ-รายจ่ายเองไว้แล้ว ให้ลบแถวเดิมออก กันยอดซ้ำ)
                 </p>
-              )}
-              {editMethod === "เงินโอน" && (
-                <SegButtons options={BANKS} value={editBank} onChange={setEditBank} toggleable cols={2} />
-              )}
-              {editMethod === "เช็ค" && (
-                <Input
-                  type="text"
-                  placeholder="เลขที่เช็ค"
-                  value={editCheckNumber}
-                  onChange={(e) => setEditCheckNumber(e.target.value)}
-                />
               )}
             </div>
 
@@ -1353,7 +1421,12 @@ const NPGCustomerDetail = ({ customerId }: NPGCustomerDetailProps) => {
             </div>
             <div className="space-y-2">
               <Label>วิธีการชำระ</Label>
-              <SegButtons options={PAY_METHODS} value={feeMethod} onChange={setFeeMethod} />
+              <PayMethodPicker
+                method={feeMethod} setMethod={setFeeMethod}
+                bank={feeBank} setBank={setFeeBank}
+                cash={feeCash} setCash={setFeeCash}
+                total={parseFloat(feeAmount) || 0}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="npg-fee-note">หมายเหตุ (ถ้ามี)</Label>

@@ -15,6 +15,7 @@ export const PERMISSION_LIST: PermissionItem[] = [
 	{ key: "gifts",        label: "ของแถม" },
 	{ key: "parts",        label: "อะไหล่" },
 	{ key: "service_history", label: "ใบเสร็จ & ประวัติรถ" },
+	{ key: "tax_invoice",  label: "ออกใบกำกับภาษี" },
 	{ key: "registration", label: "ทะเบียน" },
 	{ key: "calculator",   label: "คำนวณ" },
 	{ key: "npg",          label: "NPG" },
@@ -29,10 +30,12 @@ export const PERMISSION_LIST: PermissionItem[] = [
  * adm ติ๊กออก/ติ๊กใส่ในหน้าแก้ไขพนักงานเมื่อไหร่ ใช้ค่าที่ติ๊กแทนทันที
  *   อะไหล่              ← คนที่ขายได้ (ขายอะไหล่ / ใช้อะไหล่ในงานซ่อม)
  *   ใบเสร็จ & ประวัติรถ ← คนที่รับเงินลูกค้า (ขาย / NPG) หรือดูรายงาน (สิทธิ์เดิมของประวัติรถ)
+ *   ออกใบกำกับภาษี      ← คนที่ขายได้
  */
 const FALLBACK: Record<string, (p: Record<string, boolean>) => boolean> = {
 	parts: (p) => !!p.sale,
 	service_history: (p) => !!(p.sale || p.npg || p.reports),
+	tax_invoice: (p) => !!p.sale, // ✅ ออกใบกำกับภาษี ← คนที่ขายได้ (ตรงกับ backend can_issue)
 };
 
 export const withPermissionDefaults = (p?: Record<string, boolean> | null): Record<string, boolean> => {

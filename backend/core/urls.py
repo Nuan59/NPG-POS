@@ -33,6 +33,7 @@ from api.views.WorkHoursView import WorkHoursView
 from api.views.ActivityLogView import activity_logs, activity_log_users, activity_log_view
 from api.views.PartsViewSet import PartsViewSet
 from api.views.ReceiptsView import receipt_list
+from api.views.TaxInvoiceView import tax_invoice_list, tax_invoice_detail, tax_invoice_cancel
 
 # ✅ Temp: รัน migration ผ่าน browser
 def run_migrate(request):
@@ -938,6 +939,9 @@ urlpatterns = [
     path("activity-logs/users/", activity_log_users, name="activity-log-users"),
     path("activity-logs/view/", activity_log_view, name="activity-log-view"),
     path("receipts/", receipt_list, name="receipt-list"),
+    path("tax-invoices/", tax_invoice_list, name="tax-invoice-list"),
+    path("tax-invoices/<int:pk>/", tax_invoice_detail, name="tax-invoice-detail"),
+    path("tax-invoices/<int:pk>/cancel/", tax_invoice_cancel, name="tax-invoice-cancel"),
 
     path('dev/cleanup-cashflow-duplicates/', cleanup_cashflow_duplicates),
 ]

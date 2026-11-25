@@ -35,7 +35,7 @@ interface AddCashflowRowDialogProps {
   onClose: () => void;
   onAdd: (data: { description: string; type: RowType; amount: number }) => void;
   isAdmin?: boolean;
-  /** ✅ ส่วนเงินสด: เลือก "ส่งเงิน" ได้ - ติ๊กจากรายการค้างส่ง (แก้ยอดที่จะส่งได้ทีละรายการ) หรือพิมพ์เอง หักลิ้นชักทันที */
+  /** ✅ ส่วนเงินสด: เลือก "ส่งเงิน" ได้ - ติ๊กจากรายการค้างส่ง (แก้ยอดที่จะส่งได้ทีละรายการ) → รอ adm รับ (adm พิมพ์เองได้) */
   allowHandover?: boolean;
   /** ส่งเงินสำเร็จ (backend ลงแถว "ส่งเงิน" ให้แล้ว) → หน้าหลักโหลดข้อมูลใหม่ */
   onHandoverDone?: () => void;
@@ -127,7 +127,7 @@ const AddCashflowRowDialog = ({
         if (res.status === 409) setUnsent(null); // โหลดรายการใหม่
         return;
       }
-      toast.success(`ส่งเงินแล้ว ฿${fmt(pickedTotal)} · ${pickedItems.length} รายการ หักลิ้นชักแล้ว`);
+      toast.success(`ส่งเงินแล้ว ฿${fmt(pickedTotal)} · ${pickedItems.length} รายการ · รอ adm กดรับ (หักลิ้นชักเมื่อ adm รับ)`);
       onHandoverDone?.();
       onClose();
     } catch {
@@ -188,7 +188,8 @@ const AddCashflowRowDialog = ({
           </div>
 
           {/* ✅ ส่งเงิน: เลือกจากรายการค้างส่ง / พิมพ์เอง */}
-          {sentMode && (
+          {/* 🔒 พิมพ์ส่งเงินเอง เฉพาะ adm - พนักงานส่งได้ทางเดียว: เลือกจากรายการค้างส่ง → รอ adm รับ */}
+          {sentMode && isAdmin && (
             <div className="grid grid-cols-2 border rounded-lg overflow-hidden text-xs font-medium">
               {([["list", "เลือกจากรายการค้างส่ง"], ["manual", "พิมพ์เอง"]] as const).map(([k, l]) => (
                 <button

@@ -36,6 +36,8 @@ MAX_PAYLOAD = 2000
 # ✅ ชื่องานภาษาไทยตาม path + method (ตัวแรกที่ตรงชนะ)
 ACTIONS = [
     (r"^/(login|auth/token)/?$", "POST", "เข้าสู่ระบบ"),
+    (r"^/tax-invoices/?$", "POST", "ออกใบกำกับภาษี"),
+    (r"^/tax-invoices/\d+/cancel/?$", "POST", "ยกเลิกใบกำกับภาษี"),
     (r"^/auth/logout/?$", "POST", "ออกจากระบบ"),
     # ขาย
     (r"^/order/?$", "POST", "ทำรายการขาย"),

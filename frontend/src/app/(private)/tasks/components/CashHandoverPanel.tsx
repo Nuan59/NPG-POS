@@ -60,7 +60,7 @@ const when = (iso: string | null) =>
 const keyOf = (i: CashItem) => `${i.source}-${i.source_id}`;
 // ✅ ไม่ใช้เลขใบแล้ว - เรียกการส่งแต่ละครั้งด้วย ชื่อคนส่ง + เวลาที่ส่ง
 const hLabel = (h: Handover) => `${h.created_by_name} · ${when(h.created_at)}`;
-// ส่งเอง (หักลิ้นชักทันที) = คนรับคือคนส่งเอง
+// ส่งเอง (แบบเดิม ก่อน 24 พ.ย. 69 - หักลิ้นชักทันทีไม่มี adm รับ) = คนรับคือคนส่งเอง
 const isSelfSent = (h: Handover) => !!h.received_by && h.received_by === h.created_by_name;
 
 const SOURCE_LABEL: Record<CashItem["source"], { label: string; cls: string }> = {
@@ -104,7 +104,7 @@ const ItemRow = ({ item }: { item: CashItem }) => {
 
 /**
  * ส่งเงินสดให้ adm
- * - พนักงาน: เห็นเงินสดค้างส่งของตัวเอง เลือกรายการแล้วกดส่ง → หักลิ้นชักทันที (ไม่ต้องรอ adm) + ประวัติการส่ง
+ * - พนักงาน: เห็นเงินสดค้างส่งของตัวเอง เลือกรายการแล้วกดส่ง → ใบรอ adm รับ (หักลิ้นชักเมื่อ adm กดรับ) + ประวัติการส่ง
  *   (เหมือนปุ่ม "ส่งเงิน" ในหน้า รายรับ-รายจ่าย ทุกอย่าง - ใช้ /cash-handover/send-now/ ตัวเดียวกัน)
  * - adm: แก้ได้ทุกอย่าง
  *   · ที่ส่งค้างรอรับ (แบบเก่า): รับ / ยอดไม่ตรง / แก้ยอดรายการ / เอารายการออก / ยกเลิก
@@ -117,7 +117,7 @@ export default function CashHandoverPanel() {
   const token = (session as any)?.user?.accessToken;
   const role = String((session as any)?.user?.role ?? "").toLowerCase();
   const isAdmin = role === "adm";
-  // ✅ ผู้ตรวจสอบ (mon) เห็นแบบเดียวกับ adm แต่กดได้แค่ รับเงิน / ยอดไม่ตรง
+  // ✅ ผู้ตรวจสอบ (mon) เห็นแบบเดียวกับ adm แต่ดูอย่างเดียว - 🔒 กดรับเงินได้เฉพาะ adm
   const isReviewer = isAdmin || role === "mon";
 
   const [unsent, setUnsent] = useState<CashItem[]>([]);
@@ -386,6 +386,9 @@ export default function CashHandoverPanel() {
                       )}
                       {h.note && <p className="text-xs text-gray-500 mt-1">หมายเหตุ: {h.note}</p>}
                       {h.status === "pending" && (
+                        <p className="text-xs text-amber-700 mt-2">รอ adm กดรับเงิน · ยังไม่หักลิ้นชัก</p>
+                      )}
+                      {h.status === "pending" && (
                         <Button variant="outline" size="sm" className="mt-2 gap-1 text-red-600" onClick={() => cancel(h)}>
                           <X size={14} /> ยกเลิกการส่ง
                         </Button>
@@ -443,21 +446,27 @@ export default function CashHandoverPanel() {
                           ยกเลิก
                         </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => {
-                            setMismatchFor(h);
-                            setMismatchAmount(String(h.total));
-                            setMismatchNote("");
-                          }}
-                        >
-                          ยอดไม่ตรง
-                        </Button>
-                        <Button size="sm" disabled={busy} onClick={() => receive(h)} className="gap-1 bg-green-600 hover:bg-green-700">
-                          <CheckCircle2 size={15} /> รับเงิน
-                        </Button>
+                        {isAdmin ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => {
+                                setMismatchFor(h);
+                                setMismatchAmount(String(h.total));
+                                setMismatchNote("");
+                              }}
+                            >
+                              ยอดไม่ตรง
+                            </Button>
+                            <Button size="sm" disabled={busy} onClick={() => receive(h)} className="gap-1 bg-green-600 hover:bg-green-700">
+                              <CheckCircle2 size={15} /> รับเงิน
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-amber-700">รอ adm รับ</span>
+                        )}
                       </div>
                     </div>
                     <details className="group mt-1">
@@ -639,7 +648,7 @@ export default function CashHandoverPanel() {
                     <div className="pb-3 pl-6">
                       <div className="divide-y">{h.items.map((i) => <ItemRow key={keyOf(i)} item={i} />)}</div>
                       <p className="text-xs text-gray-500 mt-2">
-                        {isSelfSent(h) ? "ส่งเอง หักลิ้นชักทันที" : `${h.received_by} รับ ${baht(h.received_amount ?? 0)}`}
+                        {isSelfSent(h) ? "ส่งเอง (แบบเดิม ไม่มี adm รับ)" : `${h.received_by} รับ ${baht(h.received_amount ?? 0)}`}
                         {h.note && ` · ${h.note}`}
                         {h.received_note && ` · ${h.received_note}`}
                       </p>
