@@ -38,6 +38,8 @@ ACTIONS = [
     (r"^/(login|auth/token)/?$", "POST", "เข้าสู่ระบบ"),
     (r"^/tax-invoices/?$", "POST", "ออกใบกำกับภาษี"),
     (r"^/tax-invoices/\d+/cancel/?$", "POST", "ยกเลิกใบกำกับภาษี"),
+    (r"^/input-tax-invoices/?$", "POST", "บันทึกใบกำกับภาษีซื้อ"),
+    (r"^/input-tax-invoices/\d+/cancel/?$", "POST", "ยกเลิกใบกำกับภาษีซื้อ"),
     (r"^/auth/logout/?$", "POST", "ออกจากระบบ"),
     # ขาย
     (r"^/order/?$", "POST", "ทำรายการขาย"),

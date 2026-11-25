@@ -91,4 +91,6 @@ class BaseTestCase(TestCase):
         receipts._ready = False
         from api import tax_invoices
         tax_invoices._ready = False
+        from api import input_tax
+        input_tax._ready = False
         super().setUp()
