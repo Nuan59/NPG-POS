@@ -240,6 +240,16 @@ export default function DocumentSelection({ order }: DocumentSelectionProps) {
           </div>
         </div>
 
+        {/* ✅ ใบกำกับภาษี (เลขรันต่อเนื่อง INV-xxxxxx) */}
+        <div className="max-w-xl mx-auto mb-6 text-center">
+          <button
+            onClick={() => router.push(`/sales/${order.id}/tax-invoice`)}
+            className="inline-flex items-center gap-2 rounded-xl border-2 border-orange-300 bg-white px-6 py-3 font-semibold text-orange-700 hover:bg-orange-50"
+          >
+            <FileText className="w-5 h-5" /> ใบกำกับภาษี
+          </button>
+        </div>
+
         {/* ✅ เช็คลิสต์หลังขาย - ติ๊กให้ครบก่อนกดจบรายการ (ไม่ครบก็จบได้ แต่ข้อที่ขาดจะขึ้นในหมายเหตุ) */}
         <div className="max-w-xl mx-auto mb-8">
           <SaleChecklist orderId={Number(order.id)} />
