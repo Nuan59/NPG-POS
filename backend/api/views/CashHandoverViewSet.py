@@ -163,12 +163,14 @@ def _collect_unsent(username=None):
     # 4) ค่าธรรมเนียม NPG
     if NPGFee is not None:
         try:
-            qs = NPGFee.objects.filter(payment_method=CASH, created_at__gte=start).select_related('account__order__customer')
+            qs = NPGFee.objects.filter(payment_method__in=CASH_TYPES, created_at__gte=start).select_related('account__order__customer')
             if username:
                 qs = qs.filter(created_by=username)
             for f in qs:
                 customer = f.account.order.customer.name if f.account and f.account.order and f.account.order.customer else '-'
-                add('npg_fee', f.id, f.amount, f"ค่าธรรมเนียม NPG: {f.description} · {customer}", f.created_at, f.created_by)
+                # ✅ แบ่งจ่าย → ส่งเฉพาะส่วนเงินสด
+                add('npg_fee', f.id, _cash_part(Decimal(str(f.amount or 0)), f.cash_amount),
+                    f"ค่าธรรมเนียม NPG: {f.description} · {customer}", f.created_at, f.created_by)
         except Exception:
             pass  # ตาราง npg_fees ยังไม่ได้สร้าง
 
@@ -375,7 +377,7 @@ def _item_full(source, source_id):
             return _cash_part(Decimal(str(p.amount_paid or 0)) + Decimal(str(p.late_fee or 0)), p.cash_amount) if p else None
         if source == 'npg_fee' and NPGFee is not None:
             f = NPGFee.objects.filter(pk=source_id).first()
-            return Decimal(str(f.amount or 0)) if f else None
+            return _cash_part(Decimal(str(f.amount or 0)), f.cash_amount) if f else None
     except Exception:
         return None
     return None

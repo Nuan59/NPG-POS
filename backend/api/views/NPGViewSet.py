@@ -24,6 +24,35 @@ def _is_admin(request):
     return role in ("adm", "admin", "administrator")
 
 
+def _method_label(method, total, cash_amount=None, bank="", check=""):
+    if method == "เงินโอน":
+        return f"เงินโอน ({bank})" if bank else "เงินโอน"
+    if method == "เช็ค":
+        return f"เช็ค เลขที่ {check}" if check else "เช็ค"
+    if method == "แบ่งจ่าย":
+        cash = float(cash_amount or 0)
+        b = f" {bank}" if bank else ""
+        return f"เงินสด {cash:,.0f} / โอน{b} {max(float(total or 0) - cash, 0):,.0f}"
+    return method or "-"
+
+
+def _parse_split(request, total):
+    """
+    ✅ แบ่งจ่าย (เงินสด + โอน): คืน (cash_amount, error_response)
+    วิธีอื่น → (None, None) / ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดรวม
+    """
+    if (request.data.get('payment_method') or '') != 'แบ่งจ่าย':
+        return None, None
+    try:
+        cash = round(float(request.data.get('cash_amount')), 2)
+    except (TypeError, ValueError):
+        return None, Response({'error': 'แบ่งจ่าย: กรุณาใส่ยอดเงินสด'}, status=status.HTTP_400_BAD_REQUEST)
+    if cash <= 0 or cash >= float(total):
+        return None, Response({'error': f'แบ่งจ่าย: ยอดเงินสดต้องมากกว่า 0 และน้อยกว่ายอดรวม {_b(total)} บาท'},
+                              status=status.HTTP_400_BAD_REQUEST)
+    return cash, None
+
+
 def _payment_method_label(payment):
     if payment.payment_method == "เงินโอน":
         bank = f" ({payment.transfer_bank})" if payment.transfer_bank else ""
@@ -473,18 +502,24 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
             return Response({'error': 'จำนวนเงินไม่ถูกต้อง'}, status=status.HTTP_400_BAD_REQUEST)
         if amount <= 0:
             return Response({'error': 'จำนวนเงินต้องมากกว่า 0'}, status=status.HTTP_400_BAD_REQUEST)
+        fee_cash, err = _parse_split(request, amount)
+        if err:
+            return err
+        method = request.data.get('payment_method', '') or ''
 
         fee = NPGFee.objects.create(
             account=account,
             fee_date=timezone.now().date(),
             description=description,
             amount=amount,
-            payment_method=request.data.get('payment_method', '') or '',
+            payment_method=method,
+            cash_amount=fee_cash,
+            transfer_bank=(request.data.get('transfer_bank') or '') if method in ('เงินโอน', 'แบ่งจ่าย') else '',
             note=request.data.get('note', '') or '',
             created_by=getattr(request.user, 'username', '') or '',
         )
-        # ✅ รายรับอัตโนมัติ (ค่าธรรมเนียมไม่มีแบ่งจ่าย)
-        cash, transfer = split_payment(amount, fee.payment_method)
+        # ✅ รายรับอัตโนมัติ (แบ่งจ่าย → เงินสด + โอน แยกแถว)
+        cash, transfer = split_payment(amount, fee.payment_method, fee.cash_amount)
         sync_auto_income(
             'npg_fee', fee.id, cash, transfer,
             f"รับเงิน · ค่าธรรมเนียม NPG #{account.id}: {description} · {_customer_name(account)}",
@@ -513,7 +548,7 @@ class NPGAccountViewSet(viewsets.ModelViewSet):
         address = " ".join(str(getattr(customer, a)) for a in ["address", "subdistrict", "district", "province", "postal_code"]
                            if customer and getattr(customer, a, None))
         bike = account.order.bikes.first() if account.order and account.order.bikes.exists() else None
-        method = fee.payment_method or "-"
+        method = _method_label(fee.payment_method, fee.amount, fee.cash_amount, fee.transfer_bank)
         return Response({
             "receiptNumber": f"MF-{fee.id:05d}",
             "date": fee.fee_date.strftime("%d/%m/") + str(fee.fee_date.year + 543),
@@ -616,7 +651,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
         account = payment.account
         had_no_method = not (payment.payment_method or '').strip()
         before = {
-            'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': payment.payment_method or '-',
+            'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': _payment_method_label(payment),
             'วันที่': str(payment.payment_date), 'หมายเหตุ': payment.note or '',
         }
 
@@ -640,6 +675,17 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
             payment.note = request.data.get('note') or ''
         if 'payment_method' in request.data:
             payment.payment_method = request.data.get('payment_method') or ''
+            if payment.payment_method == 'แบ่งจ่าย':
+                total = float(payment.amount_paid or 0) + float(payment.late_fee or 0)
+                if 'cash_amount' in request.data or payment.cash_amount is None:
+                    cash, err = _parse_split(request, total)
+                    if err:
+                        return err
+                    payment.cash_amount = cash
+                elif float(payment.cash_amount) >= total:
+                    return Response({'error': 'แบ่งจ่าย: ยอดเงินสดต้องน้อยกว่ายอดรวม'}, status=status.HTTP_400_BAD_REQUEST)
+            elif payment.payment_method != 'เงินสด':
+                payment.cash_amount = None  # ไม่ใช่แบ่งจ่าย / เงินสด → ไม่มียอดเงินสดแยก
         if 'transfer_bank' in request.data:
             payment.transfer_bank = request.data.get('transfer_bank') or ''
         if 'check_number' in request.data:
@@ -672,7 +718,7 @@ class NPGPaymentViewSet(viewsets.ReadOnlyModelViewSet):
             traceback.print_exc()
 
         after = {
-            'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': payment.payment_method or '-',
+            'ยอด': _b(payment.amount_paid), 'ค่าปรับ': _b(payment.late_fee), 'วิธีชำระ': _payment_method_label(payment),
             'วันที่': str(payment.payment_date), 'หมายเหตุ': payment.note or '',
         }
         changes = [f"{k} {before[k] or '-'} → {after[k] or '-'}" for k in before if str(before[k]) != str(after[k])]

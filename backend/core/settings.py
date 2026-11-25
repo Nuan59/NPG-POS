@@ -96,6 +96,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # ✅ เพิ่มคอลัมน์ใหม่ให้ตาราง raw SQL เอง (เช่น แบ่งจ่ายค่าธรรมเนียม NPG) ครั้งแรกที่มีคำขอ
+    "api.middleware.SchemaGuardMiddleware.SchemaGuardMiddleware",
     # ✅ บันทึกการทำงานของพนักงาน (ทุกการเพิ่ม/แก้/ลบ) - ดูได้ที่หน้า "บันทึกการทำงาน" (adm)
     # อยู่ก่อน ReadOnlyRole เพื่อให้เห็นการกดที่ถูกบล็อกด้วย
     "api.activity.ActivityLogMiddleware",
