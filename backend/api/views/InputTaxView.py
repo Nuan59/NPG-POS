@@ -55,7 +55,19 @@ def input_tax_list(request):
         where.append("created_by_username = %s")
         params.append(getattr(request.user, "username", ""))
     rows = input_tax.select("WHERE " + " AND ".join(where), params)
-    return Response({"invoices": rows, "can_cancel": activity.is_admin(request.user), "all": reviewer})
+    return Response({"invoices": rows, "can_cancel": activity.is_admin(request.user), "all": reviewer,
+                     "can_add": can_input(request.user)})
+
+
+def can_input(user):
+    """adm เสมอ / พนักงาน = สิทธิ์ "บันทึกใบกำกับภาษีซื้อ" (ยังไม่เคยตั้ง = ได้) / ผู้ตรวจสอบ ไม่ได้"""
+    role = _role(user)
+    if role in ("adm", "admin", "administrator"):
+        return True
+    if role != "emp":
+        return False
+    v = (getattr(user, "permissions", None) or {}).get("input_tax")
+    return v if isinstance(v, bool) else True
 
 
 def _money(v, label):
@@ -67,8 +79,8 @@ def _money(v, label):
 
 
 def _create(request):
-    if _role(request.user) not in ("adm", "admin", "administrator", "emp"):
-        return Response({"error": "ไม่มีสิทธิ์บันทึก"}, status=403)
+    if not can_input(request.user):
+        return Response({"error": "ไม่มีสิทธิ์บันทึกใบกำกับภาษีซื้อ (ให้ adm เปิดสิทธิ์ที่หน้าพนักงาน)"}, status=403)
     d = request.data
     try:
         inv_date = datetime.strptime(str(d.get("invoice_date") or ""), "%Y-%m-%d").date()

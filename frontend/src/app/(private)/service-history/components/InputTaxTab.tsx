@@ -50,6 +50,7 @@ export default function InputTaxTab() {
   const [rows, setRows] = useState<Row[]>([]);
   const [seeAll, setSeeAll] = useState(false);
   const [canCancel, setCanCancel] = useState(false);
+  const [canAdd, setCanAdd] = useState(false);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
@@ -76,6 +77,7 @@ export default function InputTaxTab() {
       setRows(d.invoices || []);
       setSeeAll(!!d.all);
       setCanCancel(!!d.can_cancel);
+      setCanAdd(!!d.can_add);
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -147,7 +149,7 @@ export default function InputTaxTab() {
             {yearOptions().map((y) => <option key={y} value={y}>{y + 543}</option>)}
           </select>
         </label>
-        {!readOnly && (
+        {!readOnly && canAdd && (
           <Button onClick={() => setOpen(true)} className="ml-auto gap-2 bg-[#F26B1D] hover:bg-[#d95c14] text-white">
             <Plus size={16} /> บันทึกใบกำกับภาษีซื้อ
           </Button>

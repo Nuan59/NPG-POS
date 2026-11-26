@@ -328,8 +328,11 @@ export default function TaxInvoicePage() {
               <p>ยอด: <b>{money(preview.total)} ฿</b> (VAT {money(preview.vat)})</p>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={busy}>ยกเลิก</Button>
+            <Button variant="outline" className="gap-2" onClick={previewPdf} disabled={busy}>
+              <Eye size={16} /> ดูตัวอย่าง
+            </Button>
             <Button onClick={issue} disabled={busy} className="bg-[#F26B1D] hover:bg-[#d95c14] text-white">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "ยืนยันออกใบ"}
             </Button>

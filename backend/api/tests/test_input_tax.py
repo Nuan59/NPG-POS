@@ -48,6 +48,10 @@ class InputTaxTests(BaseTestCase):
         allr = client_for(self.admin).get("/input-tax-invoices/", {"year": self.today.year}).data["invoices"]
         self.assertEqual(len(allr), 2)
         self.assertEqual(self.add(client_for(self.mon), invoice_no="M").status_code, 403)
+        # adm ปิดสิทธิ์บันทึกใบกำกับภาษีซื้อรายคน
+        self.staff2.permissions = {"input_tax": False}
+        self.staff2.save()
+        self.assertEqual(self.add(client_for(self.staff2), invoice_no="N").status_code, 403)
 
     def test_cancel_adm_only(self):
         inv = self.add().data
