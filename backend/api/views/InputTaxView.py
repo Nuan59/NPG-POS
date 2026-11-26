@@ -5,7 +5,7 @@ POST /input-tax-invoices/                  พนักงาน / adm บัน
                                             supplier_branch?, invoice_no, description?, amount, vat_amount?,
                                             tax_year?, tax_month?, note? }
 POST /input-tax-invoices/<id>/cancel/      (adm) { reason }
-GET  /tax-summary/?year=&month=            (adm / ผู้ตรวจสอบ) ภาษีขาย - ภาษีซื้อ ของเดือน (month ว่าง = ทั้งปี)
+GET  /tax-summary/?year=&month=            (เฉพาะ adm) ภาษีขาย - ภาษีซื้อ ของเดือน (month ว่าง = ทั้งปี)
 """
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -162,8 +162,8 @@ def _sum(rows):
 
 @api_view(["GET"])
 def tax_summary(request):
-    """🔒 adm / ผู้ตรวจสอบ: ภาษีขาย (ใบกำกับที่ออก) - ภาษีซื้อ (ใบนำเข้า) ของเดือน/ปีที่เลือก"""
-    if _role(request.user) not in REVIEW:
+    """🔒 เฉพาะ adm: ภาษีขาย (ใบกำกับที่ออก) - ภาษีซื้อ (ใบนำเข้า) ของเดือน/ปีที่เลือก"""
+    if not activity.is_admin(request.user):
         return Response({"error": "เฉพาะ adm"}, status=403)
     year, month, err = _period(request)
     if err:

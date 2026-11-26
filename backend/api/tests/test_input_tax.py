@@ -70,7 +70,8 @@ class InputTaxTests(BaseTestCase):
         r = client_for(self.admin).get("/tax-summary/", {"year": self.today.year, "month": self.today.month})
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual((r.data["sales"]["vat"], r.data["purchases"]["vat"], r.data["net_vat"]), (3500.0, 2800.0, 700.0))
-        y = client_for(self.mon).get("/tax-summary/", {"year": self.today.year}).data
+        self.assertEqual(client_for(self.mon).get("/tax-summary/").status_code, 403)  # 🔒 เฉพาะ adm
+        y = client_for(self.admin).get("/tax-summary/", {"year": self.today.year}).data
         self.assertEqual(len(y["by_month"]), 12)
         self.assertEqual(y["net_vat"], 700.0)
         other = client_for(self.admin).get("/tax-summary/", {"year": self.today.year - 1}).data

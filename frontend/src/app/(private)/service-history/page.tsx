@@ -14,8 +14,8 @@ type Tab = "receipts" | "bike" | "input_tax" | "tax_summary";
 
 export default function ReceiptsAndHistoryPage() {
   const { data: session, status } = useSession();
-  // 🔒 สรุปภาษี (ยอดภาษีซื้อ-ขาย) เฉพาะ adm / ผู้ตรวจสอบ
-  const reviewer = ["adm", "admin", "administrator", "mon"].includes(String((session as any)?.user?.role ?? "").toLowerCase());
+  // 🔒 สรุปภาษี (ยอดภาษีซื้อ-ขาย) เฉพาะ adm
+  const reviewer = ["adm", "admin", "administrator"].includes(String((session as any)?.user?.role ?? "").toLowerCase());
   const router = useRouter();
   const searchParams = useSearchParams();
   const bikeFromUrl = searchParams.get("bike");
