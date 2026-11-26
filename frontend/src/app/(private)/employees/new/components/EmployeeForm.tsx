@@ -27,7 +27,7 @@ import { IEmployee } from "@/types/IEmployee";
 import { createEmployee, editEmployee } from "@/services/EmployeeService";
 import { getDate } from "@/util/GetDateString";
 import { asOptionalField } from "@/util/ZodOptionalField";
-import { PERMISSION_LIST, defaultPermissions, withPermissionDefaults } from "../../components/permissions";
+import { ACTION_PERMISSIONS, MENU_PERMISSIONS, defaultPermissions, withPermissionDefaults } from "../../components/permissions";
 
 const EditFormSchema = z
 	.object({
@@ -190,9 +190,11 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 
 						{watchedRole === "emp" && (
 							<div className="mt-4 p-4 border rounded-lg bg-slate-50">
-								<p className="text-sm font-semibold mb-3">สิทธิ์การเข้าถึง</p>
+								{([["สิทธิ์การเข้าถึง (เมนู)", MENU_PERMISSIONS], ["สิทธิ์ทำรายการ (เอกสารภาษี)", ACTION_PERMISSIONS]] as const).map(([title, list]) => (
+								<div key={title} className="mb-3">
+								<p className="text-sm font-semibold mb-3">{title}</p>
 								<div className="grid grid-cols-3 gap-3">
-									{PERMISSION_LIST.map((perm) => (
+									{list.map((perm) => (
 										<FormField
 											key={perm.key}
 											control={form.control}
@@ -213,6 +215,8 @@ const EmployeeForm = ({ employee }: EmployeeFormProps) => {
 										/>
 									))}
 								</div>
+								</div>
+								))}
 							</div>
 						)}
 

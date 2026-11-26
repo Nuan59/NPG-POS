@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { IEmployee } from "@/types/IEmployee";
 import { editEmployee } from "@/services/EmployeeService";
-import { PERMISSION_LIST, defaultPermissions, withPermissionDefaults } from "./permissions";
+import { ACTION_PERMISSIONS, MENU_PERMISSIONS, defaultPermissions, withPermissionDefaults } from "./permissions";
 
 interface PermissionsDialogProps {
 	employee: IEmployee;
@@ -92,29 +92,29 @@ const PermissionsDialog = ({
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>กำหนดสิทธิ์ - {employee.name}</DialogTitle>
-					<DialogDescription>เลือกหน้าที่พนักงานคนนี้เข้าถึงได้</DialogDescription>
+					<DialogDescription>เลือกเมนูที่เข้าได้ และงานที่ทำได้ (เช่น ออกใบกำกับภาษี)</DialogDescription>
 				</DialogHeader>
 
-				<div className="grid grid-cols-3 gap-3 py-2">
-					{PERMISSION_LIST.map((perm) => {
-						const isChecked = !!permissions[perm.key];
-						return (
-							<label
-								key={perm.key}
-								className="flex items-center gap-2 cursor-pointer"
-							>
-								<Checkbox
-									checked={isChecked}
-									onCheckedChange={() => togglePermission(perm.key)}
-									className={isChecked ? "border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" : ""}
-								/>
-								<span className={`text-sm ${isChecked ? "text-red-600 font-semibold" : ""}`}>
-									{perm.label}
-								</span>
-							</label>
-						);
-					})}
-				</div>
+				{([["เข้าเมนู", MENU_PERMISSIONS], ["สิทธิ์ทำรายการ (เอกสารภาษี)", ACTION_PERMISSIONS]] as const).map(([title, list]) => (
+					<div key={title} className="space-y-2">
+						<p className="text-xs font-semibold text-slate-500">{title}</p>
+						<div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pb-2">
+							{list.map((perm) => {
+								const isChecked = !!permissions[perm.key];
+								return (
+									<label key={perm.key} className="flex items-center gap-2 cursor-pointer">
+										<Checkbox
+											checked={isChecked}
+											onCheckedChange={() => togglePermission(perm.key)}
+											className={isChecked ? "border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" : ""}
+										/>
+										<span className={`text-sm ${isChecked ? "text-red-600 font-semibold" : ""}`}>{perm.label}</span>
+									</label>
+								);
+							})}
+						</div>
+					</div>
+				))}
 
 				<DialogFooter>
 					<Button

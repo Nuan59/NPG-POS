@@ -4,18 +4,23 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Bike as BikeIcon, Receipt } from "lucide-react";
+import { Bike as BikeIcon, Calculator, FileInput, Receipt } from "lucide-react";
 import ReceiptRegister from "./components/ReceiptRegister";
 import BikeHistory from "./components/BikeHistory";
+import InputTaxTab from "./components/InputTaxTab";
+import TaxSummaryTab from "./components/TaxSummaryTab";
 
-type Tab = "receipts" | "bike";
+type Tab = "receipts" | "bike" | "input_tax" | "tax_summary";
 
 export default function ReceiptsAndHistoryPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
+  // 🔒 สรุปภาษี (ยอดภาษีซื้อ-ขาย) เฉพาะ adm
+  const reviewer = ["adm", "admin", "administrator"].includes(String((session as any)?.user?.role ?? "").toLowerCase());
   const router = useRouter();
   const searchParams = useSearchParams();
   const bikeFromUrl = searchParams.get("bike");
-  const [tab, setTab] = useState<Tab>(bikeFromUrl ? "bike" : "receipts");
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(bikeFromUrl ? "bike" : tabParam || "receipts");
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -28,6 +33,8 @@ export default function ReceiptsAndHistoryPage() {
   const tabs: { id: Tab; label: string; icon: typeof Receipt }[] = [
     { id: "receipts", label: "ใบเสร็จชั่วคราว", icon: Receipt },
     { id: "bike", label: "ประวัติรถ", icon: BikeIcon },
+    { id: "input_tax", label: "ใบกำกับภาษีซื้อ", icon: FileInput },
+    ...(reviewer ? [{ id: "tax_summary" as Tab, label: "สรุปภาษี", icon: Calculator }] : []),
   ];
 
   return (
@@ -37,12 +44,12 @@ export default function ReceiptsAndHistoryPage() {
         <h6 className="prompt text-slate-500">ใบเสร็จชั่วคราวทุกใบที่ออกให้ลูกค้า · พิมพ์ซ้ำได้ · ใบเสร็จรับเงิน (ขายรถ) อยู่ที่ รายการขาย → เอกสาร</h6>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            className={`flex items-center gap-2 whitespace-nowrap px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
               tab === t.id ? "border-[#F26B1D] text-[#F26B1D]" : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -51,11 +58,10 @@ export default function ReceiptsAndHistoryPage() {
         ))}
       </div>
 
-      {tab === "receipts" ? (
-        <ReceiptRegister onBike={(id) => router.push(`/service-history?bike=${id}`)} />
-      ) : (
-        <BikeHistory key={bikeFromUrl || "none"} bikeIdFromUrl={bikeFromUrl} />
-      )}
+      {tab === "receipts" && <ReceiptRegister onBike={(id) => router.push(`/service-history?bike=${id}`)} />}
+      {tab === "bike" && <BikeHistory key={bikeFromUrl || "none"} bikeIdFromUrl={bikeFromUrl} />}
+      {tab === "input_tax" && <InputTaxTab />}
+      {tab === "tax_summary" && reviewer && <TaxSummaryTab />}
     </div>
   );
 }

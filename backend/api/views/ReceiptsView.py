@@ -86,6 +86,6 @@ def receipt_list(request):
             r.pop("cancelled_by", None)
 
     data = {"total": total, "page": page, "page_size": size, "results": rows}
-    if reviewer:
+    if str(getattr(request.user, "role", "") or "").lower() in ("adm", "admin", "administrator"):  # 🔒 ยอดรวม เฉพาะ adm
         data["amount_sum"] = float(Decimal(str(amount_sum or 0)))
     return Response(data)
